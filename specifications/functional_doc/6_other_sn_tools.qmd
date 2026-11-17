@@ -1,0 +1,61 @@
+# Other Social Tools {#sec-other-sn-tools}
+
+## News Feed and Short Videos
+
+In this section, we imagine the user experience when browsing a news feed or short formats like "reals" (inspired by Facebook, Twitter/X, Instagram, TikTok, or YouTube Shorts) within Eugenia.
+
+### Personalized News Feed
+
+The user accesses a homepage displaying, as a scrolling feed, the latest relevant activities from their knowledge network:
+
+* New knowledge acquired or reinforced by their contacts or similar profiles.
+* Suggestions of public knowledge close to their interests, with the option to add it to their own base.
+* Summaries of discussions, Q&A, or recent memorization challenges.
+* Community updates: corrections, enrichments, or versioning of shared knowledge.
+* Suggestions for new connections (users, wikis, sources) based on semantic similarity.
+
+Each feed card offers quick actions: "Add to my base", "Review", "Discuss", "Suggest improvement", "Share".
+
+### Short Formats / "Reals" Based on Knowledge
+
+Inspired by short video formats, Eugenia offers an immersive mode where users scroll through "capsules" of knowledge:
+
+* Each real presents an atomic knowledge item, a flash question, a challenge, or an anecdote, sometimes enhanced with visual or audio support.
+* Users can respond directly (quiz, true/false, MCQ), save the capsule, or skip to the next.
+* Capsules are generated from the user's base, personalized recommendations, or community trends.
+* A reaction system (like, comment, share) encourages engagement and the viral spread of knowledge.
+
+### Social and Gamified Experience
+
+* Users receive notifications for new challenges, progress by contacts, or suggestions tailored to their gaps.
+* A system of badges, scores, or trophies rewards regularity, diversity of learning, and community contributions.
+* Interactions focus on knowledge: sharing quizzes, co-creating notes, engaging in debates, etc.
+
+## Gamification and Engagement
+
+To encourage user engagement and make learning more motivating, {{< var eugenia >}} integrates gamification mechanisms inspired by video games and modern educational platforms. These playful elements aim to reward regularity, diversity of learning, and community contributions.
+
+### Badges, Trophies, and Rankings
+
+* **Badges**: Users unlock badges by reaching milestones, such as adding 10, 50, or 100 knowledge items, completing quiz streaks, or participating in community discussions.
+* **Trophies**: Special trophies are awarded for notable achievements, like mastering an entire category, contributing to shared knowledge improvements, or helping other members.
+* **Rankings**: An optional, non-competitive leaderboard can highlight the most active, regular users or those who have contributed to collective knowledge validation. Thematic rankings (by category) are also possible.
+
+### Visual Progression
+
+Knowledge mastery progression is visually represented to boost motivation:
+
+* **Progress charts**: Each user has curves or histograms showing mastery score evolution over time, by category or overall.
+* **Mastery gauges**: For each knowledge item or category, a gauge indicates current mastery level (e.g., 0 to 100%), making it easy to spot strengths and areas for improvement.
+* **Personal dashboards**: A dashboard centralizes key indicators (number of knowledge items, review rate, badges earned, etc.) and offers suggestions for progress.
+
+### Expected Effects
+
+These gamification features aim to:
+
+* Encourage regular learning and review.
+* Value exploration of diverse domains.
+* Stimulate participation in community life (sharing, discussion, knowledge improvement).
+* Provide positive, motivating feedback, while maintaining a non-competitive, supportive environment.
+
+All mechanisms can be adjusted based on user feedback to ensure a balance between motivation, enjoyment, and educational effectiveness.

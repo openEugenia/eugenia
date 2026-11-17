@@ -1,0 +1,17 @@
+# Functional Documentation
+
+The functional documentation is a key element of the {{< var eugenia >}} project. Its purpose is to precisely describe all the expected features of the application from a conceptual perspective. It aims to consolidate the knowledge of the various contributors. In parallel with this section, the next part provides the technical documentation, detailing all the requirements for implementation.
+
+In the first sections, we describe how the knowledge base is created (Section @#sec-knowledge-extraction), updated (Section @sec-reinforcement-learning) and presented through the user's personal interface (Section @sec-user-wiki). In the last sections (@sec-sn, @sec-discussion and @sec-other-sn-tools), we explore how this simple user interface can be extended to a broader network of users and what similarity principles are used to connect their topics of interest and themselves.
+
+Throughout these descriptions, various definitions are provided. The first appears below and defines what {{< var eugenia >}} is.
+
+::: {#def-line}
+
+## {{< var eugenia >}}
+
+Beyond being the name of the project, {{< var eugenia >}} is the user's assistant. It is an interface, connected to various artificial intelligence algorithms, designed to simplify user requests.
+:::
+
+In the following sections, we outline the implications of {{< var eugenia >}}.
+

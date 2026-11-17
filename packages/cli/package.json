@@ -1,0 +1,26 @@
+{
+  "name": "@openeugenia/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CLI d'Eugenia : initialisation, validation, publication vers le dépôt public, descriptions en lot.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "eugenia": "dist/eugenia.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@openeugenia/ai": "workspace:*",
+    "@openeugenia/core": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

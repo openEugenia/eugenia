@@ -1,0 +1,26 @@
+# Publie la partie publique du wiki dans openEugenia/demo-wiki-public à chaque push.
+# Généré par Eugenia. Secret requis : EUGENIA_DEPLOY_KEY (clé de déploiement en écriture
+# sur openEugenia/demo-wiki-public), créé par `eugenia init --github`.
+name: Eugenia — publication
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eugenia-publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: openEugenia/eugenia@v1
+        with:
+          target: openEugenia/demo-wiki-public
+          deploy-key: ${{ secrets.EUGENIA_DEPLOY_KEY }}

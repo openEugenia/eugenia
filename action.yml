@@ -1,0 +1,81 @@
+# GitHub Action « Eugenia — publication » (spécification §6.4, §13).
+# À utiliser dans le dépôt PRIVÉ d'un wiki : à chaque push, publie les seuls nœuds
+# publics dans le dépôt public, en un unique commit qui remplace son historique.
+name: Eugenia — publication
+description: Publie la partie publique d'un wiki Eugenia (dépôt privé) dans son dépôt public, sans aucun contenu privé.
+author: openEugenia
+branding:
+  icon: book-open
+  color: blue
+
+inputs:
+  target:
+    description: Dépôt public cible (owner/name).
+    required: true
+  deploy-key:
+    description: Clé SSH privée d'une clé de déploiement autorisée en écriture sur le dépôt public (créée par `eugenia init --github`).
+    required: false
+  token:
+    description: Jeton fine-grained limité au dépôt public (« Contents » en écriture), à la place de la clé de déploiement.
+    required: false
+  path:
+    description: Dossier du wiki dans le dépôt privé.
+    required: false
+    default: "."
+  branch:
+    description: Branche du dépôt public.
+    required: false
+    default: main
+  private-repo:
+    description: Dépôt privé à déclarer dans la configuration publique (par défaut, celui de .notes/config.yml).
+    required: false
+  dry-run:
+    description: Construit et vérifie la publication sans la pousser.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+
+    - name: Construire la CLI Eugenia
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        npx --yes pnpm@10.34.9 install --frozen-lockfile --filter "@openeugenia/cli..."
+        npx --yes pnpm@10.34.9 --filter @openeugenia/cli build
+
+    - name: Publier
+      shell: bash
+      env:
+        EUGENIA_DEPLOY_KEY: ${{ inputs.deploy-key }}
+        EUGENIA_PUBLISH_TOKEN: ${{ inputs.token }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_BRANCH: ${{ inputs.branch }}
+        INPUT_PRIVATE_REPO: ${{ inputs.private-repo }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        EUGENIA_CLI: ${{ github.action_path }}/packages/cli/dist/eugenia.mjs
+      run: |
+        set -euo pipefail
+        if [ -z "${EUGENIA_DEPLOY_KEY}" ] && [ -z "${EUGENIA_PUBLISH_TOKEN}" ] && [ "${INPUT_DRY_RUN}" != "true" ]; then
+          echo "::error::Fournissez l'entrée deploy-key (recommandé) ou token."
+          exit 1
+        fi
+        if [ -n "${EUGENIA_DEPLOY_KEY}" ]; then
+          ssh_dir="${RUNNER_TEMP}/eugenia-ssh"
+          mkdir -p "${ssh_dir}"
+          printf '%s\n' "${EUGENIA_DEPLOY_KEY}" > "${ssh_dir}/key"
+          chmod 600 "${ssh_dir}/key"
+          # Clé d'hôte publiée par GitHub (https://docs.github.com/fr/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints).
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "${ssh_dir}/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i ${ssh_dir}/key -o IdentitiesOnly=yes -o UserKnownHostsFile=${ssh_dir}/known_hosts -o StrictHostKeyChecking=yes"
+          unset EUGENIA_PUBLISH_TOKEN
+        fi
+        args=(publish "${INPUT_PATH}" --target "${INPUT_TARGET}" --branch "${INPUT_BRANCH}")
+        if [ -n "${INPUT_PRIVATE_REPO}" ]; then args+=(--private-repo "${INPUT_PRIVATE_REPO}"); fi
+        if [ "${INPUT_DRY_RUN}" = "true" ]; then args+=(--dry-run); fi
+        node "${EUGENIA_CLI}" "${args[@]}"

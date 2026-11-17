@@ -1,0 +1,35 @@
+# Extension to a Social Network {#sec-sn}
+
+The move toward a social network emerges naturally when knowledge is structured as trees, reinforcement algorithms are implemented, and AI is used to semantically compare answers. This last principle can be extended collectively: beyond asking {{< var eugenia >}} to judge the equivalence between two answers, we can also ask it to identify, among all user wikis, the one most similar to my current thinking or to one of my own wikis. In this way, a knowledge-based social network emerges, where everyone can broaden their horizons by drawing on the knowledge of others and enriching their own knowledge base.
+
+To define what the {{< var eugenia >}} social network will be, we first clarify the concept of the scope of a user's atomic knowledge, then introduce the principle of similarity between user wikis, before exploring different representations inspired by other social networks, adapted to our environment (@sec-discussion and @sec-other-sn-tools).
+
+## Scope of Atomic Knowledge
+
+The scope of a user's atomic knowledge can be defined along several axes, combining explicit choices and automation based on mastery:
+
+* **Manual scope**: Each atomic knowledge item can be marked as *private* (visible only to the user) or *public* (shareable with the network), according to the user's preference. Options like "friends" or "group" visibility can also be considered.
+* **Automatic scope based on mastery**: If the mastery score of a knowledge item falls below a certain threshold (e.g., 50%), it automatically becomes private and is no longer visible to other users or included in community suggestions. When mastery rises above the threshold, the knowledge can become public again (or the user may be prompted to republish it).
+
+This flexible scope management allows users to protect ongoing learning while showcasing mastered knowledge to the community. As the scope of atomic knowledge changes, summaries of each user wiki are updated accordingly.
+
+## Similarity Between User Wikis
+
+To compare two user wikis, all important information from each wiki—such as titles, descriptions, and public knowledge—is gathered. This content is then transformed into a digital fingerprint, called a *vector*, using an AI model specialized in language understanding. By comparing these vectors, we can measure how similar the two wikis are. The higher this measure, the more the users share interests or closely related knowledge.
+
+This approach enables, for example, connecting people with similar profiles, recommending complementary information, or visually representing the social network as a map where links between users are stronger or weaker depending on their semantic proximity.
+
+The principle of semantic similarity is about measuring how closely two pieces of content resemble each other in meaning, representing them as vectors in a mathematical space.
+
+### Principle of Similarity (Vector-Based)
+
+::: {#def-similarity}
+
+## Semantic Similarity
+
+Semantic similarity measures how close two pieces of content (texts, knowledge, wikis, etc.) are in meaning by representing them as vectors in a high-dimensional space. This vector representation is obtained using *embedding* models (see @sec-sota-vector), which transform each content into a point in the vector space.
+
+To compare two contents, we calculate the distance or similarity between their vectors (for example, using dot product or cosine distance). The higher the similarity, the closer the contents are semantically.
+:::
+
+Vector databases allow efficient indexing and searching of these vectors at scale. For any given content, it is possible to quickly find the most similar items in the database, facilitating connections between users, wikis, or sources sharing similar themes or knowledge.

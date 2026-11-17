@@ -1,0 +1,45 @@
+# User's Personal Wiki {#sec-user-wiki}
+
+## Knowledge Base
+
+Building on the definitions of *atomic knowledge* and their *categorization*, we can visualize our knowledge as a hierarchical knowledge base.
+
+::: {#def-line}
+
+## Knowledge Base
+
+A user's knowledge base is a collection of tuples, each representing an atomic piece of knowledge. Extending the basic data tuple $(\text{knowledge}, \text{title}, \text{category}, \text{question})$, the following additional information is associated:
+
+| | |
+|---:|:---|
+| mastery: | a value between $0$ and $1$ representing the user's mastery of the knowledge; the default value is $0.5$ |
+| failure date: | the date of the user's last failure; initially set to the date of addition |
+| decay: | a value between $0$ and $1$ representing the daily decay of the mastery value |
+
+:::
+
+This formulation allows us to introduce a new perspective on the user profile: a *personal wiki*.
+
+::: {def-wiki}
+
+## Personal Wiki
+
+A *personal wiki* is a navigation interface that enables a user to explore, organize, and annotate their knowledge in a hierarchical structure. It is based on the categorization of atomic knowledge and takes the form of a knowledge tree. Through this personal wiki, the user can navigate between different knowledge categories—also called *sub-wikis*—each with a description summarizing the knowledge it contains.
+
+:::
+
+The process of completing the descriptions for each of the user's sub-wikis is automated by {{< var eugenia >}}. This provides descriptive snippets for the user's knowledge, from the most granular to the most global. As a result, the user can intuitively explore their personal wiki and discover their knowledge.
+
+::: {#exm-wiki}
+
+## Example of a User Wiki
+
+@fig-wiki-user illustrates the personal wiki of a user interested in astronomy and several other knowledge domains.
+
+![Diagram of a user wiki](../fig/exemple_wiki.png){width=80% #fig-wiki-user}
+
+This example shows various levels of wiki and sub-wiki descriptions, from categories closest to atomic knowledge up to the highest level: the global wiki.^[It may seem that this example is completely unrelated to the previous one with Lilith, but that's not the case. Lilith is also known for her connection to a celestial body—the (Black) Moon. Thus, the examples are not so far apart.]
+
+:::
+
+This personal wiki view offers users an initial way to observe their knowledge at varying levels of granularity. It allows them to better contemplate their universe of knowledge and, subsequently, provides a foundation for a social network format (described in the next section).

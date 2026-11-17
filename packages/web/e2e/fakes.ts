@@ -1,0 +1,397 @@
+/**
+ * Simulations pour les tests de bout en bout : un GitHub en mémoire (API REST, GraphQL,
+ * Git Data, raw.githubusercontent.com) et l'API Claude.
+ */
+import { createHash, randomBytes } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import type { Page, Route } from "@playwright/test";
+
+const sha1 = (data: Buffer | string): string => createHash("sha1").update(data).digest("hex");
+const randomSha = (): string => randomBytes(20).toString("hex");
+
+export function blobSha(content: Buffer): string {
+  return sha1(Buffer.concat([Buffer.from(`blob ${content.byteLength}\0`), content]));
+}
+
+export function readDirectory(dir: string): Map<string, Buffer> {
+  const out = new Map<string, Buffer>();
+  const walk = (current: string): void => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = join(current, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else out.set(relative(dir, full).split(sep).join("/"), readFileSync(full));
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+interface Commit {
+  tree: string;
+  parents: string[];
+  message: string;
+}
+
+/** Dépôt git minimal : blobs, arbres plats, commits, une branche. */
+export class FakeRepo {
+  readonly blobs = new Map<string, Buffer>();
+  readonly trees = new Map<string, Map<string, string>>();
+  readonly commits = new Map<string, Commit>();
+  head: string | null = null;
+  readonly branch = "main";
+
+  constructor(
+    readonly name: string,
+    files: Map<string, Buffer>,
+    readonly isPrivate = true,
+  ) {
+    if (files.size > 0) {
+      const tree = this.putTree(
+        new Map([...files].map(([path, content]) => [path, this.putBlob(content)])),
+      );
+      this.head = this.putCommit({ tree, parents: [], message: "Initial" });
+    }
+  }
+
+  putBlob(content: Buffer): string {
+    const sha = blobSha(content);
+    this.blobs.set(sha, content);
+    return sha;
+  }
+
+  putTree(entries: Map<string, string>): string {
+    const sha = randomSha();
+    this.trees.set(sha, entries);
+    return sha;
+  }
+
+  putCommit(commit: Commit): string {
+    const sha = randomSha();
+    this.commits.set(sha, commit);
+    return sha;
+  }
+
+  headTree(): Map<string, string> {
+    return this.head ? this.trees.get(this.commits.get(this.head)!.tree)! : new Map();
+  }
+
+  read(path: string): string | undefined {
+    const sha = this.headTree().get(path);
+    return sha ? this.blobs.get(sha)!.toString("utf8") : undefined;
+  }
+
+  paths(): string[] {
+    return [...this.headTree().keys()].sort();
+  }
+
+  log(): string[] {
+    const out: string[] = [];
+    let current = this.head;
+    while (current) {
+      const commit = this.commits.get(current)!;
+      out.push(commit.message);
+      current = commit.parents[0] ?? null;
+    }
+    return out;
+  }
+}
+
+export interface FakeGitHubOptions {
+  token: string;
+  login?: string;
+  /** Dépôts accessibles par l'API (`owner/name`). */
+  repos: FakeRepo[];
+  /** Dépôts publics servis par raw.githubusercontent.com. */
+  raw?: FakeRepo[];
+}
+
+function json(route: Route, status: number, body: unknown): Promise<void> {
+  return route.fulfill({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(body),
+    headers: { "access-control-allow-origin": "*" },
+  });
+}
+
+export async function installFakeGitHub(page: Page, options: FakeGitHubOptions): Promise<void> {
+  const byName = new Map(options.repos.map((r) => [r.name.toLowerCase(), r]));
+  await page.route("https://api.github.com/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const method = request.method();
+    if (method === "OPTIONS")
+      return route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-headers": "*",
+          "access-control-allow-methods": "*",
+        },
+      });
+    const authorized = request.headers()["authorization"] === `Bearer ${options.token}`;
+    const path = url.pathname;
+    if (path === "/user")
+      return authorized
+        ? json(route, 200, { login: options.login ?? "alice" })
+        : json(route, 401, { message: "Bad credentials" });
+    const body = request.postData()
+      ? (JSON.parse(request.postData()!) as Record<string, unknown>)
+      : {};
+    if (path === "/graphql") {
+      const repoMatch = /repository\(owner: "([^"]+)", name: "([^"]+)"\)/.exec(String(body.query));
+      const repo = repoMatch
+        ? byName.get(`${repoMatch[1]}/${repoMatch[2]}`.toLowerCase())
+        : undefined;
+      if (!repo || !authorized) return json(route, 200, { data: { repository: null } });
+      const result: Record<string, unknown> = {};
+      for (const m of String(body.query).matchAll(/(b\d+): object\(oid: "([0-9a-f]+)"\)/g)) {
+        const blob = repo.blobs.get(m[2]!);
+        result[m[1]!] = blob
+          ? { text: blob.toString("utf8"), isBinary: false, isTruncated: false }
+          : null;
+      }
+      return json(route, 200, { data: { repository: result } });
+    }
+    const m = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/.exec(path);
+    if (!m) return json(route, 404, { message: "Not Found" });
+    const repo = byName.get(`${m[1]}/${m[2]}`.toLowerCase());
+    if (!repo || (repo.isPrivate && !authorized)) return json(route, 404, { message: "Not Found" });
+    const rest = m[3] ?? "";
+    if (rest === "" && method === "GET") {
+      return json(route, 200, {
+        private: repo.isPrivate,
+        default_branch: repo.branch,
+        size: repo.head ? 10 : 0,
+        permissions: { push: authorized, admin: authorized },
+      });
+    }
+    if (rest === `/git/ref/heads/${repo.branch}` && method === "GET") {
+      return repo.head
+        ? json(route, 200, { object: { sha: repo.head } })
+        : json(route, 409, { message: "Git Repository is empty." });
+    }
+    let mm: RegExpExecArray | null;
+    if ((mm = /^\/git\/commits\/([0-9a-f]+)$/.exec(rest)) && method === "GET") {
+      const commit = repo.commits.get(mm[1]!);
+      return commit
+        ? json(route, 200, { sha: mm[1], tree: { sha: commit.tree } })
+        : json(route, 404, { message: "Not Found" });
+    }
+    if ((mm = /^\/git\/trees\/([0-9a-f]+)$/.exec(rest)) && method === "GET") {
+      const tree = repo.trees.get(mm[1]!);
+      if (!tree) return json(route, 404, { message: "Not Found" });
+      return json(route, 200, {
+        sha: mm[1],
+        truncated: false,
+        tree: [...tree].map(([p, sha]) => ({
+          path: p,
+          type: "blob",
+          mode: "100644",
+          sha,
+          size: repo.blobs.get(sha)!.byteLength,
+        })),
+      });
+    }
+    if ((mm = /^\/git\/blobs\/([0-9a-f]+)$/.exec(rest)) && method === "GET") {
+      const blob = repo.blobs.get(mm[1]!);
+      return blob
+        ? json(route, 200, { sha: mm[1], content: blob.toString("base64"), encoding: "base64" })
+        : json(route, 404, { message: "Not Found" });
+    }
+    if (!authorized) return json(route, 403, { message: "Forbidden" });
+    if (rest === "/git/blobs" && method === "POST") {
+      return json(route, 201, {
+        sha: repo.putBlob(
+          Buffer.from(String(body.content), body.encoding === "base64" ? "base64" : "utf8"),
+        ),
+      });
+    }
+    if (rest === "/git/trees" && method === "POST") {
+      const base = body.base_tree
+        ? new Map(repo.trees.get(String(body.base_tree)))
+        : new Map<string, string>();
+      for (const entry of body.tree as { path: string; sha?: string | null; content?: string }[]) {
+        if (entry.content !== undefined)
+          base.set(entry.path, repo.putBlob(Buffer.from(entry.content, "utf8")));
+        else if (entry.sha === null) base.delete(entry.path);
+        else if (entry.sha) base.set(entry.path, entry.sha);
+      }
+      return json(route, 201, { sha: repo.putTree(base) });
+    }
+    if (rest === "/git/commits" && method === "POST") {
+      return json(route, 201, {
+        sha: repo.putCommit({
+          tree: String(body.tree),
+          parents: body.parents as string[],
+          message: String(body.message),
+        }),
+      });
+    }
+    if (rest === `/git/refs/heads/${repo.branch}` && method === "PATCH") {
+      const commit = repo.commits.get(String(body.sha));
+      if (!commit || (repo.head && !commit.parents.includes(repo.head)))
+        return json(route, 422, { message: "Update is not a fast forward" });
+      repo.head = String(body.sha);
+      return json(route, 200, { object: { sha: repo.head } });
+    }
+    if ((mm = /^\/contents\/(.+)$/.exec(rest)) && method === "PUT") {
+      const filePath = decodeURIComponent(mm[1]!);
+      const entries = new Map(repo.headTree());
+      entries.set(filePath, repo.putBlob(Buffer.from(String(body.content), "base64")));
+      const commit = repo.putCommit({
+        tree: repo.putTree(entries),
+        parents: repo.head ? [repo.head] : [],
+        message: String(body.message),
+      });
+      repo.head = commit;
+      return json(route, 201, { commit: { sha: commit } });
+    }
+    return json(route, 404, { message: `Route simulée absente : ${method} ${path}` });
+  });
+
+  const rawRepos = new Map((options.raw ?? []).map((r) => [r.name.toLowerCase(), r]));
+  await page.route("https://raw.githubusercontent.com/**", async (route) => {
+    const url = new URL(route.request().url());
+    const [, owner, name, , ...rest] = url.pathname.split("/");
+    const repo = rawRepos.get(`${owner}/${name}`.toLowerCase());
+    const content = repo?.read(rest.map(decodeURIComponent).join("/"));
+    if (content === undefined)
+      return route.fulfill({
+        status: 404,
+        body: "404: Not Found",
+        headers: { "access-control-allow-origin": "*" },
+      });
+    return route.fulfill({
+      status: 200,
+      body: content,
+      contentType: "text/plain; charset=utf-8",
+      headers: { "access-control-allow-origin": "*" },
+    });
+  });
+}
+
+/** Réponses de l'API Claude, choisies selon la tâche (prompt système). */
+export interface FakeClaudeOptions {
+  /** Texte des descriptions générées. */
+  summary?: string;
+  /** Score des évaluations de quiz. */
+  score?: number;
+  /** Passages surlignés (citations exactes du texte). */
+  highlights?: string[];
+  /** Réponse des discussions et des questions. */
+  reply?: string;
+}
+
+export interface ClaudeCall {
+  system: string;
+  messages: { role: string; content: string }[];
+  model: string;
+}
+
+export async function installFakeClaude(
+  page: Page,
+  options: FakeClaudeOptions = {},
+): Promise<ClaudeCall[]> {
+  const calls: ClaudeCall[] = [];
+  const message = (text: string): Record<string, unknown> => ({
+    id: `msg_${randomSha().slice(0, 12)}`,
+    type: "message",
+    role: "assistant",
+    model: "claude-opus-5-5",
+    content: [{ type: "text", text }],
+    stop_reason: "end_turn",
+    stop_sequence: null,
+    stop_details: null,
+    usage: { input_tokens: 100, output_tokens: 50 },
+  });
+  await page.route("https://api.anthropic.com/**", async (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") {
+      return route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-headers": "*",
+          "access-control-allow-methods": "*",
+        },
+      });
+    }
+    const body = JSON.parse(request.postData() ?? "{}") as {
+      system: string;
+      messages: { role: string; content: string }[];
+      model: string;
+      stream?: boolean;
+      output_config?: { format?: unknown };
+    };
+    calls.push({ system: body.system, messages: body.messages, model: body.model });
+    const user = body.messages.map((m) => m.content).join("\n");
+    let text: string;
+    if (body.system.includes("description d'un sous-wiki")) {
+      text = options.summary ?? "Description générée par Eugenia.";
+    } else if (body.system.includes("fais réviser")) {
+      text = JSON.stringify({
+        score: options.score ?? 0.9,
+        feedback: "Très bien, c'est la réponse attendue.",
+        missing: [],
+        superfluous: [],
+      });
+    } else if (user.includes("<etape>surlignage</etape>")) {
+      text = JSON.stringify({
+        highlights: (options.highlights ?? []).map((quote) => ({
+          quote,
+          reason: "Fait à retenir",
+        })),
+      });
+    } else if (user.includes("<etape>proposition</etape>")) {
+      const passages = [...user.matchAll(/^(\d+)\. « (.+) »$/gm)];
+      const category = /- id: (\S+) \| chemin : [^\n]*Religion/.exec(user)?.[1] ?? null;
+      text = JSON.stringify({
+        cards: passages.map((p) => ({
+          highlight: Number(p[1]),
+          knowledge: `**${p[2]!.split(" ")[0]}** ${p[2]!.split(" ").slice(1).join(" ")}`,
+          title: `Connaissance ${p[1]}`,
+          question: `Question ${p[1]} ?`,
+          answer: p[2]!.split(" ")[0],
+          category: { existing_id: category, new_title: null, new_parent_id: null },
+        })),
+      });
+    } else if (body.system.includes("organiser son wiki")) {
+      text = JSON.stringify({
+        suggestions: [{ title: "Mythologies", reason: "Regroupe les figures mythologiques." }],
+      });
+    } else if (user.includes("<etape>exploration</etape>")) {
+      text = JSON.stringify({ explore: [], read: [], enough: true });
+    } else {
+      text = options.reply ?? "Réponse d'Eugenia.";
+    }
+    if (body.stream) {
+      const events = [
+        { type: "message_start", message: { ...message(""), content: [] } },
+        { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+        { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+        { type: "content_block_stop", index: 0 },
+        {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: { output_tokens: 10 },
+        },
+        { type: "message_stop" },
+      ];
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "access-control-allow-origin": "*" },
+        body: events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join(""),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify(message(text)),
+    });
+  });
+  return calls;
+}

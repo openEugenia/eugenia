@@ -1,0 +1,219 @@
+# Knowledge Reinforcement and Memorization {#sec-reinforcement-learning}
+
+In this section, we focus on reinforcing the user's knowledge using {{< var eugenia >}}. We first look at the context in which the user is quizzed, then explain how each answer updates their knowledge base and associated scores such as `mastery` or `decay`.
+
+## A Quiz System
+
+::: {#fig-seq-quizz}
+```{mermaid}
+---
+config:
+  theme: redux-color
+---
+sequenceDiagram
+  actor User as User
+  actor Eugenia as Eugenia
+  User ->> Eugenia: Selects a category
+  Eugenia ->> Eugenia: Sorts questions and knowledge by increasing mastery
+  loop Quiz
+    Eugenia ->> User: Asks a question
+    User ->> Eugenia: Answers the question
+    Eugenia ->> Eugenia: Compares the user's answer to the answer in the database
+    Eugenia ->> User: Returns feedback and a score
+  end
+```
+
+Quiz interaction between a user and {{< var eugenia >}}
+:::
+
+To help users reinforce their knowledge, a quiz system is provided in the form of a conversation between the user and {{< var eugenia >}}. @fig-seq-quizz illustrates this process as a sequence diagram. The user selects a category or subcategory in which they want to improve. Once selected, {{< var eugenia >}} identifies the areas where the user's mastery is weakest, sorting knowledge items in ascending order of mastery for questioning. {{< var eugenia >}} then asks the user about the first item on the list. The user answers to the best of their ability. In the background, {{< var eugenia >}} compares the user's answer to the expected answer from their knowledge base, then provides feedback and a score reflecting the user's mastery of that knowledge. The feedback should be thorough, highlighting both missing and unnecessary information in the user's response.
+
+::: {#exm-line}
+
+## Question, Answer, and Feedback from {{< var eugenia >}}
+
+The following table gives an example with an atomic knowledge item, the question asked, the minimal expected answer, and the user's answer:
+
+> | | |
+> |---:|:---|
+> | atomic knowledge : | **Lilith** is a female demon from Jewish tradition, originally based on a Mesopotamian deity |
+> | question : | What is the name of the female demon from Jewish tradition who is based on a Mesopotamian deity?|
+> | minimal expected answer : | Lilith|
+> | user answer : | I think the answer is: Lilite la Pépite|
+
+Based on this exchange, here is the feedback and score {{< var eugenia >}} might provide:
+
+> | | |
+> |---:|:---|
+> | feedback : | The answer is incorrect: Lilith was the expected answer. Your answer is misspelled and the added part does not exist. |
+> | score : | $0.3$|
+
+:::
+
+In this example, {{< var eugenia >}} informs the user about the inaccuracy in their spelling and the incorrect extension of the answer. The score for this response is estimated at $30\%$ of the expected response.
+
+After this feedback, the user's knowledge base is updated as described below.
+Once this first exchange (question, answer, feedback, and score) is complete, the quiz continues with the remaining questions until the list is exhausted.
+
+Before or after the list is completed, the user is free to start a new quiz on the same topic, using the current mastery scores and the new resulting order.
+
+## Updating the Knowledge Base After Each Feedback
+
+After each evaluation by {{< var eugenia >}} for a knowledge item, the mastery score for that item is updated with the score given to the user. Below, we define a method for updating the average.
+
+::: {#def-exp-mean}
+
+## Exponential Moving Average
+
+The exponential moving average (or simple exponential smoothing) is a method for smoothing time series data by calculating a weighted average of past observations, giving exponentially decreasing weight to older values. Let:
+
+* $S_t$: the smoothed value (or exponential moving average) at time $t$
+* $x_t$: the observed value at time $t$
+* $\alpha \in [0,1]$: the smoothing coefficient
+
+The recurrence formula is:
+
+$$ S_t = \alpha \cdot x_t \; + \; (1 - \alpha) \cdot S_{t-1} $$
+:::
+
+In the following example, we apply this averaging operator to update the user's knowledge with the latest feedback.
+
+::: {#def-update_knowledge}
+
+## Updating a Knowledge Item
+
+Let $c$ be an atomic knowledge item from a user's knowledge base, for which a new evaluation and associated score $x \in [0, 1]$ have been received. The mastery score for this knowledge is updated using an exponential moving average. In this example, we set $\alpha = \tfrac{1}{2}$ and simplify the historical states to a single variable $c_{\text{mastery}}$, which holds the last average and is updated as follows:
+
+$$ c_{\text{mastery}} \leftarrow \tfrac{1}{2} \cdot c_{\text{mastery}} \; + \; \tfrac{1}{2} \cdot x $$
+
+Applying this formula, here is an example of how $c_{\text{mastery}}$ evolves with $\alpha = \tfrac{1}{2}$ over $10$ iterations:
+
+| Iteration | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| $x$ | -- | 1.0 | 0.8 | 0.6 | 1.0 | 0.0 | 0.5 | 0.9 | 0.7 | 0.4 | 1.0 |
+| $c_{\text{mastery}}$ | 0.00 | 0.50 | 0.65 | 0.62 | 0.81 | 0.40 | 0.45 | 0.67 | 0.68 | 0.54 | 0.77 |
+
+:::
+
+This averaging method gives equal weight to the latest evaluation and the historical average for a given knowledge item.
+
+## Knowledge Base Decay {#sec-kn-base-decay}
+
+Without reinforcement, knowledge tends to fade or lose reliability over time. To reflect this natural process, a *decay* mechanism is introduced: each knowledge item's mastery score gradually decreases unless it is regularly reviewed or practiced. This encourages consolidation through repetition and helps identify potentially forgotten knowledge.
+
+::: {#def-olding}
+
+## Decay Operator
+
+Decay is an operation that gradually reduces a value over time, in the absence of new data, by multiplying it by a forgetting factor $\beta \in [0,1]$.
+This decrease reflects a natural loss of validity or reliability, especially when the knowledge has not been used, checked, or reinforced recently.
+
+Let:
+
+* $S_t$: the average value at time $t$
+* $\beta_t$: the forgetting factor at time $t$
+
+The recurrence formula is:
+
+$$ S_t \leftarrow \beta_t \cdot S_{t-1} $$
+:::
+
+With $\beta \in [0,1]$, typically:
+
+* if $\beta = 0.99$, forgetting is very slow;
+* if $\beta = 0.9$, forgetting is faster.
+
+This decay can be applied at each time unit (e.g., daily, weekly, or per session), as long as no new evaluation has been received. Based on a draft study (Appendix -@sec-study-olding), we propose using days as the time unit and defining $\beta_t$ as an inverse function:
+
+$$ \beta_t = 1 - \dfrac{0.05}{1 + t} $$
+for $t \in {0, 1, 2, 3, \dots}$, representing the number of days since the user last correctly answered and retained the knowledge item. Thus, if the user answered correctly ($x=1$) on day $t$ since their last failure ($\text{today} - c_{\text{failure date}}$) for a knowledge item $c$, the updates are:
+
+$$c_{\text{mastery}} \gets \frac{c_{\text{mastery}} + x}{2}$$
+$$c_{\text{decay}} \gets 1 - \frac{0.05}{1+t}$$
+
+::: {#exm-olding}
+
+## Updating and Decaying Knowledge Over Time
+
+To illustrate the previous formulas, let's observe how a knowledge item's mastery score evolves over time in the following figure:
+
+::: {#fig-olding}
+```{python}
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Parameters
+initial_mastery = 0.5
+days = np.arange(0, 32)
+alpha = 0.5
+evaluation_days = [1, 3, 7, 15, 31]
+
+# New rule: beta(t) is updated only on a correct answer
+def beta_static(t):
+    return 1 - 0.05 / (1 + t)
+
+# Simulation: correct answers on specific days
+observation_values = [1 if t in evaluation_days else None for t in days]
+
+# Initialization
+mastery_selective_beta = [initial_mastery]
+
+for t in range(1, len(days)):
+    if observation_values[t] is not None:
+        # Update on correct evaluation
+        beta_val = beta_static(t)
+        new_value = (alpha * observation_values[t] + (1 - alpha) * mastery_selective_beta[-1]) * beta_val
+    else:
+        # Decay with beta based on t since last correct answer
+        new_value = beta_val * mastery_selective_beta[-1]
+    mastery_selective_beta.append(new_value)
+
+
+plt.figure(figsize=(7, 4))
+
+# Add comparison curves
+for i, t_day in enumerate([0, *evaluation_days]):
+  # Add a comparison curve: pure decay without new evaluation
+  mastery_decay_static = [mastery_selective_beta[t_day]]
+  beta_val = beta_static(t_day)
+  for t in days[t_day+1:]:
+      new_value = beta_val * mastery_decay_static[-1]
+      mastery_decay_static.append(new_value)
+
+  plt.plot(days[t_day:], mastery_decay_static, label="Without new evaluations" if i == 0 else None, linestyle='--', color='red')
+
+# Main curve
+plt.plot(days, mastery_selective_beta, label="With β regularly updated (correct answers •)", color='green', marker='o', markersize=4)
+
+# Mark correct evaluations
+for t, val in enumerate(observation_values):
+    if val is not None:
+        plt.plot(t, mastery_selective_beta[t], marker='o', color='black')
+
+# plt.title("Evolution of mastery score with and without re-evaluations")
+plt.xlabel("Days")
+plt.ylabel("Mastery score")
+plt.ylim(0, 1)
+plt.grid(True, linestyle=":", linewidth=0.7)
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+Evolution of a knowledge item's mastery score over time
+
+:::
+
+Regularly, the user is quizzed by {{< var eugenia >}} about this knowledge, and we can observe how their score progresses with each update (the green curve, with black dots marking correct answers).
+
+The red curves represent scenarios where the user does not retake the quiz with {{< var eugenia >}}; we can see how the mastery score would decay in these cases.
+
+Note that all these curves are subject to decay, and the more consecutive correct answers the user accumulates, the slower the decay becomes.
+
+Finally, the case where the user answers incorrectly is not shown in this graph, as it would simply reset to the initial state (the first value at $0.5$).
+
+:::
+
+::: {.callout-warning}
+Do you think the progression of the mastery score is appropriate? The algorithm can be adjusted if needed.
+:::

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1208 1208">
+  <rect width="1208" height="1208" fill="#11161d"/>
+  <g transform="translate(181 181) scale(0.7)">
+  
+  <defs>
+    <linearGradient id="oe-logo-3-frame" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1208" y2="1208">
+      <stop offset="0" style="stop-color: #719af2"/>
+      <stop offset="0.5" stop-color="#05080b"/>
+      <stop offset="1" style="stop-color: #719af2"/>
+    </linearGradient>
+    <mask id="oe-logo-3-frame-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="1208" height="1208">
+      <rect x="9" y="9" width="1190" height="1190" rx="33" fill="none" stroke="#fff" stroke-width="18"/>
+    </mask>
+    <clipPath id="oe-logo-3-o"><rect x="0" y="0" width="624" height="1208"/></clipPath>
+    
+  </defs>
+  <rect x="9" y="9" width="1190" height="1190" rx="33" fill="#11161d"/>
+  
+  <g fill="#fff" transform="translate(17 105)">
+  <path clip-path="url(#oe-logo-3-o)" fill-rule="evenodd"
+        d="M266 499a198 235 0 1 0 396 0a198 235 0 1 0 -396 0Z
+           M376 499a114 145 0 1 0 228 0a114 145 0 1 0 -228 0Z"/>
+  <path d="M616 271H908V359H710V456H896V537H710V638H908V726H616Z"/></g>
+  
+  
+  <g mask="url(#oe-logo-3-frame-mask)">
+    <rect class="oe-logo-glow" x="-400" y="-400" width="2008" height="2008" fill="url(#oe-logo-3-frame)"/>
+  </g>
+</g>
+</svg>

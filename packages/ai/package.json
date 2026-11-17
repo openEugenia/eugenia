@@ -1,0 +1,25 @@
+{
+  "name": "@openeugenia/ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Eugenia, l'assistante : abstraction des fournisseurs d'IA et prompts (extraction, descriptions, évaluation, discussion).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./constants": "./src/constants.ts",
+    "./prompts": "./src/prompts/index.ts"
+  },
+  "types": "./src/index.ts",
+  "sideEffects": false,
+  "scripts": {
+    "prompts": "node scripts/embed-prompts.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
+    "@openeugenia/core": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}

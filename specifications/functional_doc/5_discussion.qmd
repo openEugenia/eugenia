@@ -1,0 +1,52 @@
+## Everything is a Discussion {#sec-discussion}
+
+In the {{< var eugenia >}} network, every element—whether a wiki, an atomic knowledge item, or a source—can become the starting point for a discussion, debate, or comment. This approach transforms the platform into a dynamic space for exchange and collaborative knowledge building.
+
+## Scope of Discussions
+
+Each discussion has a defined scope:
+
+* **Private**: Only the owner of the knowledge (or wiki/source) or the discussion. This allows for personalized exchanges, clarification requests, or confidential feedback.
+* **Public**: Anyone interested can participate, comment, or enrich the discussion. This encourages collective intelligence, collaborative correction, and the emergence of diverse viewpoints.
+
+## Role of {{< var eugenia >}} in Discussions
+
+{{< var eugenia >}} can participate in any discussion by providing answers, summaries, or suggestions, drawing on the information it has access to (public knowledge, discussion history, associated sources). It can:
+
+* Clarify a concept or rephrase an explanation.
+* Suggest links to related knowledge or sources.
+* Generate summaries or syntheses of the exchanges.
+* Propose extracting new knowledge from the discussion.
+
+## The Virtuous Cycle of Knowledge
+
+Each discussion can give rise to new atomic knowledge, which can in turn be categorized, discussed, or enriched by the community. This continuous cycle—extraction, discussion, enrichment, validation—drives the dynamic evolution of both the collective and personal knowledge bases.
+
+Thus, discussion is not just a comment, but a driver of learning, validation, and innovation within the {{< var eugenia >}} network.
+
+## Intelligent Notification System
+
+To boost engagement and support users in their learning journey, {{< var eugenia >}} includes an intelligent notification system. This system aims to inform users in a relevant and personalized way, without overwhelming them.
+
+### Types of Notifications
+
+* **Review reminders**: Automatic notifications when certain knowledge items approach a critical threshold of decay or low mastery, based on the user's review habits.
+* **Knowledge addition suggestions**: Recommendations to enrich the knowledge base, for example after importing a new document.
+* **Community interactions**: Alerts when others respond to your comments, join a discussion you started, or suggest improvements to your public knowledge.
+* **Knowledge adoption**: Notification when one of your public knowledge items is added to another user's base, highlighting your contribution to the community.
+* **Challenges and badges**: Information about new badges earned, milestones reached, or personalized challenges received.
+* **Social suggestions**: Proposals for new connections with semantically similar users, or discussions likely to interest you.
+
+### Personalization and Notification Management
+
+Users can configure the frequency, type, and channel (app, email, mobile push) of notifications to maintain a balance between support and comfort.
+
+### Example Scenarios
+
+* "It's time to review the *Philosophy and Thought* category: 3 knowledge items are at risk of being forgotten."
+* "Thomas replied to your comment on the knowledge 'Lilith.'"
+* "Your knowledge 'Krebs Cycle' was added by 2 new users this week."
+* "New badge unlocked: 'Knowledge Explorer'!"
+
+This notification system helps maintain motivation, encourages social interaction, and supports continuous progress in the user's learning journey.
+

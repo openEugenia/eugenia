@@ -1,0 +1,49 @@
+# Pitch
+
+## Accroche : Capter dès les premières secondes
+
+Nous sommes tous des livres ouverts, des arbres de connaissances, des dictionnaires vivants. Pourtant, tout cela reste souvent implicite, enfoui dans notre esprit et devient difficilement accessible avec le temps. Chaque jour, nous absorbons un flot massif d'informations sans parvenir à structurer durablement ces connaissances : ni pour nous-mêmes, ni pour les partager efficacement autour de nous.
+
+## LA PROBLÉMATIQUE
+
+La question centrale est la suivante : comment capter, structurer et pérenniser toutes ces connaissances du quotidien dans notre mémoire et, tout aussi important, comment rendre lisible cette œuvre ouverte que nous sommes ? Autrement dit, comment réussir à réduire la distance entre nous et nos propres connaissances et, ainsi, comment nous rapprocher des uns et des autres grâce à ces connaissances ?
+
+## Solution, ce que tu proposes
+
+Nous proposons la solution Eugenia !
+
+Eugenia est une plateforme éducative et sociale qui permet d’extraire, de structurer et de mémoriser durablement les connaissances issues du quotidien.
+
+Tout au long de ce parcours, un agent basé sur différents algorithmes d’intelligence artificielle – Eugenia elle-même – accompagne l’utilisateur dans l’extraction, la structuration et la révision de son propre arbre de connaissances.
+
+En complément, Eugenia crée des liens intellectuels avec notre entourage en révélant les similarités et complémentarités de connaissances.
+
+Eugenia instaure un cercle vertueux : chacun construit son arbre de savoirs, qu’il enrichit continuellement grâce aux connaissances des autres et de son propre environnement.
+
+## LA PROPOSITION DE VALEUR
+
+Eugenia promet d’augmenter nos capacités d’analyse, d’apprentissage et de mémorisation. Que l’on soit étudiant, chercheur ou passionné de sujets en tous genres, Eugenia offre une meilleure captation et un partage facilité de nos connaissances.
+
+## Différenciation
+
+Sur le marché, Eugenia se compare à :
+
++ NotebookLM : extraction et structuration des connaissances à partir de nos sources quotidiennes
++ Anki : mémorisation via la méthode des révisions espacées
++ Wikipedia : structuration arborescente de la connaissance
++ Réseau social : partage et élargissement des savoirs
+
+Eugenia unifie ces principes dans un environnement que l'on veut :
+
+- décentralisé, dans l’esprit du web 3.0 : l’utilisateur reste souverain de ses données car il est le seul à les posséder
+- open-source, transparent et éthique : chacun peut vérifier le code et le fonctionnement des IA sur ses données
+
+## Les réalisations
+
+Deux preuves de concept ont validé la technologie : extraction et structuration automatisées, renforcement stratégique des connaissances, et enfin la visualisation en graphe social.
+
+Un MVP est en cours, avec des premiers déploiements prévus : bibliothèque de la CiuP (académique), DiploCité (association), Woopets (industriel).
+
+## Conclusion
+
+openEugenia propose une nouvelle façon d’apprendre, de structurer et de partager la connaissance, dans le respect de l’éthique et de la vie privée. Rejoignez-nous pour faire de la souveraineté numérique et de l’intelligence collective une réalité accessible à tous !

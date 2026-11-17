@@ -1,0 +1,11 @@
+title: Wiki de démonstration
+root: wiki/
+private_repo: openEugenia/demo-wiki
+default_visibility: private
+folder_name_max_length: 32
+mastery:
+  initial: 0.5
+  alpha: 0.5
+  decay_rate: 0.05
+  success_threshold: 0.5
+  reminder_threshold: 0.4

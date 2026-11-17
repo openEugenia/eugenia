@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+dist/
+dev-dist/
+coverage/
+specifications/
+examples/
+packages/web/src/vendor/
+packages/ai/src/prompts/defaults.generated.ts
+*.md

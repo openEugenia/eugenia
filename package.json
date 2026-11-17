@@ -1,0 +1,29 @@
+{
+  "name": "eugenia-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Eugenia — wiki personnel de connaissances, sur git",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @openeugenia/web dev",
+    "build": "pnpm --filter @openeugenia/ai prompts && pnpm -r build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm --filter @openeugenia/web test:e2e",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "eugenia": "node packages/cli/dist/eugenia.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

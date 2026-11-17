@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dev-dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+packages/web/test-results/
+packages/web/playwright-report/
+packages/web/blob-report/
+.eugenia-out/

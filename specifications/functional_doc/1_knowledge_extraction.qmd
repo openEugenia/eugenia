@@ -1,0 +1,110 @@
+# Knowledge Extraction {#sec-knowledge-extraction}
+
+Regarding the user experience, this section focuses on describing how the user experience unfolds from the personal interface (no connection with the rest of the {{< var eugenia >}} network is made here).
+
+## Atomic Knowledge
+
+::: {#def-line}
+
+## Atomic Knowledge
+
+*Atomic knowledge* is a simple, precise, and independent statement or assertion about a fact, rule, relationship, or concept that can be understood without requiring additional, unstated contextual knowledge. It serves as a fundamental building block in the structuring or modeling of knowledge.
+
+:::
+
+This definition is a formal representation which, in practice, may not be strictly followed by users. Nevertheless, we assume that atomic knowledge is the most minimal form that users can extract from their information sources.
+
+Knowledge extraction is performed from text. If the user uploads an attachment (such as a *PDF*, *audio*, or *video*), it is first converted to text. Once this text is input into {{< var eugenia >}}'s knowledge extraction tool, the assistant highlights initial pieces of knowledge that may interest the user. The user is free to highlight additional knowledge they wish to add to their knowledge base or to split/refine overly broad knowledge suggested by {{< var eugenia >}}.
+
+Once the knowledge is highlighted, the user can review and select which pieces to add to their knowledge base.
+
+::: {#exm-line}
+
+## Highlighting Atomic Knowledge
+
+From the original text, a list of bolded elements is extracted as examples of knowledge to be captured:
+
+> **Lilith** is **a female demon from Jewish tradition**, **who represents a deity of Mesopotamian origin**. In Jewish legends that spread during the Middle Ages, **Lilith is presented according to the Alphabet of Ben Sira as Adam's first wife, before Eve**.
+
+Here is the extraction, item by item, as atomic knowledge:
+
+* **Lilith** is a female demon from Jewish tradition who represents a deity of Mesopotamian origin
+* Lilith is **a female demon from Jewish tradition**
+* Lilith **represents a deity of Mesopotamian origin**
+* In Jewish legends that spread during the Middle Ages, **Lilith is presented according to the Alphabet of Ben Sira as Adam's first wife, before Eve**.
+
+:::
+
+We can see that extracting knowledge, piece by piece, requires reintroducing context for each one: it is necessary to do so to ensure that atomic knowledge is understandable on its own; for example, *Lilith* is repeated. Thus, for each extraction, it is important to retain both the atomic knowledge itself and the part on which the user will be questioned. Additionally, {{< var eugenia >}} can directly suggest a sample question for the user, as well as a title and *categorization* for this knowledge.
+
+::: {#def-line}
+
+## Source
+
+A source is the origin or medium from which information or knowledge is derived. It allows for the verification, contextualization, or justification of the validity of that knowledge. Sources can take many forms: publications, websites, Wikipedia, etc.
+
+:::
+
+We further explain the importance for users to provide sources for their atomic knowledge, making their content public and shareable with the {{< var eugenia >}} network. For each source, in addition to a description visible to all, the user can attach a *personal file* for easy access to their information source.
+
+## Categorization
+
+::: {#def-line}
+
+## Categorization
+
+Categorization is the methodological process of grouping knowledge into distinct sets (categories) based on shared characteristics, to facilitate their understanding, processing, searching, or use.
+:::
+
+The Table @tbl-list-cat presents a list of default categories available to all users:
+
+| | | |
+|---|---|---|
+| Arts and Culture | Economy and Finance | Geography |
+| History | Languages and Linguistics | Medicine and Health |
+| Military and Defense | Nature and Environment | Philosophy and Thought |
+| Religion and Beliefs | Science | Society and Social Sciences |
+| Sports and Leisure | Technology | Transport |
+
+: List of default categories available to users {#tbl-list-cat}
+
+::: {.callout-warning}
+
+## Default category list
+
+Should this list be expanded, reduced, or modified?
+
+:::
+
+These are provided as examples at the highest level of the user's profile hierarchy. Users can also propose their own (sub)categories. Users are free to create their own global categories as well as subcategories. {{< var eugenia >}} will also be able to suggest the user's personal categories directly.
+
+::: {.callout-warning}
+
+## Category depth level
+
+Should a certain depth level for categories be defined? Some users might create a very large number of subcategories, making the system cumbersome.
+Similarly, should the breadth of category trees and subtrees be restricted?
+
+:::
+
+::: {#exm-line}
+
+## Suggesting Title, Question, and Categorization from Atomic Knowledge
+
+From the atomic knowledge:
+
+> ***Lilith* is a female demon from Jewish tradition who represents a deity of Mesopotamian origin**
+
+where the learning target is "Lilith", the following data is automatically inferred and suggested to the user:
+
+| | |
+|---:|:---|
+| title: | *Lilith* |
+| category: | *Religion and Beliefs*|
+| question: | *What is the name of the female demon from Jewish tradition who represents a deity of Mesopotamian origin?*|
+
+:::
+
+Once the tuple^[A tuple is an ordered data structure that groups a fixed number of elements, each with a defined position and potentially of different types.] $(\text{knowledge}, \text{title}, \text{category}, \text{question})$ is constructed, it is added to the user's *knowledge base*. We define what a knowledge base is in the next section (@sec-user-wiki).
+
+In @sec-reinforcement-learning, we describe the behavior associated with knowledge reinforcement offered to the user and its impact on their knowledge base. It should also be noted that each entry in the user's knowledge base can be extended with a list of *sources* for that knowledge.
