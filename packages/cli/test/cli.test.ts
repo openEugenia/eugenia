@@ -73,7 +73,10 @@ describe("eugenia validate", () => {
   it("valide le wiki de démonstration", async () => {
     const { log, lines } = logger();
     expect(await main(["validate", DEMO], log)).toBe(0);
-    expect(lines.join("\n")).toContain("13 page(s), dont 6 flashcard(s), 8 publique(s).");
+    expect(lines.join("\n")).toContain(
+      "6 connaissance(s) dont 1 à sourcer, 7 flashcard(s), 6 catégorie(s), 4 source(s), 4 discussion(s) ; 16 page(s) publique(s).",
+    );
+    expect(lines.join("\n")).toContain("Aucun problème détecté.");
   });
 
   it("échoue sur une violation de la règle 3, en JSON", async () => {
@@ -105,13 +108,16 @@ describe("eugenia publish", () => {
     expect(files.some((f) => f.includes("philosophie"))).toBe(false);
     expect(files.some((f) => f.includes("exoplanetes"))).toBe(false);
     expect(files.some((f) => f.includes("article"))).toBe(false);
-    expect(files.some((f) => f.includes("_quizzes") || f.includes("_discussions"))).toBe(false);
+    expect(files).toContain("library/discours-de-la-methode/index.md");
+    expect(files.some((f) => f.startsWith("discussions/"))).toBe(false);
     expect(files.some((f) => f.endsWith("_summary.public.md"))).toBe(false);
     const root = await readFile(join(out, "wiki/_summary.md"), "utf8");
     expect(parseSummary(root).fields.scope).toBe("public");
     const all = (await Promise.all(files.map((f) => readFile(join(out, f), "utf8")))).join("\n");
     expect(all).not.toContain("51 Pegasi");
-    expect(all).not.toContain("Descartes");
+    expect(all).not.toContain("Je pense, donc je suis");
+    // La référence à l'article privé disparaît de la connaissance publique.
+    expect(all).not.toContain("01M6BK4140P9T3R69AH4Y8K1PA");
   });
 
   it("pousse un unique commit et réécrit l'historique du dépôt public", async () => {
@@ -224,7 +230,11 @@ describe("eugenia summarize", () => {
       log,
     );
     expect(lines.join("\n")).toContain("contenu privé et fournisseur distant");
-    expect(provider.requests.length).toBe(0);
+    // Seules les branches entièrement publiques (Religion et croyances) sont envoyées.
+    const sent = provider.requests.map((r) => r.messages[0]!.content).join("\n");
+    expect(provider.requests.length).toBe(1);
+    expect(sent).toContain("Titre : Religion et croyances");
+    expect(sent).not.toContain("Pegasi");
   });
 });
 
@@ -253,9 +263,13 @@ describe("eugenia embed", () => {
     const dir = await demoCopy();
     const provider = new EmbeddingProvider();
     expect(await run(dir, provider)).toBe(0);
-    const pages = (await listFiles(dir)).filter((p) => p.endsWith("/index.md"));
+    // Catégories, connaissances et sources ; pas les flashcards (elles reprennent leur connaissance).
+    const pages = [...(await loadDiskWiki(dir)).tree.nodes.values()].filter(
+      (n) => !n.virtual && n.type !== "flashcard",
+    );
     const embeddings = (await listFiles(dir)).filter((p) => p.endsWith("/_embedding.json"));
     expect(embeddings).toHaveLength(pages.length);
+    expect(embeddings.some((p) => p.startsWith("library/"))).toBe(true);
     const lilith = parseEmbedding(
       await readFile(join(dir, "wiki/religion-et-croyances/lilith/_embedding.json"), "utf8"),
     );
@@ -291,7 +305,7 @@ describe("eugenia embed", () => {
     (provider.info as { local: boolean }).local = false;
     await run(dir, provider, { localOnlyPrivate: true });
     const wiki = await loadDiskWiki(dir);
-    const nodes = [...wiki.tree.nodes.values()].filter((n) => !n.virtual);
+    const nodes = [...wiki.tree.nodes.values()].filter((n) => !n.virtual && n.type !== "flashcard");
     expect(nodes.filter((n) => n.embedding).every((n) => n.isPublic)).toBe(true);
     expect(nodes.filter((n) => n.isPublic).every((n) => n.embedding)).toBe(true);
   });

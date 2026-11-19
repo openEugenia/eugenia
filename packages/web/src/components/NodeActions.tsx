@@ -135,6 +135,8 @@ export function VisibilityDialog({
   const tree = workspace.tree;
   const makingPublic = !node.isPublic;
   const plan = planMakePublic(tree, node.id);
+  // Les flashcards suivent leur connaissance : elles ne se cochent pas une à une.
+  const listed = plan.descendants.filter((d) => d.type !== "flashcard");
   const publicDescendants = descendants(tree, node.id).filter((d) => d.isPublic);
 
   const toggle = (id: string, checked: boolean): void => {
@@ -159,8 +161,13 @@ export function VisibilityDialog({
 
   const apply = async (): Promise<void> => {
     try {
+      const withCards = new Set(included);
+      for (const d of plan.descendants) {
+        if (d.type === "flashcard" && (d.parentId === node.id || withCards.has(d.parentId ?? "")))
+          withCards.add(d.id);
+      }
       const assignments = makingPublic
-        ? makePublicAssignments(tree, node.id, included, confirmAncestors)
+        ? makePublicAssignments(tree, node.id, withCards, confirmAncestors)
         : makePrivateAssignments(tree, node.id);
       if (assignments.size === 0) {
         toast("Aucun changement de visibilité.");
@@ -218,7 +225,12 @@ export function VisibilityDialog({
               </label>
             </div>
           )}
-          {plan.descendants.length > 0 && (
+          {plan.descendants.some((d) => d.type === "flashcard") && (
+            <p className="muted small">
+              Les flashcards suivent la visibilité de leur connaissance.
+            </p>
+          )}
+          {listed.length > 0 && (
             <fieldset className="oe-field" style={{ border: 0, padding: 0 }}>
               <legend className="oe-label">
                 Pages de la branche à inclure (les autres restent privées)
@@ -227,7 +239,7 @@ export function VisibilityDialog({
                 <button
                   type="button"
                   className="oe-button oe-button--ghost oe-button--sm"
-                  onClick={() => setIncluded(new Set(plan.descendants.map((d) => d.id)))}
+                  onClick={() => setIncluded(new Set(listed.map((d) => d.id)))}
                 >
                   Tout inclure
                 </button>
@@ -242,7 +254,7 @@ export function VisibilityDialog({
               <div
                 style={{ maxHeight: "16rem", overflow: "auto", display: "grid", gap: "0.35rem" }}
               >
-                {plan.descendants.map((d) => (
+                {listed.map((d) => (
                   <label
                     key={d.id}
                     className="check"

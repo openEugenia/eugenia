@@ -6,10 +6,12 @@ un fichier `.notes/prompts/<nom>.md` du dépôt de l'utilisateur remplace le pro
 
 | Fichier | Tâche |
 |---|---|
-| `extract.md` | Surlignage de connaissances atomiques dans un texte, puis proposition de flashcards (§8.1). |
+| `extract.md` | Surlignage de connaissances atomiques dans un texte, puis proposition d'une connaissance et de sa première flashcard (§8.1). |
+| `flashcards.md` | Nouvelles flashcards sur une connaissance atomique existante (§8.1). |
 | `summarize.md` | Description d'un sous-wiki, ou résumé d'une discussion (§11.2). |
 | `evaluate.md` | Comparaison d'une réponse de quiz à la réponse attendue : retour et score dans [0, 1] (§8.3). |
 | `discuss.md` | Rôle d'Eugenia dans une discussion ouverte depuis une page (§8.4). |
+| `note.md` | Réponse à une note rapide : connaissances candidates, points à vérifier, pistes de sources (§8.4). |
 | `ask.md` | Questions sur l'arbre : exploration des descriptions, puis réponse avec citations (§8.5). |
 | `categories.md` | Suggestion de sous-catégories (§8.1). |
 

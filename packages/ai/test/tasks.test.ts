@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { gitBlobSha, loadWiki } from "@openeugenia/core";
 import {
   AIError,
   askTree,
+  categoryOptions,
+  discussionRequest,
   evaluateAnswer,
+  pageText,
+  proposeFlashcards,
+  treeNavigator,
   highlightKnowledge,
   locateQuote,
   proposeKnowledge,
@@ -141,10 +147,10 @@ describe("descriptions et évaluation", () => {
 
 describe("questions sur l'arbre", () => {
   const entries: Record<string, TreeEntry> = {
-    R: { id: "R", title: "Racine", type: "note", hasChildren: true },
-    S: { id: "S", title: "Science", type: "note", hasChildren: true, description: "Sciences" },
-    H: { id: "H", title: "Histoire", type: "note", hasChildren: true },
-    L: { id: "L", title: "Lune noire", type: "flashcard", hasChildren: false },
+    R: { id: "R", title: "Racine", type: "catégorie", hasChildren: true },
+    S: { id: "S", title: "Science", type: "catégorie", hasChildren: true, description: "Sciences" },
+    H: { id: "H", title: "Histoire", type: "catégorie", hasChildren: true },
+    L: { id: "L", title: "Lune noire", type: "connaissance", hasChildren: false },
   };
   const tree: Record<string, string[]> = { R: ["S", "H"], S: ["L"], H: [] };
   const navigator = {
@@ -208,5 +214,91 @@ describe("IA locale pour le privé", () => {
     expect(() => selectProvider({ localOnlyForPrivate: false }, false)).toThrow(
       /Aucun fournisseur/,
     );
+  });
+});
+
+describe("flashcards d'une connaissance", () => {
+  it("propose de nouvelles flashcards, sans doublon des existantes", async () => {
+    const provider = new FakeProvider({
+      json: [
+        {
+          cards: [
+            { question: "Qui est Lilith ?", answer: "Un démon féminin" },
+            { question: "Quel est le nom du démon ?", answer: "Lilith" },
+            { question: "  ", answer: "vide" },
+          ],
+        },
+      ],
+    });
+    const cards = await proposeFlashcards(
+      { provider },
+      {
+        knowledge: "**Lilith** est un démon féminin.",
+        title: "Lilith",
+        path: ["Religion"],
+        existing: [{ question: "Quel est le nom du démon ?", answer: "Lilith" }],
+        count: 2,
+      },
+    );
+    expect(cards).toEqual([{ question: "Qui est Lilith ?", answer: "Un démon féminin" }]);
+    const content = provider.calls[0]!.messages[0]!.content;
+    expect(content).toContain("Chemin : Religion > Lilith");
+    expect(content).toContain("<nombre>2</nombre>");
+  });
+});
+
+describe("discussions", () => {
+  it("répond à une note rapide avec son propre prompt et la bibliothèque", () => {
+    const request = discussionRequest(
+      { provider: new FakeProvider({}) },
+      {
+        kind: "note",
+        related: [],
+        sources: [{ id: "S1", title: "Un article" }],
+        history: [{ role: "user", content: "Une idée." }],
+      },
+    );
+    expect(request.system).toContain("note rapide");
+    expect(request.system).toContain("<bibliotheque>\n- S1 | Un article\n</bibliotheque>");
+    expect(request.system).not.toContain("<page>");
+  });
+});
+
+describe("passerelle avec le wiki", async () => {
+  const source: Record<string, string> = {
+    ".notes/config.yml": "title: Test\nroot: wiki/\n",
+    "wiki/index.md": "---\nid: R\ntype: category\ntitle: Racine\n---\n",
+    "wiki/science/index.md": "---\nid: S\ntitle: Science\n---\n",
+    "wiki/science/lune/index.md":
+      "---\nid: K\ntype: knowledge\ntitle: Lune noire\n---\n\nLa **Lune noire** est un point.\n\n## Notes\nVoir l'apogée.\n",
+    "wiki/science/lune/carte/index.md":
+      "---\nid: C\ntype: flashcard\ntitle: Carte\n---\n\n## Question\nQuel point ?\n\n## Réponse attendue\nLa Lune noire\n",
+    "library/livre/index.md":
+      "---\nid: L\ntype: source\ntitle: Livre\nauthors: [Ada]\npublished: '1843'\n---\n\nRésumé.\n",
+  };
+  const files = await Promise.all(
+    Object.entries(source).map(async ([path, text]) => ({ path, sha: await gitBlobSha(text) })),
+  );
+  const readText = async (path: string): Promise<string> => source[path]!;
+  const wiki = await loadWiki({ files, readText });
+  const view = { config: wiki.config, tree: wiki.tree, files: wiki.files, readText };
+
+  it("décrit chaque type de page", async () => {
+    const node = (id: string) => wiki.tree.nodes.get(id)!;
+    expect(await pageText(view, node("K"))).toBe(
+      "Connaissance : La Lune noire est un point.\n\nNotes\nVoir l'apogée.",
+    );
+    expect(await pageText(view, node("C"))).toBe(
+      "Connaissance : La Lune noire est un point.\nQuestion : Quel point ?\nRéponse attendue : La Lune noire",
+    );
+    expect(await pageText(view, node("L"))).toBe("Auteurs : Ada\nPublication : 1843\nRésumé.");
+  });
+
+  it("ne propose que des catégories et s'arrête aux connaissances", async () => {
+    expect(categoryOptions(view).map((c) => c.id)).toEqual(["R", "S"]);
+    const navigator = treeNavigator(view, "private");
+    const [lune] = await navigator.children("S");
+    expect(lune).toMatchObject({ id: "K", type: "connaissance", hasChildren: false });
+    expect(await navigator.content("K")).toContain("Flashcards :\n- Quel point ? → La Lune noire");
   });
 });

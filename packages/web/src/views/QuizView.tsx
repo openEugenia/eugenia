@@ -19,13 +19,15 @@ import {
   applyEvaluation,
   currentMastery,
   dayNumber,
+  discussionEntries,
+  knowledgeOf,
   learningTargets,
   newDiscussionDocument,
-  newQuizPath,
+  newDiscussionPath,
   parseFlashcardBody,
+  parseKnowledgeBody,
   parsePage,
   quizOrder,
-  reservedEntries,
   writeDiscussion,
   type CardState,
   type DiscussionDocument,
@@ -60,14 +62,21 @@ interface Result {
 
 const now = (): string => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
+/** Question et réponse de la flashcard, énoncé de la connaissance qu'elle teste (sa page parente). */
 async function loadCard(card: WikiNode): Promise<CardContent> {
   const workspace = useWiki.getState().workspace!;
   const parsed = parseFlashcardBody(parsePage(await workspace.readText(card.indexPath)).body);
-  const targets = learningTargets(parsed.knowledge);
-  const question =
-    parsed.question || `Complétez : ${parsed.knowledge.replace(/\*\*[^*]+\*\*/g, "____")}`;
-  const answer = parsed.answer || targets.join(", ") || parsed.knowledge;
-  return { knowledge: parsed.knowledge, question, answer };
+  let knowledge = parsed.knowledge ?? "";
+  const parent = knowledgeOf(workspace.tree, card);
+  if (!knowledge && parent && parent.id !== card.id && !parent.virtual) {
+    knowledge = parseKnowledgeBody(
+      parsePage(await workspace.readText(parent.indexPath)).body,
+    ).statement;
+  }
+  const targets = learningTargets(knowledge);
+  const question = parsed.question || `Complétez : ${knowledge.replace(/\*\*[^*]+\*\*/g, "____")}`;
+  const answer = parsed.answer || targets.join(", ") || knowledge;
+  return { knowledge, question, answer };
 }
 
 /**
@@ -212,9 +221,10 @@ export function QuizView({ id }: { id: string }) {
   const start = async (): Promise<void> => {
     const workspace = useWiki.getState().workspace;
     if (!workspace || cards.length === 0) return;
-    const quizPath = newQuizPath(node.path, reservedEntries(workspace, `${node.path}/_quizzes`));
+    const title = `Quiz — ${node.title}`;
+    const quizPath = newDiscussionPath(workspace.config, title, discussionEntries(workspace));
     const fresh = newDiscussionDocument({
-      title: `Quiz — ${node.title}`,
+      title,
       kind: "quiz",
       scopeNode: node.id,
     });
@@ -321,13 +331,14 @@ export function QuizView({ id }: { id: string }) {
       {phase === "intro" && (
         <section className="oe-card">
           {cards.length === 0 ? (
-            <EmptyState title="Aucune connaissance à réviser">
-              Cette branche ne contient pas encore de connaissance atomique.
+            <EmptyState title="Aucune flashcard à réviser">
+              Cette branche ne contient pas encore de flashcard : ajoutez-en aux connaissances
+              atomiques pour les réviser.
             </EmptyState>
           ) : (
             <>
               <p>
-                {plural(cards.length, "connaissance")}, posées de la moins maîtrisée à la mieux
+                {plural(cards.length, "flashcard")}, posées de la moins maîtrisée à la mieux
                 maîtrisée. Arrêtez quand vous voulez : chaque réponse met à jour votre maîtrise.
               </p>
               <fieldset className="oe-field" style={{ border: 0, padding: 0 }}>
@@ -539,13 +550,14 @@ export function QuizView({ id }: { id: string }) {
             <>
               <p>
                 {plural(results.length, "réponse")}, score moyen{" "}
-                <strong>{formatPercent(mean)}</strong>. Le quiz est enregistré dans « {node.title} »
-                : il sert de trace pour recalculer votre maîtrise.
+                <strong>{formatPercent(mean)}</strong>. Le quiz est enregistré dans vos{" "}
+                <a href={href({ name: "discussions", kind: "quiz" })}>discussions</a> : il sert de
+                trace pour recalculer votre maîtrise.
               </p>
               <table className="chart-table">
                 <thead>
                   <tr>
-                    <th>Connaissance</th>
+                    <th>Flashcard</th>
                     <th>Score</th>
                     <th>Maîtrise</th>
                   </tr>

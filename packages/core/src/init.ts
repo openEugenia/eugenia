@@ -1,5 +1,11 @@
 /** Initialisation d'un nouveau wiki : configuration, racine, catégories par défaut (§8.1). */
-import { CONFIG_PATH, DEFAULT_MASTERY, serializeConfig, type WikiConfig } from "./config.ts";
+import {
+  CONFIG_PATH,
+  DEFAULT_CONFIG,
+  DEFAULT_MASTERY,
+  serializeConfig,
+  type WikiConfig,
+} from "./config.ts";
 import { serializePage } from "./pages.ts";
 import { joinPath, normalizePath } from "./paths.ts";
 import { folderNameFor } from "./slug.ts";
@@ -33,6 +39,8 @@ export const DEFAULT_ACTION_REF = "openEugenia/eugenia@v1";
 export interface ScaffoldOptions {
   title: string;
   root?: string;
+  library?: string;
+  discussions?: string;
   categories?: readonly string[];
   defaultVisibility?: Visibility;
   privateRepo?: string;
@@ -78,13 +86,16 @@ jobs:
 `;
 }
 
-function readme(title: string, root: string): string {
+function readme(config: Pick<WikiConfig, "title" | "root" | "library" | "discussions">): string {
   return [
-    `# ${title}`,
+    `# ${config.title}`,
     "",
     "Wiki personnel de connaissances géré avec [Eugenia](https://github.com/openEugenia/eugenia).",
     "",
-    `- Les pages sont dans \`${root || "."}/\` : chaque page est un dossier contenant un \`index.md\`.`,
+    `- \`${config.root || "."}/\` : le wiki, des catégories aux connaissances atomiques et à leurs flashcards.`,
+    `- \`${config.library}/\` : la bibliothèque, les sources d'où viennent ces connaissances.`,
+    `- \`${config.discussions}/\` : les discussions avec Eugenia, questions, quiz et notes rapides.`,
+    "- Chaque page est un dossier contenant un `index.md`.",
     "- Les fichiers et dossiers préfixés par `_` ou `.` sont réservés à l'application.",
     "- Ce dépôt doit rester **privé** : il contient aussi vos connaissances privées.",
     "",
@@ -95,10 +106,13 @@ function readme(title: string, root: string): string {
 
 const WELCOME = `Bienvenue dans votre wiki personnel.
 
-Chaque page est une **note** ou une **connaissance atomique** (flashcard). Les catégories
-ci-dessous sont des points de départ : renommez-les, supprimez-les ou ajoutez les vôtres.
-Eugenia vous aide à extraire des connaissances de vos textes, à décrire chaque sous-wiki et
-à réviser par des quiz.`;
+Le wiki rassemble vos **connaissances atomiques**, rangées par catégories, et les
+**flashcards** qui permettent de les réviser. Chaque connaissance renvoie aux sources de votre
+**bibliothèque** d'où elle est tirée. Les catégories ci-dessous sont des points de départ :
+renommez-les, supprimez-les ou ajoutez les vôtres.
+
+Eugenia vous aide à extraire des connaissances de vos sources, de vos notes rapides et de vos
+discussions, à décrire chaque sous-wiki et à réviser par des quiz.`;
 
 /** Fichiers d'un nouveau wiki, prêts à être commités. */
 export function scaffoldWiki(options: ScaffoldOptions): Map<string, string> {
@@ -108,6 +122,8 @@ export function scaffoldWiki(options: ScaffoldOptions): Map<string, string> {
   const config: WikiConfig = {
     title: options.title,
     root,
+    library: normalizePath(options.library ?? DEFAULT_CONFIG.library),
+    discussions: normalizePath(options.discussions ?? DEFAULT_CONFIG.discussions),
     default_visibility: visibility,
     folder_name_max_length: 32,
     mastery: { ...DEFAULT_MASTERY },
@@ -124,7 +140,7 @@ export function scaffoldWiki(options: ScaffoldOptions): Map<string, string> {
     serializePage({
       fields: {
         id: ulid(tick++),
-        type: "note",
+        type: "category",
         title: options.title,
         visibility,
         created: stamp,
@@ -143,7 +159,7 @@ export function scaffoldWiki(options: ScaffoldOptions): Map<string, string> {
       serializePage({
         fields: {
           id: ulid(tick++),
-          type: "note",
+          type: "category",
           title: category,
           visibility,
           created: stamp,
@@ -154,7 +170,7 @@ export function scaffoldWiki(options: ScaffoldOptions): Map<string, string> {
       }),
     );
   }
-  if (root !== "") files.set("README.md", readme(options.title, root));
+  if (root !== "") files.set("README.md", readme(config));
   if (options.publicRepo) {
     const workflowOptions: { actionRef?: string; branch?: string } = {};
     if (options.actionRef) workflowOptions.actionRef = options.actionRef;

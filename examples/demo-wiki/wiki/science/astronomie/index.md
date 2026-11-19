@@ -1,6 +1,6 @@
 ---
 id: 01M6BSZRC0GMZD0N3KYADANR5K
-type: note
+type: category
 title: Astronomie
 visibility: public
 created: 2026-11-01T11:30:00Z

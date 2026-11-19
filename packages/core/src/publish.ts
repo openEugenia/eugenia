@@ -1,10 +1,16 @@
 /**
  * Publication : construction de l'arborescence du dépôt public à partir du dépôt privé
- * (§6). Seuls les nœuds publics sont publiés ; les liens vers ce qui n'est pas publié
- * deviennent du texte ; les fichiers personnels et les quiz ne sont jamais publiés.
+ * (§6). Seuls les nœuds publics (wiki et bibliothèque) et les discussions publiques sont
+ * publiés ; les liens et références vers ce qui n'est pas publié disparaissent ; les
+ * fichiers personnels des sources et les quiz ne sont jamais publiés.
  */
 import { CONFIG_PATH, INDEX_JSON_PATH, serializePublicConfig } from "./config.ts";
-import { parseDiscussion, serializeDiscussion, type DiscussionDocument } from "./discussion.ts";
+import {
+  discussionMeta,
+  parseDiscussion,
+  serializeDiscussion,
+  type DiscussionDocument,
+} from "./discussion.ts";
 import { unlinkTargets } from "./links.ts";
 import { firstParagraph, truncate } from "./markdown.ts";
 import type { WikiView } from "./operations.ts";
@@ -17,7 +23,7 @@ import {
 } from "./pages.ts";
 import { joinPath, normalizePath } from "./paths.ts";
 import { gitBlobSha } from "./sha.ts";
-import { parseSummary, serializeSummary, type SummaryDocument } from "./summaries.ts";
+import { needsSummary, parseSummary, serializeSummary, type SummaryDocument } from "./summaries.ts";
 import {
   nodeForPath,
   PUBLIC_SUMMARY_FILE,
@@ -43,7 +49,9 @@ export interface PublishOptions {
 
 export interface PublicationStats {
   pages: number;
+  knowledge: number;
   flashcards: number;
+  sources: number;
   attachments: number;
   summaries: number;
   discussions: number;
@@ -82,7 +90,9 @@ export async function buildPublication(
   const problems: Problem[] = [];
   const stats: PublicationStats = {
     pages: 0,
+    knowledge: 0,
     flashcards: 0,
+    sources: 0,
     attachments: 0,
     summaries: 0,
     discussions: 0,
@@ -104,7 +114,10 @@ export async function buildPublication(
     }
   }
 
-  const publicNodes = [...tree.nodes.values()].filter((n) => n.isPublic);
+  // La racine de la bibliothèque est un conteneur : sa page n'est publiée que si elle est publique.
+  const publicNodes = [...tree.nodes.values()].filter(
+    (n) => n.isPublic && (n.id !== tree.libraryId || n.visibility === "public"),
+  );
   const published = new Set<string>();
   const personal = new Map<string, Set<string>>();
   const pageDocs = new Map<string, PageDocument>();
@@ -117,9 +130,7 @@ export async function buildPublication(
     if (!node.virtual) {
       const doc = parsePage(await source.readText(node.indexPath));
       pageDocs.set(node.id, doc);
-      for (const s of doc.fields.sources ?? []) {
-        if (s.file) personalFiles.add(normalizePath(joinPath(node.path, s.file)));
-      }
+      if (doc.fields.file) personalFiles.add(normalizePath(joinPath(node.path, doc.fields.file)));
       published.add(node.indexPath);
     }
     personal.set(node.id, personalFiles);
@@ -134,7 +145,7 @@ export async function buildPublication(
         publicSummaries.set(node.id, summary);
         published.add(joinPath(node.path, SUMMARY_FILE));
       }
-    } else if (node.childIds.some((id) => tree.nodes.get(id)?.isPublic)) {
+    } else if (needsSummary(tree, node, "public")) {
       problems.push({
         level: "warning",
         code: "missing-public-summary",
@@ -143,14 +154,16 @@ export async function buildPublication(
         path: node.path,
       });
     }
-    for (const file of node.discussions) {
-      const doc = parseDiscussion(await source.readText(file.path));
-      if ((doc.fields.visibility ?? node.visibility) === "public" && doc.fields.kind !== "quiz") {
-        publicDiscussions.set(file.path, doc);
-        published.add(file.path);
-      }
+  }
+  // Discussions : privées par défaut, les quiz ne sont jamais publiés.
+  for (const file of tree.discussions) {
+    const doc = parseDiscussion(await source.readText(file.path));
+    if (doc.fields.visibility === "public" && doc.fields.kind !== "quiz") {
+      publicDiscussions.set(file.path, doc);
+      published.add(file.path);
     }
   }
+  const publicDiscussionIds = new Set([...publicDiscussions.values()].map((d) => d.fields.id));
 
   const isPublished = (target: string): boolean =>
     published.has(target) || published.has(joinPath(target, "index.md"));
@@ -161,27 +174,52 @@ export async function buildPublication(
 
   // 2. Contenus transformés.
   const files: PublishedFile[] = [];
-  const descriptions = new Map<string, string | undefined>();
+  const indexEntries = new Map<
+    string,
+    {
+      id: string;
+      description?: string;
+      refs?: string[];
+      sourced?: boolean;
+      extracted_from?: string;
+    }
+  >();
   for (const node of publicNodes) {
     const doc = pageDocs.get(node.id);
     if (doc) {
+      // Fichier personnel d'une source : jamais publié, pas même son nom.
+      delete doc.fields.file;
       if (doc.fields.sources) {
-        doc.fields.sources = doc.fields.sources
-          .map((s) => {
-            const copy = { ...s };
-            delete copy.file;
-            return copy;
-          })
-          .filter((s) => s.description || s.url);
+        // Une référence à une source privée disparaît ; les références libres restent.
+        doc.fields.sources = doc.fields.sources.filter((s) =>
+          s.ref ? isPublicId(s.ref) : Boolean(s.description || s.url),
+        );
+        if (doc.fields.sources.length === 0) delete doc.fields.sources;
       }
-      if (doc.fields.extracted_from && !isPublicId(doc.fields.extracted_from)) {
+      const from = doc.fields.extracted_from;
+      if (from && !isPublicId(from) && !publicDiscussionIds.has(from)) {
         delete doc.fields.extracted_from;
       }
       doc.body = keepPublicLinks(doc.body, node.indexPath);
       files.push({ path: node.indexPath, content: serializePage(doc) });
       stats.pages++;
+      if (node.type === "knowledge") stats.knowledge++;
       if (node.type === "flashcard") stats.flashcards++;
-      descriptions.set(node.id, shortDescription(doc));
+      if (node.type === "source") stats.sources++;
+      const entry: {
+        id: string;
+        description?: string;
+        refs?: string[];
+        sourced?: boolean;
+        extracted_from?: string;
+      } = { id: node.id };
+      const description = shortDescription(doc);
+      if (description) entry.description = description;
+      const refs = (doc.fields.sources ?? []).map((s) => s.ref).filter(Boolean) as string[];
+      if (refs.length > 0) entry.refs = [...new Set(refs)];
+      if (doc.fields.sources?.length) entry.sourced = true;
+      if (doc.fields.extracted_from) entry.extracted_from = doc.fields.extracted_from;
+      indexEntries.set(node.id, entry);
     }
     const personalFiles = personal.get(node.id) ?? new Set<string>();
     for (const attachment of node.attachments) {
@@ -196,13 +234,18 @@ export async function buildPublication(
       files.push({ path, content: serializeSummary(summary) });
       stats.summaries++;
       const description = truncate(firstParagraph(summary.body), DESCRIPTION_LENGTH);
-      if (description) descriptions.set(node.id, description);
+      const entry = indexEntries.get(node.id);
+      if (description && entry) entry.description = description;
     }
   }
+  const indexDiscussions: { path: string; meta: ReturnType<typeof discussionMeta> }[] = [];
   for (const [path, doc] of publicDiscussions) {
     if (doc.fields.about && !isPublicId(doc.fields.about)) delete doc.fields.about;
+    if (doc.fields.scope_node && !isPublicId(doc.fields.scope_node)) delete doc.fields.scope_node;
     for (const message of doc.messages) message.content = keepPublicLinks(message.content, path);
-    files.push({ path, content: serializeDiscussion(doc) });
+    const content = serializeDiscussion(doc);
+    files.push({ path, content });
+    indexDiscussions.push({ path, meta: discussionMeta(content) });
     stats.discussions++;
   }
 
@@ -230,17 +273,12 @@ export async function buildPublication(
       );
     }
   }
-  const indexNodes = publicNodes
-    .filter((n) => !n.virtual)
-    .map((n) => {
-      const description = descriptions.get(n.id);
-      return description ? { id: n.id, description } : { id: n.id };
-    });
   const index = buildIndex({
     config,
     tree,
     files: listed,
-    nodes: indexNodes,
+    nodes: indexEntries.values(),
+    discussions: indexDiscussions,
     ...(options.now ? { now: options.now } : {}),
   });
   files.push({ path: INDEX_JSON_PATH, content: JSON.stringify(index, null, 2) + "\n" });

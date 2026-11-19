@@ -1,16 +1,33 @@
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
+  Book,
   BookOpen,
+  File,
   FileText,
   Folder,
   Globe,
+  GraduationCap,
+  Headphones,
+  Layers,
+  Library,
+  Lightbulb,
   Lock,
+  MessageCircleQuestion,
   MessageSquare,
+  Newspaper,
   RefreshCw,
-  Sparkles,
+  StickyNote,
+  Video,
 } from "lucide-react";
-import type { SummaryState, Visibility, WikiNode, WikiTree } from "@openeugenia/core";
+import type {
+  DiscussionKind,
+  SourceKind,
+  SummaryState,
+  Visibility,
+  WikiNode,
+  WikiTree,
+} from "@openeugenia/core";
 import { ancestors } from "@openeugenia/core";
 import { href } from "../lib/router.ts";
 
@@ -65,17 +82,92 @@ export function InfoBox({
   );
 }
 
+export const SOURCE_KIND_LABELS: Record<SourceKind, string> = {
+  book: "Livre",
+  article: "Article",
+  web: "Site web",
+  video: "Vidéo",
+  audio: "Audio",
+  document: "Document",
+  other: "Autre",
+};
+
+export function SourceKindIcon({ kind }: { kind: SourceKind | undefined }) {
+  switch (kind) {
+    case "book":
+      return <Book aria-hidden="true" />;
+    case "article":
+      return <Newspaper aria-hidden="true" />;
+    case "web":
+      return <Globe aria-hidden="true" />;
+    case "video":
+      return <Video aria-hidden="true" />;
+    case "audio":
+      return <Headphones aria-hidden="true" />;
+    case "document":
+      return <FileText aria-hidden="true" />;
+    default:
+      return <File aria-hidden="true" />;
+  }
+}
+
 /** Icône du type de nœud (décorative : le titre l'accompagne toujours). */
-export function TypeIcon({ node, tree }: { node: WikiNode; tree?: WikiTree }) {
-  if (node.type === "flashcard") return <Sparkles aria-hidden="true" />;
-  if (node.childIds.length > 0 || node.virtual || (tree && node.id === tree.rootId))
-    return <Folder aria-hidden="true" />;
-  return <FileText aria-hidden="true" />;
+export function TypeIcon({ node }: { node: WikiNode; tree?: WikiTree }) {
+  switch (node.type) {
+    case "knowledge":
+      return <Lightbulb aria-hidden="true" />;
+    case "flashcard":
+      return <Layers aria-hidden="true" />;
+    case "source":
+      return <SourceKindIcon kind={node.sourceKind} />;
+    default:
+      return node.space === "library" ? (
+        <Library aria-hidden="true" />
+      ) : (
+        <Folder aria-hidden="true" />
+      );
+  }
 }
 
 export function typeLabel(node: WikiNode): string {
-  if (node.type === "flashcard") return "Connaissance atomique";
-  return node.childIds.length > 0 ? "Catégorie" : "Note";
+  switch (node.type) {
+    case "knowledge":
+      return "Connaissance atomique";
+    case "flashcard":
+      return "Flashcard";
+    case "source":
+      return node.sourceKind ? `Source · ${SOURCE_KIND_LABELS[node.sourceKind]}` : "Source";
+    default:
+      return node.space === "library" ? "Bibliothèque" : "Catégorie";
+  }
+}
+
+export { DISCUSSION_KIND_LABELS } from "@openeugenia/core";
+
+export function DiscussionKindIcon({ kind }: { kind: DiscussionKind }) {
+  switch (kind) {
+    case "question":
+      return <MessageCircleQuestion aria-hidden="true" />;
+    case "quiz":
+      return <GraduationCap aria-hidden="true" />;
+    case "note":
+      return <StickyNote aria-hidden="true" />;
+    default:
+      return <MessageSquare aria-hidden="true" />;
+  }
+}
+
+/** Connaissance sans source : à appuyer sur une source de la bibliothèque. */
+export function UnsourcedBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className={compact ? "unsourced unsourced--compact" : "oe-badge oe-badge--warning unsourced"}
+      title="Aucune source n'appuie cette connaissance"
+    >
+      <AlertTriangle aria-hidden="true" />
+      <span className={compact ? "sr-only" : ""}>À sourcer</span>
+    </span>
+  );
 }
 
 export function VisibilityBadge({
@@ -122,15 +214,35 @@ export function SummaryStatusBadge({ state }: { state: SummaryState | undefined 
   }
 }
 
-export function Breadcrumb({ tree, node }: { tree: WikiTree; node: WikiNode }) {
-  const chain = ancestors(tree, node.id);
-  if (chain.length === 0) return null;
+/** Lien vers une page ; la racine de la bibliothèque ouvre la liste des sources. */
+export function nodeHref(tree: WikiTree, node: Pick<WikiNode, "id">): string {
+  return node.id === tree.libraryId
+    ? href({ name: "library" })
+    : href({ name: "node", id: node.id });
+}
+
+export function Breadcrumb({
+  tree,
+  node,
+  trail,
+}: {
+  tree: WikiTree;
+  node?: WikiNode;
+  /** Étapes supplémentaires, en tête (ex. « Discussions »). */
+  trail?: { label: string; href: string }[];
+}) {
+  const chain = node ? ancestors(tree, node.id) : [];
+  const steps = [
+    ...(trail ?? []),
+    ...chain.map((a) => ({ label: a.title, href: nodeHref(tree, a) })),
+  ];
+  if (steps.length === 0) return null;
   return (
     <nav className="breadcrumb" aria-label="Fil d'Ariane">
-      {chain.map((a, i) => (
-        <span key={a.id}>
-          <a href={href({ name: "node", id: a.id })}>{a.title}</a>
-          {i < chain.length - 1 && <span aria-hidden="true"> › </span>}
+      {steps.map((step, i) => (
+        <span key={`${step.href}-${i}`}>
+          <a href={step.href}>{step.label}</a>
+          {i < steps.length - 1 && <span aria-hidden="true"> › </span>}
         </span>
       ))}
     </nav>

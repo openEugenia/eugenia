@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   newDiscussionPath,
-  newQuizPath,
+  discussionMeta,
+  discussionNodes,
   parseDiscussion,
   quizEvents,
   serializeDiscussion,
@@ -57,13 +58,39 @@ describe("discussions et quiz", () => {
     expect(back.messages[1]!.content).toBe("## user · 2026-01-01T00:00:00Z\nsuite");
   });
 
-  it("nomme les fichiers de discussion et de quiz", () => {
+  it("nomme les fichiers de discussion dans le dossier des discussions", () => {
     const date = new Date("2026-11-17T10:30:00Z");
-    expect(newDiscussionPath("wiki/a", "Lilith et la Lune noire", new Set(), date)).toBe(
-      "wiki/a/_discussions/2026-11-17-lilith-et-la-lune-noire.md",
+    const config = { discussions: "discussions" };
+    expect(newDiscussionPath(config, "Lilith et la Lune noire", new Set(), date)).toBe(
+      "discussions/2026-11-17-1030-lilith-et-la-lune-noire.md",
     );
-    expect(newQuizPath("wiki/a", new Set(["2026-11-17-1030.md"]), date)).toBe(
-      "wiki/a/_quizzes/2026-11-17-1030-2.md",
+    expect(newDiscussionPath(config, "Quiz", new Set(["2026-11-17-1030-quiz.md"]), date)).toBe(
+      "discussions/2026-11-17-1030-quiz-2.md",
     );
+  });
+
+  it("lit la sorte et l'aperçu d'une discussion", () => {
+    const meta = discussionMeta(QUIZ);
+    expect(meta.kind).toBe("quiz");
+    expect(meta.messages).toBe(3);
+    expect(meta.preview).toBe("Je pense que c'est Lilite la Pépite");
+    const note = discussionMeta(
+      "---\nid: N\ntype: discussion\nkind: note\ntitle: Idée\nabout: K\n---\n\n## user · 2026-01-01T00:00:00Z\nUne **idée**.\n",
+    );
+    expect(note).toMatchObject({
+      id: "N",
+      kind: "note",
+      title: "Idée",
+      about: "K",
+      preview: "Une idée.",
+    });
+    expect(discussionNodes(note)).toEqual(["K"]);
+    expect(discussionMeta("---\nid: D\n---\n").kind).toBe("discussion");
+  });
+
+  it("ne compte les évaluations que dans les quiz", () => {
+    const doc = parseDiscussion(QUIZ);
+    delete doc.fields.kind;
+    expect(quizEvents(doc)).toEqual([]);
   });
 });

@@ -31,10 +31,32 @@ test.describe("lecture publique (anonyme)", () => {
       .first()
       .click();
     await expect(page.locator(".knowledge")).toContainText("démon féminin de la tradition juive");
-    await page.getByRole("button", { name: "Révéler la réponse" }).click();
-    await expect(page.locator(".card-face")).toContainText("Réponse attendue");
+    // La source publique est citée ; la source privée ne l'est pas.
     await expect(page.getByRole("link", { name: "Wikipédia, article « Lilith »" })).toBeVisible();
     await expect(page.getByText("Article sur Lilith")).toHaveCount(0);
+    // Les flashcards se consultent depuis leur connaissance.
+    await page.locator(".flashcard-list a").first().click();
+    await page.getByRole("button", { name: "Révéler la réponse" }).click();
+    await expect(page.locator(".card-face")).toContainText("Réponse attendue");
+    await expect(page.locator(".card-face")).toContainText("Connaissance testée");
+  });
+
+  test("parcourt la bibliothèque publique", async ({ page }) => {
+    const { publicRepo } = await demoRepos();
+    await installFakeGitHub(page, { token: "inutile", repos: [publicRepo], raw: [publicRepo] });
+    await page.goto("?repo=alice/eugenia-wiki-public");
+    await sidebar(page).getByRole("tab", { name: "Bibliothèque" }).click();
+    await expect(sidebar(page)).toContainText("Discours de la méthode");
+    await expect(sidebar(page)).not.toContainText("Article sur Lilith");
+    await page.goto("?repo=alice/eugenia-wiki-public#/library");
+    await expect(page.getByRole("heading", { name: "Bibliothèque", level: 1 })).toBeVisible();
+    await expect(page.locator(".library-item")).toHaveCount(3);
+    await page.locator(".library-item", { hasText: "Wikipédia, article « Lilith »" }).click();
+    await expect(page.locator(".notice")).toContainText("Site web");
+    await expect(page.locator("main")).toContainText("Connaissances tirées de cette source");
+    await expect(
+      page.locator("main").getByRole("link", { name: "Lilith", exact: true }),
+    ).toBeVisible();
   });
 
   test("recherche plein texte", async ({ page }) => {
@@ -42,8 +64,8 @@ test.describe("lecture publique (anonyme)", () => {
     await installFakeGitHub(page, { token: "inutile", repos: [publicRepo], raw: [publicRepo] });
     await page.goto("?repo=alice/eugenia-wiki-public#/search?q=apogee");
     await expect(page.getByRole("heading", { name: "Recherche", level: 1 })).toBeVisible();
-    await expect(page.locator("main").getByRole("link", { name: "Apogée" })).toBeVisible();
-    await expect(page.locator("main").getByRole("link", { name: "Lune noire" })).toBeVisible();
+    await expect(page.locator("main a strong").filter({ hasText: /^Apogée$/ })).toBeVisible();
+    await expect(page.locator("main a strong").filter({ hasText: /^Lune noire$/ })).toBeVisible();
   });
 
   test("signale un dépôt qui n'est pas un wiki", async ({ page }) => {

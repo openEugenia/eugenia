@@ -5,7 +5,7 @@ import {
   ancestors,
   createPage,
   descendants,
-  flashcardsUnder,
+  knowledgeUnder,
   type WikiNode,
 } from "@openeugenia/core";
 import { taskContext } from "../lib/ai.ts";
@@ -35,8 +35,8 @@ export function CategorySuggestions({ node }: { node: WikiNode }) {
       const result = await suggestCategories(context, {
         category: node.title,
         path: ancestors(tree, node.id).map((a) => a.title),
-        subcategories: children.filter((c) => c.type !== "flashcard").map((c) => c.title),
-        samples: flashcardsUnder(tree, node.id)
+        subcategories: children.filter((c) => c.type === "category").map((c) => c.title),
+        samples: knowledgeUnder(tree, node.id)
           .slice(0, 20)
           .map((c) => c.description ?? c.title),
       });

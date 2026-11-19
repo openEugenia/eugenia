@@ -1,0 +1,244 @@
+/**
+ * Discussions : tous les échanges avec Eugenia au même endroit (discussions libres, questions
+ * sur l'arbre, quiz, notes rapides), filtrables par sorte, avec la page à laquelle chacun se
+ * rattache.
+ */
+import { useMemo, useState } from "react";
+import {
+  GraduationCap,
+  MessageCircleQuestion,
+  MessageSquare,
+  MessagesSquare,
+  Search,
+  StickyNote,
+} from "lucide-react";
+import { DISCUSSION_KINDS, type DiscussionKind } from "@openeugenia/core";
+import {
+  DiscussionKindIcon,
+  DISCUSSION_KIND_LABELS,
+  EmptyState,
+  TypeIcon,
+} from "../components/common.tsx";
+import { formatDate, formatPercent, plural } from "../lib/format.ts";
+import { useCanEdit, useDerived, useIsOwner } from "../lib/hooks.ts";
+import { href, navigate } from "../lib/router.ts";
+import { normalizeTerm } from "../lib/text.ts";
+import type { DiscussionEntry } from "../lib/workspace.ts";
+
+/** Libellé d'un groupe de dates (aujourd'hui, cette semaine, mois). */
+function period(value: string | undefined, now: Date): string {
+  if (!value) return "Sans date";
+  const date = new Date(value);
+  const days = Math.floor((now.getTime() - date.getTime()) / 86_400_000);
+  if (days < 1 && date.getDate() === now.getDate()) return "Aujourd'hui";
+  if (days < 7) return "Cette semaine";
+  return date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+}
+
+export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string }) {
+  const derived = useDerived();
+  const owner = useIsOwner();
+  const editable = useCanEdit();
+  const [query, setQuery] = useState(q ?? "");
+
+  const counts = useMemo(() => {
+    const out = new Map<DiscussionKind, number>();
+    for (const d of derived.discussions) out.set(d.meta.kind, (out.get(d.meta.kind) ?? 0) + 1);
+    return out;
+  }, [derived.discussions]);
+
+  const quizScores = useMemo(() => {
+    const out = new Map<string, { sum: number; count: number }>();
+    for (const e of derived.quizEvents) {
+      if (!e.source) continue;
+      const s = out.get(e.source) ?? { sum: 0, count: 0 };
+      s.sum += e.score;
+      s.count += 1;
+      out.set(e.source, s);
+    }
+    return out;
+  }, [derived.quizEvents]);
+
+  const groups = useMemo(() => {
+    const words = normalizeTerm(query.trim()).split(/\s+/).filter(Boolean);
+    const now = new Date();
+    const out: { label: string; entries: DiscussionEntry[] }[] = [];
+    for (const entry of derived.discussions) {
+      if (kind && entry.meta.kind !== kind) continue;
+      if (words.length > 0) {
+        const related = [entry.meta.about, entry.meta.scope_node]
+          .map((id) => (id ? derived.tree.nodes.get(id)?.title : ""))
+          .join(" ");
+        const haystack = normalizeTerm(
+          [entry.meta.title, entry.meta.preview ?? "", related].join(" "),
+        );
+        if (!words.every((w) => haystack.includes(w))) continue;
+      }
+      const label = period(entry.meta.created ?? entry.meta.updated, now);
+      const last = out[out.length - 1];
+      if (last?.label === label) last.entries.push(entry);
+      else out.push({ label, entries: [entry] });
+    }
+    return out;
+  }, [derived.discussions, derived.tree, kind, query]);
+
+  const setKind = (next: DiscussionKind | undefined): void =>
+    navigate(
+      { name: "discussions", ...(next ? { kind: next } : {}), ...(query ? { q: query } : {}) },
+      { replace: true },
+    );
+
+  return (
+    <div className="page page--wide">
+      <header className="section__head">
+        <div>
+          <h1>Discussions</h1>
+          <p className="muted">
+            Vos échanges avec Eugenia : discussions, questions sur le wiki, quiz et notes rapides.
+            Les connaissances qui en naissent gardent la trace de leur discussion d'origine.
+          </p>
+        </div>
+      </header>
+
+      {editable && (
+        <div className="quick-actions section">
+          <a className="quick-action oe-card" href={href({ name: "discussion", kind: "note" })}>
+            <StickyNote aria-hidden="true" />
+            <span>
+              <strong>Note rapide</strong>
+              <span className="muted small">
+                Une idée, un fait entendu : Eugenia en tire des connaissances et vous suggère des
+                sources.
+              </span>
+            </span>
+          </a>
+          <a className="quick-action oe-card" href={href({ name: "ask" })}>
+            <MessageCircleQuestion aria-hidden="true" />
+            <span>
+              <strong>Question</strong>
+              <span className="muted small">
+                Interrogez tout le wiki : Eugenia répond en citant vos pages.
+              </span>
+            </span>
+          </a>
+          <a
+            className="quick-action oe-card"
+            href={href({ name: "quiz", id: derived.tree.rootId })}
+          >
+            <GraduationCap aria-hidden="true" />
+            <span>
+              <strong>Quiz</strong>
+              <span className="muted small">Révisez les flashcards les moins bien maîtrisées.</span>
+            </span>
+          </a>
+          <a className="quick-action oe-card" href={href({ name: "discussion" })}>
+            <MessageSquare aria-hidden="true" />
+            <span>
+              <strong>Discussion</strong>
+              <span className="muted small">
+                Un échange libre ; depuis une page, il s'y rattache.
+              </span>
+            </span>
+          </a>
+        </div>
+      )}
+
+      <div className="filters section">
+        <label className="search-field">
+          <Search aria-hidden="true" />
+          <input
+            className="oe-input"
+            type="search"
+            placeholder="Titre, contenu, page concernée…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Rechercher dans les discussions"
+          />
+        </label>
+        <div className="chips" role="group" aria-label="Sorte de discussion">
+          <button
+            type="button"
+            className={`chip${kind ? "" : " is-active"}`}
+            aria-pressed={!kind}
+            onClick={() => setKind(undefined)}
+          >
+            Toutes <span className="chip__count">{derived.discussions.length}</span>
+          </button>
+          {DISCUSSION_KINDS.map((k) => (
+            <button
+              key={k}
+              type="button"
+              className={`chip${kind === k ? " is-active" : ""}`}
+              aria-pressed={kind === k}
+              onClick={() => setKind(kind === k ? undefined : k)}
+            >
+              <DiscussionKindIcon kind={k} /> {DISCUSSION_KIND_LABELS[k]}{" "}
+              <span className="chip__count">{counts.get(k) ?? 0}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {derived.discussions.length === 0 ? (
+        <EmptyState icon={<MessagesSquare aria-hidden="true" />} title="Aucune discussion">
+          {owner
+            ? "Écrivez une note rapide, posez une question sur votre wiki ou lancez un quiz : vos échanges avec Eugenia apparaîtront ici."
+            : "Ce wiki ne publie aucune discussion."}
+        </EmptyState>
+      ) : groups.length === 0 ? (
+        <p className="muted">Aucune discussion ne correspond à ces filtres.</p>
+      ) : (
+        groups.map((group) => (
+          <section key={group.label} className="section">
+            <h2 className="discussion-group">{group.label}</h2>
+            <ul className="discussion-list">
+              {group.entries.map((entry) => {
+                const target =
+                  (entry.meta.about && derived.tree.nodes.get(entry.meta.about)) ||
+                  (entry.meta.scope_node && derived.tree.nodes.get(entry.meta.scope_node)) ||
+                  undefined;
+                const score = quizScores.get(entry.path);
+                return (
+                  <li key={entry.path}>
+                    <a
+                      className="discussion-item oe-card"
+                      href={href({ name: "discussion", path: entry.path })}
+                    >
+                      <span className={`discussion-item__icon kind-${entry.meta.kind}`}>
+                        <DiscussionKindIcon kind={entry.meta.kind} />
+                      </span>
+                      <span className="discussion-item__main">
+                        <span className="discussion-item__title">
+                          {entry.meta.title || "Sans titre"}
+                        </span>
+                        {entry.meta.preview && entry.meta.kind !== "quiz" && (
+                          <span className="discussion-item__text">{entry.meta.preview}</span>
+                        )}
+                        <span className="discussion-item__meta">
+                          {DISCUSSION_KIND_LABELS[entry.meta.kind]}
+                          {target && (
+                            <>
+                              {" · "}
+                              <TypeIcon node={target} /> {target.title}
+                            </>
+                          )}
+                          {" · "}
+                          {entry.meta.kind === "quiz" && score
+                            ? `${plural(score.count, "réponse")}, score moyen ${formatPercent(score.sum / score.count)}`
+                            : plural(entry.meta.messages, "message")}
+                        </span>
+                      </span>
+                      {entry.meta.created && (
+                        <span className="muted small">{formatDate(entry.meta.created)}</span>
+                      )}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))
+      )}
+    </div>
+  );
+}

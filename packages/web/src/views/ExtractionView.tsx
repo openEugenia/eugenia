@@ -1,13 +1,16 @@
 /**
- * Extraction de connaissances atomiques (§8.1) : un texte (note, discussion, texte collé,
- * PDF), les surlignages d'Eugenia et de l'utilisateur, les propositions de flashcards
- * (énoncé, cible en gras, titre, question, réponse, catégorie), puis un seul commit.
+ * Extraction de connaissances atomiques (§8.1) : un texte (source de la bibliothèque,
+ * discussion ou note rapide, texte collé, PDF), les surlignages d'Eugenia et de l'utilisateur,
+ * les propositions (énoncé, cible en gras, titre, première flashcard, catégorie), puis un seul
+ * commit. Un texte collé ou un PDF devient une source de la bibliothèque ; les connaissances
+ * extraites citent leurs sources.
  */
 import { useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   FileUp,
   Highlighter,
+  Lightbulb,
   Plus,
   Scissors,
   Sparkles,
@@ -15,15 +18,17 @@ import {
   Wand2,
 } from "lucide-react";
 import {
+  createFlashcard,
   createPage,
   joinPath,
   markdownToText,
   parseDiscussion,
   parsePage,
-  serializeFlashcardBody,
+  serializeKnowledgeBody,
+  SOURCE_KINDS,
   type FileChange,
+  type SourceKind,
   type SourceRef,
-  type WikiNode,
 } from "@openeugenia/core";
 import {
   categoryOptions,
@@ -33,25 +38,33 @@ import {
   type CategoryOption,
   type Highlight,
 } from "@openeugenia/ai";
-import { Breadcrumb, ErrorBox, InfoBox, Spinner } from "../components/common.tsx";
-import { NodePicker } from "../components/NodePicker.tsx";
+import {
+  Breadcrumb,
+  ErrorBox,
+  InfoBox,
+  SOURCE_KIND_LABELS,
+  Spinner,
+} from "../components/common.tsx";
+import { SourcesEditor } from "../components/SourcesEditor.tsx";
 import { taskContext } from "../lib/ai.ts";
 import { fileToBase64, safeFileName } from "../lib/files.ts";
 import { plural } from "../lib/format.ts";
 import { useCanEdit, useDerived, useText } from "../lib/hooks.ts";
 import { pdfToText } from "../lib/pdf.ts";
 import { href } from "../lib/router.ts";
+import { materializeSources, splitList, type NewSourceDraft } from "../lib/sources.ts";
 import { errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
 
-type SourceKind = "note" | "discussion" | "paste" | "pdf";
+/** Origine du texte : source de la bibliothèque, discussion, texte collé ou PDF. */
+type Origin = "source" | "discussion" | "paste" | "pdf";
 type Step = "source" | "highlight" | "propose" | "done";
 
 interface Source {
-  kind: SourceKind;
+  kind: Origin;
   title: string;
   text: string;
-  /** Nœud ou discussion d'origine (note existante, discussion). */
+  /** Source ou discussion d'origine. */
   originId?: string;
   isPublic: boolean;
   pdf?: { name: string; base64: string };
@@ -109,30 +122,33 @@ function segments(
   return out;
 }
 
-export function ExtractionView({ id, discussion }: { id: string; discussion?: string }) {
+export function ExtractionView({ id, discussion }: { id?: string; discussion?: string }) {
   const derived = useDerived();
   const editable = useCanEdit();
-  const node = derived.tree.nodes.get(id);
-  const nodeText = useText(
-    node && node.type === "note" && !node.virtual ? node.indexPath : undefined,
-  );
+  const node = id ? derived.tree.nodes.get(id) : undefined;
+  const isSourceNode = node?.type === "source" && !node.virtual;
+  const nodeText = useText(isSourceNode ? node.indexPath : undefined);
   const discussionText = useText(discussion);
+  const discussionEntry = discussion
+    ? derived.discussions.find((d) => d.path === discussion)
+    : undefined;
   const [step, setStep] = useState<Step>("source");
-  const [kind, setKind] = useState<SourceKind>(
-    discussion ? "discussion" : node?.type === "note" && !node.virtual ? "note" : "paste",
+  const [kind, setKind] = useState<Origin>(
+    discussion ? "discussion" : isSourceNode ? "source" : "paste",
   );
   const [pasteTitle, setPasteTitle] = useState("");
   const [pasteText, setPasteText] = useState("");
+  const [sourceKind, setSourceKind] = useState<SourceKind>("article");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceAuthors, setSourceAuthors] = useState("");
   const [pdf, setPdf] = useState<{ name: string; base64: string; text: string } | null>(null);
   const [attachPdf, setAttachPdf] = useState(true);
-  const [sourceParent, setSourceParent] = useState<WikiNode | undefined>(
-    node && node.type !== "flashcard"
-      ? node
-      : node?.parentId
-        ? derived.tree.nodes.get(node.parentId)
-        : undefined,
-  );
-  const [picker, setPicker] = useState(false);
+  // Catégorie proposée par défaut aux connaissances : la catégorie d'où l'on vient.
+  const defaultCategory =
+    node?.type === "category" && node.space === "wiki" ? node.id : derived.tree.rootId;
+  // Sources citées par toutes les connaissances extraites (en plus du texte importé).
+  const [citations, setCitations] = useState<SourceRef[]>(isSourceNode ? [{ ref: node.id }] : []);
+  const [drafts, setDrafts] = useState<NewSourceDraft[]>([]);
   const [source, setSource] = useState<Source | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [focused, setFocused] = useState<string | null>(null);
@@ -142,7 +158,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
   const textRef = useRef<HTMLDivElement>(null);
   const categories = useMemo(() => categoryOptions(derived), [derived]);
 
-  if (!node)
+  if (id && !node)
     return (
       <div className="page">
         <ErrorBox title="Page introuvable">Cette page n'existe pas.</ErrorBox>
@@ -163,7 +179,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
 
   const prepareSource = (): void => {
     let next: Source | null = null;
-    if (kind === "note" && nodeText.data !== undefined) {
+    if (kind === "source" && node && nodeText.data !== undefined) {
       next = {
         kind,
         title: node.title,
@@ -200,9 +216,13 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
         attachPdf,
       };
     }
-    if (!next || !next.text.trim()) return toast("Le texte source est vide.", "error");
-    if ((kind === "paste" || kind === "pdf") && !sourceParent)
-      return toast("Choisissez où ranger la note source.", "error");
+    if (!next || !next.text.trim())
+      return toast(
+        kind === "source"
+          ? "Cette source n'a pas de contenu : collez-y un extrait ou importez le texte."
+          : "Le texte source est vide.",
+        "error",
+      );
     setSource(next);
     setHighlights([]);
     setStep("highlight");
@@ -256,7 +276,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
         highlights: kept,
         categories,
       });
-      const fallback = sourceParent?.id ?? derived.tree.rootId;
+      const fallback = defaultCategory;
       setProposals(
         result.map((p, i) => ({
           key: `${p.highlightId}-${i}`,
@@ -295,47 +315,43 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
       const reserve = (path: string): void => {
         reserved.push(path);
       };
-      // 1. Note source (texte collé ou PDF), avec le fichier d'origine si demandé.
+      // 1. Texte collé ou PDF : nouvelle source de la bibliothèque, avec son fichier.
       let originId = source.originId;
-      let sources: SourceRef[] = [];
-      if (source.kind === "note" && node.type === "note") {
-        sources = (parsePage(nodeText.data ?? "").fields.sources ?? []).map(
-          ({ description, url }) => ({
-            ...(description ? { description } : {}),
-            ...(url ? { url } : {}),
-          }),
-        );
-      }
-      if ((source.kind === "paste" || source.kind === "pdf") && sourceParent) {
-        const fileName = source.pdf ? safeFileName(source.pdf.name) : undefined;
-        const noteSources: SourceRef[] =
-          source.pdf && source.attachPdf && fileName
-            ? [{ description: source.pdf.name, file: fileName }]
-            : [];
-        const note = createPage(
+      const refs: SourceRef[] = [...citations];
+      if (source.kind === "paste" || source.kind === "pdf") {
+        const library = tree.nodes.get(tree.libraryId)!;
+        const fileName = source.pdf && source.attachPdf ? safeFileName(source.pdf.name) : undefined;
+        const created = createPage(
           workspace,
           {
-            parentPath: sourceParent.path,
-            parentIsPublic: sourceParent.isPublic,
+            parentPath: library.path,
+            parentIsPublic: library.isPublic,
             title: source.title,
+            type: "source",
+            kind: sourceKind,
+            authors: splitList(sourceAuthors),
+            ...(sourceUrl.trim() ? { url: sourceUrl.trim() } : {}),
+            ...(fileName ? { file: fileName } : {}),
             body: source.text
               .split(/\n{2,}/)
               .map((p) => `> ${p.replace(/\n/g, "\n> ")}`)
               .join("\n>\n"),
-            sources: noteSources,
           },
           reserved,
         );
-        changes.push(note.change);
-        reserve(note.indexPath);
-        if (source.pdf && source.attachPdf && fileName) {
-          const path = joinPath(note.path, fileName);
+        changes.push(created.change);
+        reserve(created.indexPath);
+        if (source.pdf && fileName) {
+          const path = joinPath(created.path, fileName);
           changes.push({ op: "write-binary", path, base64: source.pdf.base64 });
           reserve(path);
         }
-        originId = note.id;
-        sources = [{ description: source.title }];
+        originId = created.id;
+        refs.unshift({ ref: created.id });
       }
+      const materialized = materializeSources(workspace, refs, drafts, reserved);
+      changes.push(...materialized.changes);
+      const sources = materialized.sources;
       // 2. Nouvelles catégories (une par titre et parent).
       const newCategories = new Map<string, { path: string; isPublic: boolean }>();
       for (const p of selected) {
@@ -352,7 +368,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
         reserve(category.indexPath);
         newCategories.set(key, { path: category.path, isPublic: false });
       }
-      // 3. Connaissances atomiques.
+      // 3. Connaissances atomiques et leur première flashcard.
       const made: { id: string; title: string }[] = [];
       for (const p of selected) {
         let parentPath: string;
@@ -368,26 +384,32 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
           parentPath = category.path;
           parentIsPublic = category.isPublic;
         }
-        const card = createPage(
+        const knowledge = createPage(
           workspace,
           {
             parentPath,
             parentIsPublic,
             title: p.title.trim(),
-            type: "flashcard",
-            body: serializeFlashcardBody({
-              knowledge: p.knowledge,
-              question: p.question,
-              answer: p.answer,
-            }),
+            type: "knowledge",
+            body: serializeKnowledgeBody({ statement: p.knowledge }),
             sources,
             ...(originId ? { extracted_from: originId } : {}),
           },
           reserved,
         );
-        changes.push(card.change);
-        reserve(card.indexPath);
-        made.push({ id: card.id, title: p.title.trim() });
+        changes.push(knowledge.change);
+        reserve(knowledge.indexPath);
+        if (p.question.trim() && p.answer.trim()) {
+          const card = createFlashcard(
+            workspace,
+            { path: knowledge.path, isPublic: false },
+            { question: p.question, answer: p.answer },
+            reserved,
+          );
+          changes.push(card.change);
+          reserve(card.indexPath);
+        }
+        made.push({ id: knowledge.id, title: p.title.trim() });
       }
       const message = `Extraction : ${plural(made.length, "connaissance")} depuis « ${source.title} »`;
       await stage(changes, message);
@@ -408,7 +430,25 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
 
   return (
     <div className="page page--wide">
-      <Breadcrumb tree={derived.tree} node={node} />
+      {node ? (
+        <Breadcrumb tree={derived.tree} node={node} />
+      ) : discussion ? (
+        <Breadcrumb
+          tree={derived.tree}
+          trail={[
+            { label: "Discussions", href: href({ name: "discussions" }) },
+            {
+              label: discussionEntry?.meta.title ?? "Discussion",
+              href: href({ name: "discussion", path: discussion }),
+            },
+          ]}
+        />
+      ) : (
+        <Breadcrumb
+          tree={derived.tree}
+          trail={[{ label: "Bibliothèque", href: href({ name: "library" }) }]}
+        />
+      )}
       <h1>Extraire des connaissances</h1>
       <ol className="stepper">
         {(["source", "highlight", "propose", "done"] as const).map((s, i) => (
@@ -431,15 +471,15 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
       {step === "source" && (
         <section className="oe-card">
           <div role="tablist" className="toolbar" aria-label="Origine du texte">
-            {node.type === "note" && !node.virtual && (
+            {isSourceNode && (
               <button
                 type="button"
                 role="tab"
-                aria-selected={kind === "note"}
-                className={`oe-button oe-button--sm ${kind === "note" ? "" : "oe-button--ghost"}`}
-                onClick={() => setKind("note")}
+                aria-selected={kind === "source"}
+                className={`oe-button oe-button--sm ${kind === "source" ? "" : "oe-button--ghost"}`}
+                onClick={() => setKind("source")}
               >
-                Cette note
+                Cette source
               </button>
             )}
             {discussion && (
@@ -472,30 +512,81 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
               Importer un PDF
             </button>
           </div>
-          {kind === "note" && (
+          {kind === "source" && node && (
             <p className="muted">
-              Le texte de « {node.title} » sera analysé ; la note reste inchangée et devient la
-              source des connaissances.
+              Le contenu de « {node.title} » sera analysé ; les connaissances extraites citeront
+              cette source.
             </p>
           )}
           {kind === "discussion" && (
             <p className="muted">
-              L'échange avec Eugenia sera analysé ; il reste la source des connaissances extraites.
+              L'échange avec Eugenia sera analysé. Les connaissances extraites en garderont la trace
+              ; sans source extérieure, elles seront marquées « à sourcer » : vous pourrez leur en
+              associer une à l'étape des propositions.
             </p>
           )}
           {(kind === "paste" || kind === "pdf") && (
             <div className="form-grid">
-              <div className="oe-field">
-                <label className="oe-label" htmlFor="source-title">
-                  Titre de la note source
-                </label>
-                <input
-                  id="source-title"
-                  className="oe-input"
-                  value={pasteTitle}
-                  onChange={(e) => setPasteTitle(e.target.value)}
-                  placeholder={kind === "pdf" ? pdf?.name : "Article sur…"}
-                />
+              <p className="muted small">
+                Le texte devient une nouvelle source de votre bibliothèque, citée par les
+                connaissances extraites.
+              </p>
+              <div className="form-row">
+                <div className="oe-field">
+                  <label className="oe-label" htmlFor="source-title">
+                    Titre de la source
+                  </label>
+                  <input
+                    id="source-title"
+                    className="oe-input"
+                    value={pasteTitle}
+                    onChange={(e) => setPasteTitle(e.target.value)}
+                    placeholder={kind === "pdf" ? pdf?.name : "Article sur…"}
+                  />
+                </div>
+                <div className="oe-field">
+                  <label className="oe-label" htmlFor="source-kind">
+                    Nature
+                  </label>
+                  <select
+                    id="source-kind"
+                    className="oe-select"
+                    value={sourceKind}
+                    onChange={(e) => setSourceKind(e.target.value as SourceKind)}
+                  >
+                    {SOURCE_KINDS.map((k) => (
+                      <option key={k} value={k}>
+                        {SOURCE_KIND_LABELS[k]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="oe-field">
+                  <label className="oe-label" htmlFor="source-authors">
+                    Auteurs (facultatif)
+                  </label>
+                  <input
+                    id="source-authors"
+                    className="oe-input"
+                    value={sourceAuthors}
+                    onChange={(e) => setSourceAuthors(e.target.value)}
+                  />
+                </div>
+                <div className="oe-field">
+                  <label className="oe-label" htmlFor="source-url">
+                    Adresse (facultatif)
+                  </label>
+                  <input
+                    id="source-url"
+                    className="oe-input"
+                    type="url"
+                    value={sourceUrl}
+                    onChange={(e) => setSourceUrl(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </div>
               </div>
               {kind === "paste" ? (
                 <div className="oe-field">
@@ -525,6 +616,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
                         const file = e.target.files?.[0];
                         if (!file) return;
                         setBusy("Lecture du PDF…");
+                        setSourceKind("document");
                         void Promise.all([pdfToText(file), fileToBase64(file)])
                           .then(([result, base64]) => {
                             setPdf({ name: file.name, base64, text: result.text });
@@ -551,9 +643,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
                           checked={attachPdf}
                           onChange={(e) => setAttachPdf(e.target.checked)}
                         />
-                        <span>
-                          Joindre le PDF à la note source (fichier personnel, jamais publié)
-                        </span>
+                        <span>Joindre le PDF à la source (fichier personnel, jamais publié)</span>
                       </label>
                     </>
                   )}
@@ -563,19 +653,6 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
                   </p>
                 </div>
               )}
-              <div className="oe-field">
-                <span className="oe-label">Ranger la note source dans</span>
-                <div className="actions actions--start">
-                  <strong>{sourceParent?.title ?? "—"}</strong>
-                  <button
-                    type="button"
-                    className="oe-button oe-button--ghost oe-button--sm"
-                    onClick={() => setPicker(true)}
-                  >
-                    Changer
-                  </button>
-                </div>
-              </div>
             </div>
           )}
           <div className="actions">
@@ -584,7 +661,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
               className="oe-button"
               onClick={prepareSource}
               disabled={
-                Boolean(busy) || (kind === "note" && nodeText.loading) || (kind === "pdf" && !pdf)
+                Boolean(busy) || (kind === "source" && nodeText.loading) || (kind === "pdf" && !pdf)
               }
             >
               Continuer
@@ -721,7 +798,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
                       knowledge: "",
                       question: "",
                       answer: "",
-                      categoryId: sourceParent?.id ?? derived.tree.rootId,
+                      categoryId: defaultCategory,
                       newTitle: "",
                       newParentId: derived.tree.rootId,
                     },
@@ -732,6 +809,24 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
               </button>
             </div>
           </div>
+          <section className="oe-card section" aria-label="Sources des connaissances">
+            <h3 style={{ margin: 0 }}>Sources</h3>
+            <p className="muted small">
+              {source?.kind === "paste" || source?.kind === "pdf"
+                ? `Chaque connaissance citera la nouvelle source « ${source.title} », et les sources ajoutées ici.`
+                : "Chaque connaissance citera les sources ci-dessous."}
+              {citations.length === 0 && source?.kind === "discussion"
+                ? " Sans source, elles seront marquées « à sourcer » : appuyez-les de préférence sur une source extérieure."
+                : ""}
+            </p>
+            <SourcesEditor
+              tree={derived.tree}
+              sources={citations}
+              onChange={setCitations}
+              drafts={drafts}
+              onDraftsChange={setDrafts}
+            />
+          </section>
           <div className="form-grid">
             {proposals.map((p) => (
               <div key={p.key} className={`proposal${p.include ? "" : " is-excluded"}`}>
@@ -792,9 +887,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
                   </div>
                 )}
                 <div className="oe-field">
-                  <label className="oe-label">
-                    Connaissance (cible d'apprentissage en **gras**)
-                  </label>
+                  <label className="oe-label">Énoncé (cible d'apprentissage en **gras**)</label>
                   <textarea
                     className="oe-textarea"
                     style={{ minHeight: "4rem" }}
@@ -804,7 +897,7 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
                 </div>
                 <div className="form-row">
                   <div className="oe-field">
-                    <label className="oe-label">Question</label>
+                    <label className="oe-label">Question de la première flashcard</label>
                     <textarea
                       className="oe-textarea"
                       style={{ minHeight: "3.5rem" }}
@@ -851,34 +944,33 @@ export function ExtractionView({ id, discussion }: { id: string; discussion?: st
           <ul className="link-list">
             {created.map((c) => (
               <li key={c.id}>
-                <Sparkles aria-hidden="true" />{" "}
+                <Lightbulb aria-hidden="true" />{" "}
                 <a href={href({ name: "node", id: c.id })}>{c.title}</a>
               </li>
             ))}
           </ul>
           <div className="actions actions--start">
-            <a
-              className="oe-button oe-button--secondary"
-              href={href({ name: "node", id: node.id })}
-            >
-              Retour à « {node.title} »
-            </a>
+            {node ? (
+              <a
+                className="oe-button oe-button--secondary"
+                href={href({ name: "node", id: node.id })}
+              >
+                Retour à « {node.title} »
+              </a>
+            ) : discussion ? (
+              <a
+                className="oe-button oe-button--secondary"
+                href={href({ name: "discussion", path: discussion })}
+              >
+                Retour à la discussion
+              </a>
+            ) : (
+              <a className="oe-button oe-button--secondary" href={href({ name: "library" })}>
+                Retour à la bibliothèque
+              </a>
+            )}
           </div>
         </section>
-      )}
-
-      {picker && (
-        <NodePicker
-          open
-          title="Ranger la note source dans…"
-          tree={derived.tree}
-          filter={(n) => n.type !== "flashcard"}
-          onClose={() => setPicker(false)}
-          onSelect={(n) => {
-            setSourceParent(n);
-            setPicker(false);
-          }}
-        />
       )}
       {source && step !== "source" && step !== "done" && (
         <p className="muted small section">Source : {source.title}</p>

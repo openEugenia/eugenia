@@ -6,6 +6,7 @@
 import {
   CONFIG_PATH,
   INDEX_JSON_PATH,
+  discussionsFromIndex,
   isWikiIndex,
   metasFromIndex,
   parseConfig,
@@ -230,6 +231,7 @@ export class AnonymousBackend implements Backend {
       branch: "HEAD",
       files: index.files,
       metas: Object.fromEntries(metasFromIndex(index)),
+      discussions: Object.fromEntries(discussionsFromIndex(index)),
       fetchedAt: new Date().toISOString(),
     };
   }

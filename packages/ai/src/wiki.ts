@@ -7,13 +7,16 @@ import {
   ancestors,
   basename,
   dirname,
+  isCategory,
   markdownToText,
   needsSummary,
   parseFlashcardBody,
+  parseKnowledgeBody,
   parsePage,
   parseSummary,
   PROMPTS_DIR,
   scopedChildren,
+  type PageType,
   type SummaryDocument,
   type SummaryScope,
   type WikiNode,
@@ -24,22 +27,58 @@ import type { TreeEntry, TreeNavigator } from "./tasks/ask.ts";
 import type { CategoryOption } from "./tasks/extract.ts";
 import type { SummaryInput } from "./tasks/summarize.ts";
 
-/** Texte d'une page pour Eugenia : énoncé, question et réponse pour une flashcard. */
+/** Libellé d'un type de page dans les données envoyées à Eugenia. */
+export const PAGE_TYPE_LABELS: Record<PageType, string> = {
+  category: "catégorie",
+  knowledge: "connaissance",
+  flashcard: "flashcard",
+  source: "source",
+};
+
+/**
+ * Texte d'une page pour Eugenia : énoncé d'une connaissance, question et réponse d'une
+ * flashcard (avec l'énoncé de sa connaissance), notice et contenu d'une source.
+ */
 export async function pageText(
-  view: Pick<WikiView, "readText" | "files">,
+  view: Pick<WikiView, "readText" | "files"> & { tree?: WikiView["tree"] },
   node: WikiNode,
 ): Promise<string> {
   if (node.virtual || !view.files.has(node.indexPath)) return "";
   const doc = parsePage(await view.readText(node.indexPath));
   if (node.type === "flashcard") {
     const card = parseFlashcardBody(doc.body);
+    const parent = node.parentId ? view.tree?.nodes.get(node.parentId) : undefined;
+    let knowledge = card.knowledge ?? "";
+    if (!knowledge && parent?.type === "knowledge" && view.files.has(parent.indexPath)) {
+      knowledge = parseKnowledgeBody(
+        parsePage(await view.readText(parent.indexPath)).body,
+      ).statement;
+    }
     return [
-      `Connaissance : ${card.knowledge}`,
-      card.question ? `Question : ${card.question}` : "",
-      card.answer ? `Réponse attendue : ${card.answer}` : "",
+      knowledge ? `Connaissance : ${markdownToText(knowledge)}` : "",
+      card.question ? `Question : ${markdownToText(card.question)}` : "",
+      card.answer ? `Réponse attendue : ${markdownToText(card.answer)}` : "",
     ]
       .filter(Boolean)
       .join("\n");
+  }
+  if (node.type === "knowledge") {
+    const content = parseKnowledgeBody(doc.body);
+    return [
+      `Connaissance : ${markdownToText(content.statement)}`,
+      content.notes ? markdownToText(content.notes) : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  if (node.type === "source") {
+    const f = doc.fields;
+    const notice = [
+      f.authors?.length ? `Auteurs : ${f.authors.join(", ")}` : "",
+      f.published ? `Publication : ${f.published}` : "",
+      f.url ? `Adresse : ${f.url}` : "",
+    ].filter(Boolean);
+    return [...notice, markdownToText(doc.body)].filter(Boolean).join("\n");
   }
   return markdownToText(doc.body);
 }
@@ -72,7 +111,7 @@ export async function summaryInputFor(
           : await pageText(view, child);
       return {
         title: child.title,
-        type: child.type,
+        type: PAGE_TYPE_LABELS[child.type],
         description: description || child.description || "",
         isSubwiki,
       };
@@ -94,12 +133,12 @@ export function involvesPrivate(nodes: Iterable<WikiNode>): boolean {
   return false;
 }
 
-/** Catégories proposées à l'extraction : toutes les notes, avec leur chemin lisible. */
+/** Catégories proposées à l'extraction : toutes les catégories du wiki, avec leur chemin. */
 export function categoryOptions(view: Pick<WikiView, "tree">, limit = 400): CategoryOption[] {
   const out: CategoryOption[] = [];
   const visit = (node: WikiNode, path: string[]): void => {
     if (out.length >= limit) return;
-    if (node.type !== "flashcard") {
+    if (isCategory(node)) {
       const option: CategoryOption = { id: node.id, path: [...path, node.title].join(" > ") };
       if (node.description) option.description = node.description;
       out.push(option);
@@ -111,14 +150,19 @@ export function categoryOptions(view: Pick<WikiView, "tree">, limit = 400): Cate
   return out;
 }
 
-/** Navigation dans l'arbre pour les questions (§8.5), limitée à une portée. */
+/**
+ * Navigation dans l'arbre pour les questions (§8.5), limitée à une portée. Elle descend des
+ * catégories jusqu'aux connaissances, dont le contenu inclut leurs flashcards.
+ */
 export function treeNavigator(
   view: WikiView,
   scope: SummaryScope,
   summaries?: ReadonlyMap<string, SummaryDocument>,
 ): TreeNavigator {
+  const navigable = (node: WikiNode): WikiNode[] =>
+    node.type === "category" ? scopedChildren(view.tree, node, scope) : [];
   const toEntry = async (node: WikiNode): Promise<TreeEntry> => {
-    const kids = scopedChildren(view.tree, node, scope);
+    const kids = navigable(node);
     const file = scope === "public" ? node.summaries.public : node.summaries.private;
     let description = node.description;
     if (kids.length > 0 && file) {
@@ -131,7 +175,7 @@ export function treeNavigator(
     const entry: TreeEntry = {
       id: node.id,
       title: node.title,
-      type: node.type,
+      type: PAGE_TYPE_LABELS[node.type],
       hasChildren: kids.length > 0,
     };
     if (description) entry.description = description;
@@ -144,19 +188,30 @@ export function treeNavigator(
       const entry: TreeEntry = {
         id: node.id,
         title: node.title,
-        type: node.type,
-        hasChildren: scopedChildren(view.tree, node, scope).length > 0,
+        type: PAGE_TYPE_LABELS[node.type],
+        hasChildren: navigable(node).length > 0,
       };
       if (node.description) entry.description = node.description;
       return entry;
     },
     async children(id) {
       const node = view.tree.nodes.get(id);
-      return node ? Promise.all(scopedChildren(view.tree, node, scope).map(toEntry)) : [];
+      return node ? Promise.all(navigable(node).map(toEntry)) : [];
     },
     async content(id) {
       const node = view.tree.nodes.get(id);
-      return node ? pageText(view, node) : "";
+      if (!node) return "";
+      const text = await pageText(view, node);
+      if (node.type !== "knowledge") return text;
+      const cards = await Promise.all(
+        scopedChildren(view.tree, node, scope)
+          .filter((c) => c.type === "flashcard")
+          .map(async (c) => {
+            const card = parseFlashcardBody(parsePage(await view.readText(c.indexPath)).body);
+            return `- ${markdownToText(card.question)} → ${markdownToText(card.answer)}`;
+          }),
+      );
+      return cards.length > 0 ? `${text}\n\nFlashcards :\n${cards.join("\n")}` : text;
     },
   };
 }

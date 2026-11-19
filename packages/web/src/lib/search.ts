@@ -7,6 +7,7 @@ import {
   markdownToText,
   parseDocument,
   type CardState,
+  type PageType,
   type WikiNode,
   type WikiTree,
 } from "@openeugenia/core";
@@ -59,7 +60,7 @@ export function documentFor(
 }
 
 export interface SearchFilters {
-  type?: "note" | "flashcard" | "";
+  type?: PageType | "";
   tag?: string;
   visibility?: "public" | "private" | "";
   /** Maîtrise : `low` sous le seuil, `mid`, `high` au-dessus de 70 %. */
@@ -72,6 +73,7 @@ export function matchesFilters(
   mastery: ReadonlyMap<string, CardState>,
   threshold: number,
 ): boolean {
+  if (node.virtual && node.parentId === null && node.space === "library") return false;
   if (filters.type && node.type !== filters.type) return false;
   if (filters.tag && !node.tags.includes(filters.tag)) return false;
   if (filters.visibility && (filters.visibility === "public") !== node.isPublic) return false;

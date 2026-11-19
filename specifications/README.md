@@ -1,6 +1,6 @@
 # Spécifications — Eugenia : wiki personnel de connaissances, sur git
 
-> Statut : brouillon v0.5 — 2026-11-17
+> Statut : brouillon v0.6 — 2026-11-19 (format v2 : wiki, bibliothèque et discussions séparés)
 > Ce document sert de point de départ au dépôt git du projet. Il traduit en spécifications techniques la documentation fonctionnelle du dossier [`functional_doc/`](functional_doc/), qui reste la référence pour le « quoi » et le « pourquoi ». Les points encore ouverts sont listés en §16.
 
 ---
@@ -48,15 +48,19 @@ Les définitions fonctionnelles viennent de `functional_doc/`. Ce tableau préci
 | Terme | Définition | Dans le modèle |
 |---|---|---|
 | **Eugenia** | L'assistante, interface vers les algorithmes d'IA. | Couche `packages/ai` + prompts. |
-| **Connaissance atomique** | Énoncé simple, précis, compréhensible sans contexte implicite ([§1](functional_doc/1_knowledge_extraction.qmd)). | Nœud de type `flashcard`. |
-| **Catégorie / sous-wiki** | Ensemble de connaissances regroupées ; niveau de l'arbre ([§2](functional_doc/2_wiki.qmd)). | Nœud ayant des enfants (souvent de type `note`). |
+| **Connaissance atomique** | Énoncé simple, précis, compréhensible sans contexte implicite ([§1](functional_doc/1_knowledge_extraction.qmd)). Feuille du wiki. | Nœud de type `knowledge`. |
+| **Flashcard** | Question et réponse attendue qui testent une connaissance atomique ; une connaissance peut en avoir plusieurs. | Nœud de type `flashcard`, enfant d'une `knowledge`. |
+| **Catégorie / sous-wiki** | Ensemble de connaissances regroupées ; niveau de l'arbre ([§2](functional_doc/2_wiki.qmd)). | Nœud de type `category`. |
 | **Description de sous-wiki** | Texte qui résume ce que contient un sous-wiki. | Nœud de type `summary` rattaché au parent. |
 | **Wiki personnel** | Interface de navigation dans l'arbre des connaissances. | L'application elle-même. |
-| **Base de connaissances** | Ensemble des connaissances atomiques et de leur état de maîtrise. | Toutes les `flashcard` du dépôt + historique des quiz. |
-| **Source** | Origine d'une connaissance (publication, site…) ([§1](functional_doc/1_knowledge_extraction.qmd)). | Champ `sources` d'un nœud, avec fichier personnel optionnel. |
-| **Maîtrise (mastery)** | Valeur dans [0, 1] de maîtrise d'une connaissance, 0,5 par défaut ([§3](functional_doc/3_reinforcement.qmd)). | Calculée à partir de l'historique des quiz (§8.3). |
+| **Base de connaissances** | Ensemble des connaissances atomiques et de leur état de maîtrise. | Toutes les `knowledge` et `flashcard` du dépôt + historique des quiz. |
+| **Source** | Origine d'une connaissance (publication, site…) ([§1](functional_doc/1_knowledge_extraction.qmd)). | Nœud de type `source` de la **bibliothèque**, cité par les connaissances (`sources[].ref`). |
+| **Bibliothèque** | Ensemble des sources de l'utilisateur, séparé du wiki. | Dossier `library/`, liste à plat. |
+| **Discussions** | Tous les échanges avec Eugenia : discussions libres, questions, quiz, notes rapides. | Dossier `discussions/`, un fichier par discussion (§5.6). |
+| **Note rapide** | Idée ou fait noté à la volée, à quoi Eugenia répond par des connaissances candidates et des pistes de sources. | Nœud `discussion` de sorte `note`. |
+| **Maîtrise (mastery)** | Valeur dans [0, 1] de maîtrise d'une flashcard, 0,5 par défaut ([§3](functional_doc/3_reinforcement.qmd)) ; celle d'une connaissance ou d'une catégorie est la moyenne de ses flashcards. | Calculée à partir de l'historique des quiz (§8.3). |
 | **Déclin (decay)** | Facteur quotidien de diminution de la maîtrise. | Calculé à partir de l'historique des quiz (§8.3). |
-| **Quiz** | Conversation où Eugenia interroge l'utilisateur sur une catégorie. | Nœud `discussion` de sous-type `quiz`. |
+| **Quiz** | Conversation où Eugenia interroge l'utilisateur sur une catégorie. | Nœud `discussion` de sorte `quiz`. |
 | **Dépôt privé** | Dépôt git privé contenant **tout** le wiki. Source de vérité, seul dépôt édité. | — |
 | **Dépôt public** | Dépôt git public généré à partir des seuls nœuds publics. Jamais édité à la main. | — |
 | **Branche de l'arbre** | Un nœud et tous ses descendants (à ne pas confondre avec une branche git). | — |
@@ -112,37 +116,46 @@ Les définitions fonctionnelles viennent de `functional_doc/`. Ce tableau préci
 
 ### 5.1 Arborescence
 
-**Toute page du wiki** (`note`, `flashcard`) **est un dossier contenant un `index.md`**, qu'elle ait des enfants ou non. Les pages enfants sont des sous-dossiers.
+Le dépôt a **trois espaces**, chacun dans son dossier (§5.9) :
 
-Les fichiers rattachés à une page sans en être une (descriptions, discussions, quiz) sont des **fichiers Markdown nommés directement**, préfixés par `_`, dans le dossier de la page :
+- le **wiki** (`wiki/`) : un arbre de catégories qui contient les connaissances atomiques, elles-mêmes étendues **uniquement** par leurs flashcards ;
+- la **bibliothèque** (`library/`) : les sources d'où viennent les connaissances, en liste à plat ;
+- les **discussions** (`discussions/`) : tous les échanges avec Eugenia (discussions, questions, quiz, notes rapides), un fichier par échange.
+
+**Toute page** (`category`, `knowledge`, `flashcard`, `source`) **est un dossier contenant un `index.md`**, qu'elle ait des enfants ou non. Les pages enfants sont des sous-dossiers. Les fichiers rattachés à une page sans en être une (descriptions, embeddings) sont préfixés par `_`, dans le dossier de la page :
 
 ```
 wiki/
-├── index.md                              # racine : le wiki global
+├── index.md                              # racine : le wiki global (type: category)
 ├── _summary.md                           # description du wiki global (portée privée)
 ├── _summary.public.md                    # description du wiki global (portée publique)
 ├── religion-et-croyances/
-│   ├── index.md                          # catégorie (type: note)
+│   ├── index.md                          # catégorie (type: category)
 │   ├── _summary.md                       # description du sous-wiki
-│   ├── _quizzes/
-│   │   └── 2026-11-17-1030.md            # quiz (type: discussion, kind: quiz)
-│   ├── _discussions/
-│   │   └── 2026-11-17-lilith-et-la-lune.md   # discussion libre
-│   ├── lilith/
-│   │   └── index.md                      # connaissance atomique (type: flashcard)
-│   └── article-sur-lilith/
-│       ├── index.md                      # note source (type: note)
-│       └── article.pdf                   # fichier personnel de la source
+│   └── lilith/
+│       ├── index.md                      # connaissance atomique (type: knowledge)
+│       └── quel-est-le-nom-du-demon/
+│           └── index.md                  # flashcard (type: flashcard)
 └── science/
     ├── index.md
     └── astronomie/
         └── ...
+library/
+└── article-sur-lilith/
+    ├── index.md                          # source (type: source)
+    └── article.pdf                       # fichier personnel de la source
+discussions/
+├── 2026-11-12-1800-lilith-et-la-lune-noire.md   # discussion libre
+├── 2026-11-14-0830-51-pegasi-b.md                # note rapide (kind: note)
+└── 2026-11-17-1030-quiz-religion-et-croyances.md # quiz (kind: quiz)
 ```
 
+- Structure du wiki : une **catégorie** contient des catégories et des connaissances ; une **connaissance** ne contient que des **flashcards** ; une flashcard n'a pas d'enfant. La bibliothèque est **à plat**. `validate` signale les pages mal rangées, et l'interface refuse de les déplacer ailleurs.
 - L'ordre des enfants est défini par le champ `order`, sinon alphabétique sur le titre.
-- Les fichiers et dossiers préfixés par `_` ou `.` sont réservés à l'application (descriptions, discussions, quiz, configuration) et n'apparaissent pas comme des enfants dans l'arbre.
-- **Pas de limite** de profondeur ni de largeur de l'arbre.
+- Les fichiers et dossiers préfixés par `_` ou `.` sont réservés à l'application et n'apparaissent pas comme des enfants dans l'arbre.
+- **Pas de limite** de profondeur ni de largeur des catégories.
 - Les fichiers joints (PDF, images, audio) sont rangés dans le dossier du nœud concerné.
+- Le format v1 (tout sous `wiki/`, notes libres, discussions dans `_discussions/` et `_quizzes/`) n'est pas migré automatiquement ; `validate` signale ses fichiers.
 
 ### 5.2 Nommage des dossiers
 
@@ -158,31 +171,32 @@ Le nom du dossier est dérivé du titre, sans que l'utilisateur le voie :
 ```yaml
 ---
 id: 01JD3K8Z9X...          # ULID stable, généré à la création
-type: note                 # note | summary | discussion | flashcard
+type: category             # category | knowledge | flashcard | source | summary | discussion
 title: Religion et croyances
 visibility: private        # public | private (hérité du parent si absent)
 created: 2026-11-17T10:30:00Z
 updated: 2026-11-17T11:00:00Z
 tags: []
 order: 10                  # optionnel
-sources: []                # cf. 5.7
 ---
 ```
 
 ### 5.4 Types de nœuds
 
-| Type | Rôle |
-|---|---|
-| `note` | Note libre en Markdown. Sert de **catégorie** quand elle a des enfants, et de **texte source** pour l'extraction de connaissances. Type par défaut. |
-| `summary` | Description d'un sous-wiki, générée par Eugenia (§5.5). |
-| `discussion` | Échange personnel entre l'utilisateur et Eugenia, rattaché à une page (`_discussions/`). Un **quiz** est une discussion de sous-type `quiz` (`_quizzes/`, §5.6). |
-| `flashcard` | **Connaissance atomique** : énoncé, question, réponse attendue (§5.7). |
+| Type | Espace | Rôle |
+|---|---|---|
+| `category` | wiki | **Catégorie** (sous-wiki), avec un texte d'introduction facultatif. Type par défaut dans le wiki (`note`, type du format v1, est lu ainsi). |
+| `knowledge` | wiki | **Connaissance atomique** : un énoncé, ses sources (§5.7). Feuille de l'arbre des catégories. |
+| `flashcard` | wiki | Question et réponse attendue sur la connaissance parente (§5.7). |
+| `source` | bibliothèque | Source d'une connaissance : notice, fichier personnel, contenu (§5.7). Type par défaut dans la bibliothèque. |
+| `summary` | wiki | Description d'un sous-wiki, générée par Eugenia (§5.5). |
+| `discussion` | discussions | Échange personnel entre l'utilisateur et Eugenia (§5.6). |
 
-Un type inconnu est traité comme `note`.
+Un type inconnu est signalé et traité comme le type par défaut de l'espace.
 
 ### 5.5 Résumés (descriptions de sous-wikis)
 
-Stockés dans le fichier `_summary.md` du dossier de la page décrite, ils sont affichés **en tête du nœud parent**, et non comme un enfant.
+Stockés dans le fichier `_summary.md` du dossier de la **catégorie** décrite, ils sont affichés **en tête de la catégorie**, et non comme un enfant. Seules les catégories ont une description : une connaissance et ses flashcards ne forment pas un sous-wiki.
 
 ```yaml
 ---
@@ -198,21 +212,28 @@ sources:                   # empreinte des sources au moment de la génération
 Texte de la description…
 ```
 
-- Construction **ascendante** : la description d'un parent est faite à partir des descriptions de ses enfants (ou de leur contenu pour les nœuds sans enfants). On va ainsi du plus fin au plus global ([§2](functional_doc/2_wiki.qmd)).
-- Une page peut avoir deux descriptions : `_summary.md` (portée privée) et `_summary.public.md` (portée publique), cf. §6.3.
+- Construction **ascendante** : la description d'une catégorie est faite à partir des descriptions de ses sous-catégories et de l'énoncé de ses connaissances. On va ainsi du plus fin au plus global ([§2](functional_doc/2_wiki.qmd)).
+- Une catégorie peut avoir deux descriptions : `_summary.md` (portée privée) et `_summary.public.md` (portée publique), cf. §6.3.
 
-### 5.6 Discussions et quiz
+### 5.6 Discussions
 
-Une discussion est un fichier unique : les messages y sont stockés, une section par message. Des métadonnées par message sont portées par un commentaire HTML invisible au rendu.
+Tous les échanges avec Eugenia sont rangés **au même endroit**, `discussions/<date>-<heure>-<titre>.md` (UTC), et réunis dans la section Discussions de l'interface. Une discussion est un fichier unique : les messages y sont stockés, une section par message. Des métadonnées par message sont portées par un commentaire HTML invisible au rendu.
 
-**Discussion libre**, rattachée à n'importe quelle page (« tout est discussion », [§5](functional_doc/5_discussion.qmd)), stockée dans `_discussions/<date>-<slug>.md` :
+| `kind` | Sorte | Rattachement |
+|---|---|---|
+| absent (`discussion`) | Discussion libre (« tout est discussion », [§5](functional_doc/5_discussion.qmd)). | `about` : page d'où elle a été ouverte (facultatif). |
+| `question` | Question sur l'arbre enregistrée (§8.5). | `scope_node` : périmètre de la question. |
+| `quiz` | Session de révision (§8.3). | `scope_node` : catégorie interrogée. |
+| `note` | Note rapide (§8.4). | `about` facultatif. |
+
+Une discussion apparaît aussi sur la page de ses nœuds `about` et `scope_node`.
 
 ```markdown
 ---
 id: 01JD3P...
 type: discussion
 title: Lilith et la Lune noire
-about: 01JD3R...           # nœud à l'origine de la discussion (optionnel)
+about: 01JD3R...           # page à l'origine de la discussion (optionnel)
 ---
 
 ## user · 2026-11-17T10:00:00Z
@@ -222,7 +243,7 @@ Quel lien entre Lilith et la Lune noire ?
 En astrologie, la « Lune noire » désigne…
 ```
 
-**Quiz**, stocké dans `_quizzes/<date>-<heure>.md` de la catégorie interrogée. **Le quiz est la trace qui stocke l'état de révision** : la maîtrise de chaque flashcard est recalculée en rejouant les quiz (§8.3).
+**Le quiz est la trace qui stocke l'état de révision** : la maîtrise de chaque flashcard est recalculée en rejouant les quiz (§8.3).
 
 ```markdown
 ---
@@ -247,29 +268,49 @@ La réponse est incorrecte : Lilith était attendue. L'orthographe est fausse et
 ```
 
 - Rôles : `user`, `eugenia`.
-- Un quiz est **privé par défaut** et n'est jamais publié s'il contient des flashcards privées.
+- Seuls les quiz comptent pour la maîtrise ; `card` désigne une **flashcard**.
+- Une discussion est **privée par défaut** ; un quiz n'est jamais publié.
 - Le quiz est commité **en une fois, à la fin de la session** (ou à la fermeture, via la file hors ligne).
 
-### 5.7 Flashcards (connaissances atomiques)
+### 5.7 Connaissances atomiques, flashcards et sources
 
-Elles reprennent le tuple *(connaissance, titre, catégorie, question)* de la doc fonctionnelle ([§1](functional_doc/1_knowledge_extraction.qmd)). La **catégorie est la position dans l'arbre** : elle n'est pas stockée.
+Le tuple *(connaissance, titre, catégorie, question)* de la doc fonctionnelle ([§1](functional_doc/1_knowledge_extraction.qmd)) se répartit entre la **connaissance** (énoncé, titre ; la **catégorie est sa position dans l'arbre**) et ses **flashcards** (question, réponse attendue). La seule chose qui étend une connaissance est une flashcard.
+
+**Connaissance atomique** :
 
 ```markdown
 ---
 id: 01JD3R...
-type: flashcard
+type: knowledge
 title: Lilith
 visibility: public
 created: 2026-11-17T10:30:00Z
-extracted_from: 01JD3S...  # note source (optionnel)
+extracted_from: 01JD3S...  # source ou discussion d'origine (optionnel)
 sources:
-  - description: Wikipédia, article « Lilith »
-    url: https://fr.wikipedia.org/wiki/Lilith
-    file: article.pdf      # fichier personnel, jamais publié
+  - ref: 01JD3S...         # source de la bibliothèque
+    locator: p. 12         # localisation dans la source (optionnel)
+  - description: Conférence au Collège de France   # référence libre (optionnel)
+    url: https://example.org
 ---
 
-## Connaissance
 **Lilith** est un démon féminin de la tradition juive, inspiré d'une divinité d'origine mésopotamienne.
+
+## Notes
+Voir aussi la [Lune noire](../../science/astronomie/lune-noire/index.md).
+```
+
+- Le corps commence par l'**énoncé** ; sa partie en **gras** est la **cible d'apprentissage**. Des sections libres (`## Notes`) peuvent suivre.
+- Une connaissance **sans source** est autorisée (par exemple issue d'une note rapide) mais signalée **« à sourcer »** : l'interface invite à la rattacher à une source extérieure.
+
+**Flashcard**, enfant d'une connaissance :
+
+```markdown
+---
+id: 01JD3T...
+type: flashcard
+title: Quel est le nom du démon féminin de la tradition juive…
+created: 2026-11-17T10:31:00Z
+---
 
 ## Question
 Quel est le nom du démon féminin de la tradition juive, inspiré d'une divinité d'origine mésopotamienne ?
@@ -278,9 +319,28 @@ Quel est le nom du démon féminin de la tradition juive, inspiré d'une divinit
 Lilith
 ```
 
-- La partie en **gras** de la connaissance est la **cible d'apprentissage**, c'est-à-dire ce sur quoi l'utilisateur est interrogé.
-- **Sources** : la description et l'URL suivent la visibilité du nœud ; le **fichier personnel** joint reste toujours privé.
-- La maîtrise, la date du dernier échec et le déclin **ne sont pas stockés dans la flashcard** : ils sont dérivés des quiz (§8.3).
+- Le titre est tiré de la question. Une flashcard n'a pas de `visibility` propre : elle suit sa connaissance.
+- La maîtrise, la date du dernier échec et le déclin **ne sont pas stockés** : ils sont dérivés des quiz (§8.3), **par flashcard**.
+
+**Source**, dans la bibliothèque :
+
+```yaml
+---
+id: 01JD3S...
+type: source
+kind: article              # book | article | web | video | audio | document | other
+title: Article sur Lilith
+authors: [Jeanne Dupont]
+published: "2019"
+url: https://example.org/lilith
+file: article.pdf          # fichier personnel, jamais publié
+visibility: private
+---
+```
+
+- Le corps (extraits, résumé, notes de lecture) sert de texte source à l'extraction.
+- **Visibilité** : chaque source a la sienne. Une connaissance publique qui cite une source privée est publiée sans cette référence ; le **fichier personnel** n'est jamais publié.
+- Supprimer une source transforme ses citations en références libres (titre, adresse, localisation).
 
 ### 5.8 Liens entre nœuds
 
@@ -294,7 +354,9 @@ Lilith
 ```yaml
 # .notes/config.yml
 title: Mon wiki
-root: wiki/
+root: wiki/                             # le wiki
+library: library/                       # la bibliothèque des sources
+discussions: discussions/               # les discussions
 private_repo: user/eugenia-wiki        # recopié dans le dépôt public, optionnel (§7)
 default_visibility: private
 folder_name_max_length: 32
@@ -320,10 +382,10 @@ Les réglages personnels (clés API, fournisseur IA, préférence IA locale) ne 
 1. Un nouveau nœud est **privé par défaut**.
 2. Un nœud sans champ `visibility` hérite de son parent.
 3. **Un nœud public ne peut pas avoir d'ancêtre privé.** Quand l'utilisateur rend public un nœud dont un ancêtre est privé, l'application **propose de rendre publique toute la branche** jusqu'à la racine, en affichant les ancêtres concernés et en demandant une confirmation explicite. S'il refuse, le nœud reste privé.
-4. Rendre public un nœud ne rend **pas** automatiquement publics ses descendants : l'application propose de les inclure (cases à cocher).
+4. Rendre public un nœud ne rend **pas** automatiquement publics ses descendants : l'application propose de les inclure (cases à cocher). Les flashcards, elles, suivent toujours leur connaissance.
 5. Rendre privé un nœud rend privés tous ses descendants, après confirmation.
 6. Lors de la publication, un lien d'un nœud public vers un nœud privé est réécrit en texte simple.
-7. Les fichiers personnels des sources ne sont jamais publiés ; les autres fichiers joints suivent la visibilité de leur nœud.
+7. Les fichiers personnels des sources ne sont jamais publiés ; les autres fichiers joints suivent la visibilité de leur nœud. Chaque source de la bibliothèque a sa propre visibilité ; une référence à une source privée disparaît d'une connaissance publiée.
 8. Les quiz ne sont pas publiés en v1.
 9. La CLI de publication refuse toute arborescence qui viole la règle 3, par exemple si le dépôt a été modifié hors application.
 
@@ -353,11 +415,12 @@ L'instance unique `openeugenia.github.io/eugenia/` n'a ni secret serveur ni comp
 
 ### 8.1 Extraction de connaissances ([§1](functional_doc/1_knowledge_extraction.qmd))
 
-1. **Entrée** : un texte. Il peut venir d'une note existante, d'un texte collé, ou d'un document importé (PDF converti par pdf.js ; audio et vidéo transcrits en texte, en v2). Le texte source est conservé comme nœud `note`, avec le fichier original joint si l'utilisateur le souhaite.
+1. **Entrée** : un texte. Il peut venir d'une source de la bibliothèque, d'une discussion ou d'une note rapide, d'un texte collé, ou d'un document importé (PDF converti par pdf.js ; audio et vidéo transcrits en texte, en v2). Un texte collé ou importé devient une **source** de la bibliothèque, avec le fichier original joint si l'utilisateur le souhaite.
 2. **Surlignage** : Eugenia surligne dans le texte les connaissances atomiques candidates.
 3. **Ajustement** : l'utilisateur ajoute ses propres surlignages, ou découpe et affine ceux qu'Eugenia propose.
-4. **Proposition** : pour chaque connaissance retenue, Eugenia reformule un énoncé autonome (en réintroduisant le contexte, ex. « Lilith ») et propose une cible d'apprentissage, un **titre**, une **question**, une **réponse attendue** et une **catégorie** (un nœud existant, ou un nouveau nœud à créer).
-5. **Validation** : l'utilisateur sélectionne, modifie et valide. Les flashcards sont créées dans leurs catégories, avec un lien `extracted_from` vers la note source et ses sources. Le tout fait l'objet d'un seul commit.
+4. **Proposition** : pour chaque connaissance retenue, Eugenia reformule un énoncé autonome (en réintroduisant le contexte, ex. « Lilith ») et propose une cible d'apprentissage, un **titre**, la **question** et la **réponse attendue** d'une première flashcard, et une **catégorie** (existante, ou nouvelle à créer). L'utilisateur choisit les **sources** que citeront les connaissances (la source d'origine par défaut ; aucune pour une discussion, qui les rend « à sourcer » tant qu'il n'en ajoute pas).
+5. **Validation** : l'utilisateur sélectionne, modifie et valide. Les connaissances sont créées dans leurs catégories, avec leur première flashcard, leurs sources et un lien `extracted_from` vers la source ou la discussion d'origine. Le tout fait l'objet d'un seul commit.
+6. **Flashcards supplémentaires** : depuis une connaissance, Eugenia propose de nouvelles flashcards (autres angles, sans sortir de l'énoncé), que l'utilisateur relit avant de les ajouter.
 
 **Catégories par défaut** : à l'initialisation d'un nouveau wiki (`cli init` ou assistant web), l'application propose de créer les catégories de premier niveau de la doc fonctionnelle : Arts et culture, Économie et finance, Géographie, Histoire, Langues et linguistique, Médecine et santé, Militaire et défense, Nature et environnement, Philosophie et pensée, Religion et croyances, Science, Société et sciences sociales, Sports et loisirs, Technologie, Transports. L'utilisateur peut en ajouter, en renommer ou en supprimer, et Eugenia peut lui suggérer des sous-catégories. Il n'y a pas de limite de profondeur ni de largeur.
 
@@ -399,7 +462,7 @@ $$m_{\text{actuelle}}(d) = m \cdot \beta^{\,(d - e)}$$
 4. **Sinon (échec, $x \leq 0{,}5$)** : $f \gets d$ et $\beta \gets 0{,}95$, c'est-à-dire que le déclin repart à son rythme le plus rapide
 5. $e \gets d$
 
-**Stockage par rejeu** : `core` reconstruit l'état de chaque flashcard en rejouant chronologiquement tous les scores trouvés dans les quiz (`_quizzes/`) du dépôt. Conséquences :
+**Stockage par rejeu** : `core` reconstruit l'état de chaque flashcard en rejouant chronologiquement tous les scores trouvés dans les quiz (`discussions/`, `kind: quiz`) du dépôt. Conséquences :
 - aucune donnée de maîtrise n'est dupliquée ou désynchronisée ;
 - un changement des paramètres (§5.9) s'applique rétroactivement à tout l'historique ;
 - l'état calculé est mis en cache dans IndexedDB et invalidé quand un quiz change (SHA).
@@ -410,9 +473,12 @@ $$m_{\text{actuelle}}(d) = m \cdot \beta^{\,(d - e)}$$
 
 ### 8.4 Discussions ([§5](functional_doc/5_discussion.qmd))
 
-- Depuis n'importe quelle page (catégorie, flashcard, note source), l'utilisateur peut ouvrir une discussion avec Eugenia. Elle est enregistrée dans `_discussions/` de cette page et affichée dans la vue de la page.
-- Eugenia peut : clarifier ou reformuler une notion, suggérer des liens vers des nœuds existants, résumer l'échange, et **proposer d'extraire de nouvelles connaissances** de la discussion (retour au parcours §8.1).
-- Les discussions v1 sont **personnelles** ; leur visibilité suit les règles §6.2.
+- La section **Discussions** rassemble tous les échanges (discussions, questions, quiz, notes rapides), filtrables par sorte et par texte, avec la page à laquelle chacun se rattache.
+- Depuis n'importe quelle page (catégorie, connaissance, flashcard, source), l'utilisateur peut ouvrir une discussion avec Eugenia. Elle est enregistrée dans `discussions/` et affichée aussi dans la vue de la page.
+- **Note rapide** : l'utilisateur note une idée ou un fait ; Eugenia répond **aussitôt** par les connaissances atomiques candidates, ce qui mérite vérification, et des pistes de **sources extérieures** (une source de la bibliothèque si elle convient). La note se poursuit comme une discussion et peut être extraite (§8.1).
+- Eugenia peut : clarifier ou reformuler une notion, suggérer des liens vers des nœuds existants, résumer l'échange, et **proposer d'extraire de nouvelles connaissances** de la discussion (retour au parcours §8.1), en invitant à les appuyer sur une source.
+- Un quiz enregistré se relit dans la section Discussions, sans se prolonger.
+- Les discussions v1 sont **personnelles** et privées par défaut (§6.2).
 
 ### 8.5 Questions sur l'arbre
 
@@ -420,7 +486,7 @@ L'utilisateur pose une question sur un périmètre donné (wiki entier ou branch
 1. Eugenia reçoit d'abord les descriptions du premier niveau du périmètre.
 2. Elle choisit les branches pertinentes et **descend** dans l'arbre (descriptions → descriptions enfants → contenu des nœuds).
 3. Sa réponse cite les nœuds utilisés, sous forme de liens cliquables.
-4. L'échange peut être enregistré comme discussion dans `_discussions/` de la page racine du périmètre.
+4. L'échange peut être enregistré comme discussion de sorte `question` dans `discussions/`, rattachée au périmètre.
 
 ## 9. Interface web
 
@@ -429,12 +495,14 @@ L'utilisateur pose une question sur un périmètre donné (wiki entier ou branch
 - Sans paramètre : page d'accueil (présentation d'Eugenia, saisie d'un dépôt, derniers wikis consultés, création d'un nouveau wiki).
 
 ### 9.2 Vues
-1. **Arbre** (panneau latéral) : hiérarchie repliable, icône par type, badge public/privé, jauge de maîtrise, badge « description périmée », indicateur « modifié hors ligne ».
-2. **Nœud** : description en tête, contenu rendu, enfants avec leurs descriptions courtes, rétroliens, discussions liées.
-3. **Flashcard** : connaissance (cible en gras), question, réponse attendue, sources, courbe de maîtrise.
+1. **Panneau latéral** à trois onglets, qui suivent la page ouverte : **Wiki** (arbre repliable des catégories et connaissances, icône par type, badge public/privé, jauge de maîtrise, badges « description périmée » et « à sourcer », indicateur « modifié hors ligne »), **Bibliothèque** (sources par titre), **Discussions** (échanges récents).
+2. **Catégorie** : description en tête, introduction, sous-catégories et connaissances avec leurs descriptions courtes, rétroliens, discussions liées.
+3. **Connaissance** : énoncé (cible en gras), sources (avec localisation), flashcards et leur maîtrise, origine (source ou discussion) ; **flashcard** : question, réponse attendue, connaissance testée, courbe de maîtrise.
+3 bis. **Bibliothèque** : liste des sources filtrable (nature, étiquette, texte), tri, connaissances à sourcer ; **source** : notice, fichier personnel, contenu, connaissances qui la citent.
+3 ter. **Discussions** : liste de tous les échanges, filtrable par sorte, accès direct à la note rapide, à la question, au quiz.
 4. **Extraction** : texte source avec surlignages, panneau des connaissances proposées (§8.1).
 5. **Quiz** : conversation avec Eugenia, score et retour après chaque réponse, progression de la session.
-6. **Discussion** : messages chronologiques, réponse d'Eugenia en streaming.
+6. **Discussion** : messages chronologiques, réponse d'Eugenia en streaming ; note rapide ; quiz en lecture.
 7. **Graphe** : visualisation de l'arbre (zoom, focus sur une branche).
 8. **Tableau de bord** : indicateurs et courbes de progression.
 9. **Recherche** : plein texte (index côté client) avec filtres par type, tag, visibilité et maîtrise.

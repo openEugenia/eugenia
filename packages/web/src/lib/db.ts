@@ -3,7 +3,7 @@
  * attente, paramètres. Rien de tout cela ne quitte l'appareil.
  */
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { PageMeta, RepoFile } from "@openeugenia/core";
+import type { DiscussionMeta, PageMeta, RepoFile } from "@openeugenia/core";
 import type { PendingState } from "./pending.ts";
 import type { Settings } from "./settings.ts";
 
@@ -20,6 +20,8 @@ export interface Snapshot {
   files: RepoFile[];
   /** Métadonnées issues de `index.json` (mode anonyme). */
   metas?: Record<string, PageMeta>;
+  /** Discussions publiées, d'après `index.json` (mode anonyme). */
+  discussions?: Record<string, DiscussionMeta>;
   /** Dépôt public associé, si connu. */
   publicRepo?: string;
   fetchedAt: string;

@@ -50,6 +50,7 @@ export function embeddingText(indexContent: string): string {
     parts = [markdownToText(doc.body).trim()];
   }
   const head = [doc.fields.title];
+  if (doc.fields.authors?.length) head.push(`Auteurs : ${doc.fields.authors.join(", ")}`);
   if (doc.fields.tags?.length) head.push(`Étiquettes : ${doc.fields.tags.join(", ")}`);
   const text = [head.join("\n"), ...parts.filter(Boolean)].join("\n\n").trim();
   return text.length > EMBEDDING_MAX_CHARS ? text.slice(0, EMBEDDING_MAX_CHARS) : text;
@@ -139,7 +140,15 @@ export interface EmbeddingEntry {
   vector?: Float32Array;
 }
 
-/** État de l'embedding de chaque page (hors dossiers sans `index.md`) pour un modèle. */
+/**
+ * Pages indexées pour la recherche par le sens : catégories, connaissances et sources. Une
+ * flashcard reprend sa connaissance : l'indexer doublerait les résultats.
+ */
+export function isEmbeddable(node: Pick<WikiNode, "virtual" | "type">): boolean {
+  return !node.virtual && node.type !== "flashcard";
+}
+
+/** État de l'embedding de chaque page indexable pour un modèle. */
 export async function embeddingEntries(
   view: WikiView,
   model: string,
@@ -147,7 +156,7 @@ export async function embeddingEntries(
 ): Promise<EmbeddingEntry[]> {
   const out: EmbeddingEntry[] = [];
   for (const node of nodes) {
-    if (node.virtual) continue;
+    if (!isEmbeddable(node)) continue;
     const text = embeddingText(await view.readText(node.indexPath));
     const textSha = await embeddingTextSha(text);
     let doc: EmbeddingDocument | undefined;

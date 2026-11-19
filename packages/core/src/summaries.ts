@@ -5,6 +5,7 @@ import { shaMatches, shortSha } from "./sha.ts";
 import { isoTimestamp } from "./time.ts";
 import {
   descendants,
+  isCategory,
   PUBLIC_SUMMARY_FILE,
   SUMMARY_FILE,
   type WikiNode,
@@ -92,8 +93,12 @@ export function scopedChildren(tree: WikiTree, node: WikiNode, scope: SummarySco
   return out;
 }
 
-/** Un nœud a besoin d'une description s'il a des enfants (publics, pour la portée publique). */
+/**
+ * Une catégorie du wiki a besoin d'une description si elle a des enfants (publics, pour la
+ * portée publique). Une connaissance et ses flashcards ne forment pas un sous-wiki.
+ */
 export function needsSummary(tree: WikiTree, node: WikiNode, scope: SummaryScope): boolean {
+  if (!isCategory(node)) return false;
   if (scope === "public" && !node.isPublic) return false;
   return scopedChildren(tree, node, scope).length > 0;
 }

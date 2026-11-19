@@ -54,8 +54,10 @@ function assignmentsFor(
     effective.set(node.id, value);
     for (const childId of node.childIds) visit(tree.nodes.get(childId)!, value);
   };
-  const root = getNode(tree, tree.rootId);
-  visit(root, root.declaredVisibility ?? tree.config.default_visibility);
+  for (const rootId of [tree.rootId, tree.libraryId]) {
+    const root = getNode(tree, rootId);
+    visit(root, root.declaredVisibility ?? tree.config.default_visibility);
+  }
   return writes;
 }
 

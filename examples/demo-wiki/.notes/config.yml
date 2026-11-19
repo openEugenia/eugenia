@@ -1,5 +1,7 @@
 title: Wiki de démonstration
 root: wiki/
+library: library/
+discussions: discussions/
 private_repo: openEugenia/demo-wiki
 default_visibility: private
 folder_name_max_length: 32

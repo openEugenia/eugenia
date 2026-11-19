@@ -1,23 +1,40 @@
 /**
- * Discussion personnelle avec Eugenia à partir d'une page (§8.4) : réponse en continu,
- * résumé de l'échange, extraction de connaissances, enregistrement dans `_discussions/`.
+ * Discussion personnelle avec Eugenia (§8.4) : discussion libre (à partir d'une page ou non),
+ * note rapide (Eugenia répond aussitôt par des connaissances candidates et des pistes de
+ * sources), question enregistrée ou quiz (en lecture). Réponse en continu, résumé de
+ * l'échange, extraction de connaissances, enregistrement dans le dossier des discussions.
  */
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, FileText, Highlighter, Send, Square } from "lucide-react";
+import { CheckCircle2, FileText, GraduationCap, Highlighter, Send, Square } from "lucide-react";
 import {
+  discussionEntries,
+  librarySources,
   newDiscussionDocument,
   newDiscussionPath,
   parseDiscussion,
   parsePage,
-  reservedEntries,
   writeDiscussion,
   type DiscussionDocument,
+  type DiscussionKind,
 } from "@openeugenia/core";
 import { isAbortError, streamDiscussion, summarizeDiscussion } from "@openeugenia/ai";
-import { Breadcrumb, ErrorBox, InfoBox, Loading, Spinner } from "../components/common.tsx";
+import {
+  Breadcrumb,
+  DiscussionKindIcon,
+  DISCUSSION_KIND_LABELS,
+  ErrorBox,
+  InfoBox,
+  Loading,
+  Spinner,
+} from "../components/common.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import { taskContext } from "../lib/ai.ts";
-import { pathTitles, portableLinks, relatedPages } from "../lib/discussions.ts";
+import {
+  adoptDiscussionPath,
+  pathTitles,
+  portableLinks,
+  relatedPages,
+} from "../lib/discussions.ts";
 import { formatDateTime } from "../lib/format.ts";
 import { useCanEdit, useDerived, useReveal, useText } from "../lib/hooks.ts";
 import { href, navigate } from "../lib/router.ts";
@@ -26,13 +43,24 @@ import { useWiki } from "../store/wiki.ts";
 
 const now = (): string => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export function DiscussionView({ id, path }: { id: string; path?: string }) {
+export function DiscussionView({
+  path,
+  about,
+  kind: newKind,
+}: {
+  path?: string;
+  about?: string;
+  kind?: "note";
+}) {
   const derived = useDerived();
   const editable = useCanEdit();
-  const node = derived.tree.nodes.get(id);
   const existing = useText(path);
-  const page = useText(node && !node.virtual ? node.indexPath : undefined);
   const [doc, setDoc] = useState<DiscussionDocument | null>(null);
+  const kind: DiscussionKind =
+    doc?.fields.kind ?? (path ? "discussion" : (newKind ?? "discussion"));
+  const aboutId = doc ? (doc.fields.about ?? doc.fields.scope_node) : about;
+  const node = aboutId ? derived.tree.nodes.get(aboutId) : undefined;
+  const page = useText(node && !node.virtual ? node.indexPath : undefined);
   const [filePath, setFilePath] = useState<string | undefined>(path);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -57,13 +85,20 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
     [],
   );
 
-  if (!node)
+  if (about && !node && !path)
     return (
       <div className="page">
         <ErrorBox title="Page introuvable">Cette page n'existe pas.</ErrorBox>
       </div>
     );
-  if (!editable)
+  if (path && existing.loading) return <Loading message="Chargement de la discussion…" />;
+  if (path && existing.error)
+    return (
+      <div className="page">
+        <ErrorBox title="Discussion introuvable">{existing.error}</ErrorBox>
+      </div>
+    );
+  if (!editable && !path)
     return (
       <div className="page">
         <InfoBox>
@@ -72,7 +107,8 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
         </InfoBox>
       </div>
     );
-  if (path && existing.loading) return <Loading message="Chargement de la discussion…" />;
+  // Un quiz est une trace de révision : il se relit, il ne se prolonge pas.
+  const readOnly = !editable || kind === "quiz";
 
   // Une discussion est personnelle et privée : son contenu compte toujours comme privé.
   const involvesPrivate = true;
@@ -103,15 +139,24 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
     let current = doc;
     let target = filePath;
     if (!current || !target) {
-      const title = text.length > 70 ? `${text.slice(0, 67)}…` : text;
-      current = newDiscussionDocument({ title, about: node.id });
-      target = newDiscussionPath(
-        node.path,
+      const firstLine =
+        text
+          .split("\n")[0]!
+          .replace(/[#*_>`]/g, "")
+          .trim() || text;
+      const title = firstLine.length > 70 ? `${firstLine.slice(0, 67)}…` : firstLine;
+      current = newDiscussionDocument({
         title,
-        reservedEntries(workspace, `${node.path}/_discussions`),
-      );
+        kind,
+        ...(node ? { about: node.id } : {}),
+      });
+      target = newDiscussionPath(workspace.config, title, discussionEntries(workspace));
       setFilePath(target);
-      navigate({ name: "discussion", id: node.id, path: target }, { replace: true });
+      adoptDiscussionPath(target, {
+        ...(about ? { about } : {}),
+        ...(newKind ? { kind: newKind } : {}),
+      });
+      navigate({ name: "discussion", path: target }, { replace: true });
     }
     const withQuestion: DiscussionDocument = {
       ...current,
@@ -130,15 +175,28 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
       const body = page.data ? parsePage(page.data).body : "";
       setStreaming("");
       latest.reveal();
+      const sources = librarySources(derived.tree)
+        .slice(0, 60)
+        .map((n) =>
+          n.description
+            ? { id: n.id, title: n.title, description: n.description }
+            : { id: n.id, title: n.title },
+        );
       for await (const chunk of streamDiscussion(context, {
-        page: {
-          id: node.id,
-          title: node.title,
-          type: node.type,
-          path: pathTitles(derived.tree, node),
-          content: body,
-        },
+        kind,
+        ...(node
+          ? {
+              page: {
+                id: node.id,
+                title: node.title,
+                type: node.type,
+                path: pathTitles(derived.tree, node),
+                content: body,
+              },
+            }
+          : {}),
         related: relatedPages(derived.tree, node, text),
+        sources,
         history: withQuestion.messages.map((m) => ({ role: m.role, content: m.content })),
       })) {
         reply += chunk;
@@ -195,27 +253,52 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
     if (filePath && dirty.current) {
       await useWiki
         .getState()
-        .commit(`Discussion — ${doc?.fields.title ?? node.title}`, [filePath]);
+        .commit(`Discussion — ${doc?.fields.title ?? node?.title ?? "note"}`, [filePath]);
       dirty.current = false;
     }
-    navigate({ name: "node", id: node.id });
+    navigate(node ? { name: "node", id: node.id } : { name: "discussions" });
   };
+
+  const heading =
+    doc?.fields.title ??
+    (kind === "note"
+      ? "Nouvelle note rapide"
+      : node
+        ? `Discussion sur « ${node.title} »`
+        : "Nouvelle discussion");
+  const reference = filePath ?? node?.indexPath ?? `${derived.config.discussions}/index.md`;
 
   return (
     <div className="page">
-      <Breadcrumb tree={derived.tree} node={node} />
-      <h1>{doc?.fields.title ?? `Discussion sur « ${node.title} »`}</h1>
-      <p className="muted small">
-        Discussion personnelle (privée) avec Eugenia, à partir de{" "}
-        <a href={href({ name: "node", id: node.id })}>{node.title}</a>
-        {doc?.fields.created ? ` · commencée le ${formatDateTime(doc.fields.created)}` : ""}.
+      <Breadcrumb
+        tree={derived.tree}
+        trail={[
+          { label: "Discussions", href: href({ name: "discussions" }) },
+          ...(node ? [{ label: node.title, href: href({ name: "node", id: node.id }) }] : []),
+        ]}
+      />
+      <h1>{heading}</h1>
+      <p className="muted small discussion-meta">
+        <span className="oe-badge">
+          <DiscussionKindIcon kind={kind} /> {DISCUSSION_KIND_LABELS[kind]}
+        </span>{" "}
+        {kind === "quiz" ? "Trace de révision" : "Échange personnel (privé) avec Eugenia"}
+        {node ? (
+          <>
+            {kind === "quiz" || kind === "question" ? ", sur " : ", à partir de "}
+            <a href={href({ name: "node", id: node.id })}>{node.title}</a>
+          </>
+        ) : null}
+        {doc?.fields.created ? ` · commencé le ${formatDateTime(doc.fields.created)}` : ""}.
       </p>
       <div className="conversation section">
         {(doc?.messages ?? []).length === 0 && !streaming && (
           <InfoBox>
-            Posez une question sur cette page : Eugenia peut clarifier une notion, suggérer des
-            liens vers vos autres pages, résumer l'échange et proposer d'en extraire des
-            connaissances.
+            {kind === "note"
+              ? "Notez une idée, un fait entendu, une lecture en cours : Eugenia y repère aussitôt les connaissances atomiques à retenir, signale ce qui mérite d'être vérifié et vous suggère des sources pour les appuyer."
+              : node
+                ? "Posez une question sur cette page : Eugenia peut clarifier une notion, suggérer des liens vers vos autres pages, résumer l'échange et proposer d'en extraire des connaissances."
+                : "Discutez librement avec Eugenia : elle peut clarifier une notion, suggérer des liens vers vos pages, résumer l'échange et proposer d'en extraire des connaissances."}
           </InfoBox>
         )}
         {doc?.messages.map((m, i) => (
@@ -233,7 +316,7 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
               · {formatDateTime(m.timestamp)}
             </span>
             <div className="message__bubble">
-              <Markdown text={m.content} path={filePath ?? node.indexPath} />
+              <Markdown text={m.content} path={reference} />
             </div>
           </div>
         ))}
@@ -243,71 +326,95 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
               Eugenia <Spinner small label="Eugenia répond" />
             </span>
             <div className="message__bubble">
-              <Markdown text={streaming || "…"} path={filePath ?? node.indexPath} />
+              <Markdown text={streaming || "…"} path={reference} />
             </div>
           </div>
         )}
       </div>
-      <div className="composer">
-        <textarea
-          className="oe-textarea"
-          placeholder="Votre message… (Ctrl+Entrée pour envoyer)"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
-          }}
-          aria-label="Votre message"
-        />
-        <div className="actions" style={{ justifyContent: "space-between" }}>
-          <div className="actions actions--start">
-            <button
-              type="button"
-              className="oe-button oe-button--ghost oe-button--sm"
-              disabled={busy || !doc || doc.messages.length < 2}
-              onClick={() => void summarize()}
-            >
-              <FileText aria-hidden="true" /> Résumer l'échange
-            </button>
-            <button
-              type="button"
-              className="oe-button oe-button--ghost oe-button--sm"
-              disabled={busy || !filePath || !doc || doc.messages.length < 2}
-              onClick={() =>
-                filePath && navigate({ name: "extract", id: node.id, discussion: filePath })
-              }
-            >
-              <Highlighter aria-hidden="true" /> Extraire des connaissances
-            </button>
-            <button
-              type="button"
-              className="oe-button oe-button--ghost oe-button--sm"
-              disabled={busy}
-              onClick={() => void finish()}
-            >
-              <CheckCircle2 aria-hidden="true" /> Terminer
-            </button>
-          </div>
-          {busy && streaming !== null ? (
-            <button
-              type="button"
-              className="oe-button oe-button--secondary"
-              onClick={() => abort.current?.abort()}
-            >
-              <Square aria-hidden="true" /> Arrêter
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="oe-button"
-              disabled={busy || !input.trim()}
-              onClick={() => void send()}
-            >
-              <Send aria-hidden="true" /> Envoyer
-            </button>
+      {readOnly ? (
+        <div className="actions actions--start">
+          {kind === "quiz" && node && (
+            <a className="oe-button" href={href({ name: "quiz", id: node.id })}>
+              <GraduationCap aria-hidden="true" /> Relancer un quiz sur « {node.title} »
+            </a>
           )}
+          <a className="oe-button oe-button--ghost" href={href({ name: "discussions" })}>
+            Toutes les discussions
+          </a>
         </div>
-      </div>
+      ) : (
+        <div className="composer">
+          <textarea
+            className="oe-textarea"
+            placeholder={
+              kind === "note" && !doc
+                ? "Votre note… (Ctrl+Entrée pour l'envoyer à Eugenia)"
+                : "Votre message… (Ctrl+Entrée pour envoyer)"
+            }
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
+            }}
+            aria-label="Votre message"
+          />
+          <div className="actions" style={{ justifyContent: "space-between" }}>
+            <div className="actions actions--start">
+              <button
+                type="button"
+                className="oe-button oe-button--ghost oe-button--sm"
+                disabled={busy || !doc || doc.messages.length < 2}
+                onClick={() => void summarize()}
+              >
+                <FileText aria-hidden="true" /> Résumer l'échange
+              </button>
+              <button
+                type="button"
+                className="oe-button oe-button--ghost oe-button--sm"
+                disabled={
+                  busy || !filePath || !doc || doc.messages.length < (kind === "note" ? 1 : 2)
+                }
+                onClick={() =>
+                  filePath &&
+                  navigate({
+                    name: "extract",
+                    ...(node && node.type === "source" ? { id: node.id } : {}),
+                    discussion: filePath,
+                  })
+                }
+              >
+                <Highlighter aria-hidden="true" /> Extraire des connaissances
+              </button>
+              <button
+                type="button"
+                className="oe-button oe-button--ghost oe-button--sm"
+                disabled={busy}
+                onClick={() => void finish()}
+              >
+                <CheckCircle2 aria-hidden="true" /> Terminer
+              </button>
+            </div>
+            {busy && streaming !== null ? (
+              <button
+                type="button"
+                className="oe-button oe-button--secondary"
+                onClick={() => abort.current?.abort()}
+              >
+                <Square aria-hidden="true" /> Arrêter
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="oe-button"
+                disabled={busy || !input.trim()}
+                onClick={() => void send()}
+              >
+                <Send aria-hidden="true" /> Envoyer
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

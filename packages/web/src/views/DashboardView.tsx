@@ -45,7 +45,7 @@ export function DashboardView() {
   );
   const branch = useMemo(() => branchMasteryMap(tree, mastery), [tree, mastery]);
   const categories = useMemo(
-    () => children(tree, tree.rootId).filter((n) => n.type !== "flashcard"),
+    () => children(tree, tree.rootId).filter((n) => n.type === "category"),
     [tree],
   );
 
@@ -64,7 +64,10 @@ export function DashboardView() {
         ? cards.filter((c) => reviewed30.has(c.id)).length / cards.length
         : undefined,
       week,
-      notes: [...tree.nodes.values()].filter((n) => n.type === "note" && !n.virtual).length,
+      knowledge: [...tree.nodes.values()].filter((n) => n.type === "knowledge").length,
+      unsourced: [...tree.nodes.values()].filter((n) => n.type === "knowledge" && !n.sourced)
+        .length,
+      sources: [...tree.nodes.values()].filter((n) => n.type === "source").length,
     };
   }, [cards, mastery, quizEvents, today, threshold, tree]);
 
@@ -142,7 +145,8 @@ export function DashboardView() {
       <h1>Tableau de bord</h1>
       {cards.length === 0 ? (
         <EmptyState title="Pas encore de connaissance atomique">
-          Extrayez des connaissances de vos notes pour suivre ici votre maîtrise.
+          Extrayez des connaissances de vos sources ou de vos notes rapides, et ajoutez-leur des
+          flashcards, pour suivre ici votre maîtrise.
         </EmptyState>
       ) : (
         <>
@@ -172,13 +176,18 @@ export function DashboardView() {
           <section className="section kpi-row">
             <StatTile
               label="Connaissances atomiques"
-              value={formatInteger(cards.length)}
-              note={`${plural(stats.notes, "note")}`}
+              value={formatInteger(stats.knowledge)}
+              note={`${plural(cards.length, "flashcard")}, ${plural(stats.unsourced, "connaissance")} à sourcer`}
+            />
+            <StatTile
+              label="Sources"
+              value={formatInteger(stats.sources)}
+              note="dans la bibliothèque"
             />
             <StatTile
               label="Révisées sur 30 jours"
               value={formatPercent(stats.reviewRate)}
-              note="part des connaissances évaluées au moins une fois"
+              note="part des flashcards évaluées au moins une fois"
             />
             <StatTile label="Évaluations sur 7 jours" value={formatInteger(stats.week)} />
             <StatTile

@@ -46,7 +46,7 @@ export async function publishCommand(options: PublishOptions, log: Logger): Prom
   }
   const s = publication.stats;
   log.info(
-    `${s.pages} page(s) publique(s) dont ${s.flashcards} flashcard(s), ${s.summaries} description(s), ${s.attachments} fichier(s) joint(s), ${s.discussions} discussion(s).`,
+    `${s.pages} page(s) publique(s) : ${s.knowledge} connaissance(s), ${s.flashcards} flashcard(s), ${s.sources} source(s) ; ${s.summaries} description(s), ${s.attachments} fichier(s) joint(s), ${s.discussions} discussion(s).`,
   );
 
   const outDir = options.out

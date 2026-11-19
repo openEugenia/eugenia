@@ -1,6 +1,6 @@
 ---
 id: 01M6B5CJM0EDQQYQ3XR5ZN1ACK
-type: note
+type: category
 title: Wiki de démonstration
 visibility: public
 created: 2026-11-01T09:00:00Z

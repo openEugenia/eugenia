@@ -13,6 +13,14 @@ import { memoryWiki, page, type Files } from "./helpers.ts";
 const CONFIG =
   "title: Wiki de test\nroot: wiki/\nprivate_repo: alice/wiki\nmastery:\n  alpha: 0.4\n";
 
+const knowledge = page(
+  { id: "K", type: "knowledge", title: "Savoir", extracted_from: "PRIV" },
+  "Un **savoir** public.",
+).replace(
+  "extracted_from: PRIV\n",
+  "extracted_from: PRIV\nsources:\n  - ref: PUB\n    locator: p. 3\n  - ref: PRIV\n  - description: Article\n    url: https://example.org\n",
+);
+
 const BASE: Files = {
   ".notes/config.yml": CONFIG,
   "wiki/index.md": page(
@@ -20,24 +28,47 @@ const BASE: Files = {
     "Voir [Science](science/index.md) et [Secret](secret/index.md).",
   ),
   "wiki/science/index.md": page(
-    { id: "S", title: "Science", visibility: "public", extracted_from: "P" },
+    { id: "S", title: "Science", visibility: "public" },
     "Image ![photo](photo.png) et [carnet](../secret/carnet.pdf).",
-  ).replace(
-    "extracted_from: P\n",
-    "extracted_from: P\nsources:\n  - description: Article\n    url: https://example.org\n    file: article.pdf\n",
   ),
   "wiki/science/photo.png": "PNG",
+  "wiki/science/savoir/index.md": knowledge,
+  "wiki/science/savoir/carte/index.md": page(
+    { id: "C", type: "flashcard", title: "Carte" },
+    "## Question\nQuoi ?\n\n## Réponse attendue\nUn savoir.",
+  ),
   // Embeddings de pages publiques : calculés sur le contenu privé, jamais publiés.
   "wiki/_embedding.json": '{"format": "eugenia-embedding"}\n',
   "wiki/science/_embedding.json": '{"format": "eugenia-embedding"}\n',
-  "wiki/science/article.pdf": "PDF personnel",
-  "wiki/science/_quizzes/2026-01-01-1000.md": "---\nid: Q\ntype: discussion\nkind: quiz\n---\n",
-  "wiki/science/_discussions/2026-01-01-perso.md":
-    "---\nid: D1\ntype: discussion\ntitle: Perso\nvisibility: private\n---\n",
-  "wiki/science/_discussions/2026-01-02-ouverte.md":
-    "---\nid: D2\ntype: discussion\ntitle: Ouverte\nvisibility: public\nabout: P\n---\n\n## user · 2026-01-02T10:00:00Z\nVoir [secret](../../secret/index.md)\n",
   "wiki/secret/index.md": page({ id: "P", title: "Secret", visibility: "private" }, "Confidentiel"),
   "wiki/secret/carnet.pdf": "PDF",
+  "library/article/index.md": page({
+    id: "PRIV",
+    type: "source",
+    title: "Article privé",
+    file: "article.pdf",
+  }),
+  "library/article/article.pdf": "PDF personnel",
+  "library/site/index.md": page(
+    {
+      id: "PUB",
+      type: "source",
+      kind: "web",
+      title: "Site",
+      visibility: "public",
+      url: "https://example.org/site",
+      file: "copie.pdf",
+    },
+    "Capture : ![capture](capture.png)",
+  ),
+  "library/site/copie.pdf": "copie personnelle",
+  "library/site/capture.png": "PNG",
+  "discussions/2026-01-01-1000-quiz.md":
+    "---\nid: Q\ntype: discussion\nkind: quiz\nvisibility: public\n---\n",
+  "discussions/2026-01-01-1100-perso.md":
+    "---\nid: D1\ntype: discussion\ntitle: Perso\nvisibility: private\n---\n",
+  "discussions/2026-01-02-1000-ouverte.md":
+    "---\nid: D2\ntype: discussion\nkind: question\ntitle: Ouverte\nvisibility: public\nabout: P\nscope_node: K\n---\n\n## user · 2026-01-02T10:00:00Z\nVoir [secret](../wiki/secret/index.md)\n",
 };
 
 async function withSummaries(files: Files): Promise<Files> {
@@ -91,12 +122,17 @@ describe("publication", async () => {
       ".notes/config.yml",
       ".notes/index.json",
       "README.md",
+      "discussions/2026-01-02-1000-ouverte.md",
+      "library/site/capture.png",
+      "library/site/index.md",
       "wiki/_summary.md",
       "wiki/index.md",
-      "wiki/science/_discussions/2026-01-02-ouverte.md",
       "wiki/science/index.md",
       "wiki/science/photo.png",
+      "wiki/science/savoir/carte/index.md",
+      "wiki/science/savoir/index.md",
     ]);
+    expect(publication.stats).toMatchObject({ knowledge: 1, flashcards: 1, sources: 1 });
   });
 
   it("publie la description publique sous le nom _summary.md", () => {
@@ -111,23 +147,40 @@ describe("publication", async () => {
     );
     const science = parsePage(content(publication.files, "wiki/science/index.md")!);
     expect(science.body).toBe("Image ![photo](photo.png) et carnet.\n");
-    expect(science.fields.sources).toEqual([
-      { description: "Article", url: "https://example.org" },
-    ]);
-    expect(science.fields.extracted_from).toBeUndefined();
-    const discussion = content(
-      publication.files,
-      "wiki/science/_discussions/2026-01-02-ouverte.md",
-    )!;
+    const discussion = content(publication.files, "discussions/2026-01-02-1000-ouverte.md")!;
     expect(discussion).toContain("Voir secret");
     expect(discussion).not.toContain("about:");
+    expect(discussion).toContain("scope_node: K");
+  });
+
+  it("retire les références aux sources privées et les fichiers personnels", () => {
+    const savoir = parsePage(content(publication.files, "wiki/science/savoir/index.md")!);
+    expect(savoir.fields.sources).toEqual([
+      { ref: "PUB", locator: "p. 3" },
+      { description: "Article", url: "https://example.org" },
+    ]);
+    expect(savoir.fields.extracted_from).toBeUndefined();
+    const site = parsePage(content(publication.files, "library/site/index.md")!);
+    expect(site.fields.file).toBeUndefined();
+    expect(site.fields.url).toBe("https://example.org/site");
   });
 
   it("publie une configuration sans paramètres personnels et un index", () => {
     const config = content(publication.files, ".notes/config.yml")!;
     expect(config).toContain("private_repo: alice/wiki");
     expect(config).not.toContain("mastery");
-    expect(publication.index.nodes.map((n) => n.id).sort()).toEqual(["R", "S"]);
+    expect(publication.index.nodes.map((n) => n.id).sort()).toEqual(["C", "K", "PUB", "R", "S"]);
+    expect(publication.index.nodes.find((n) => n.id === "K")).toMatchObject({
+      type: "knowledge",
+      refs: ["PUB"],
+      sourced: true,
+    });
+    expect(publication.index.nodes.find((n) => n.id === "PUB")).toMatchObject({
+      type: "source",
+      kind: "web",
+      parent: "virtual:library",
+    });
+    expect(publication.index.discussionList.map((d) => d.id)).toEqual(["D2"]);
     expect(publication.index.nodes.find((n) => n.id === "R")!.description).toBe(
       "La partie publique : Science.",
     );

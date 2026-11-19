@@ -15,17 +15,19 @@ import { normalizeTerm } from "./text.ts";
 /** Pages proposées à Eugenia pour ses suggestions de liens. */
 export function relatedPages(
   tree: WikiTree,
-  node: WikiNode,
+  node: WikiNode | undefined,
   text: string,
   limit = 24,
 ): RelatedPage[] {
   const out = new Map<string, WikiNode>();
+  // Les flashcards se lisent depuis leur connaissance : on propose les connaissances.
   const add = (n: WikiNode | undefined): void => {
-    if (n && n.id !== node.id && out.size < limit) out.set(n.id, n);
+    if (n && !n.virtual && n.type !== "flashcard" && n.id !== node?.id && out.size < limit)
+      out.set(n.id, n);
   };
-  const parent = node.parentId ? tree.nodes.get(node.parentId) : undefined;
+  const parent = node?.parentId ? tree.nodes.get(node.parentId) : undefined;
   add(parent);
-  for (const child of children(tree, node.id).slice(0, 10)) add(child);
+  if (node) for (const child of children(tree, node.id).slice(0, 10)) add(child);
   if (parent) for (const sibling of children(tree, parent.id).slice(0, 10)) add(sibling);
   const words = normalizeTerm(text)
     .split(/[^a-z0-9]+/)
@@ -59,4 +61,20 @@ export function portableLinks(text: string, fromFile: string, tree: WikiTree): s
 
 export function isEugeniaLink(url: string): boolean {
   return url.startsWith(EUGENIA_LINK_PREFIX);
+}
+
+/**
+ * Clé de la vue d'une discussion. Une nouvelle discussion change d'adresse à son premier
+ * message (elle reçoit son fichier) : elle garde sa clé pour ne pas être remontée, ce qui
+ * interromprait la réponse en cours.
+ */
+const adopted = new Map<string, string>();
+
+export function discussionViewKey(route: { path?: string; about?: string; kind?: string }): string {
+  if (route.path) return adopted.get(route.path) ?? `discussion-${route.path}`;
+  return `discussion-new-${route.about ?? ""}-${route.kind ?? ""}`;
+}
+
+export function adoptDiscussionPath(path: string, from: { about?: string; kind?: string }): void {
+  adopted.set(path, discussionViewKey(from));
 }

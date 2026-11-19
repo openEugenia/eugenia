@@ -65,11 +65,15 @@ export async function embedCommand(options: EmbedOptions, log: Logger): Promise<
   const provider =
     options.providerInstance ?? createProvider(embeddingProviderFromEnvironment(options));
   const { label, model, local } = provider.info;
-  const branch = findBranch(wiki, options.node);
-  const entries = await embeddingEntries(wiki.view, model, [
-    branch,
-    ...descendants(wiki.tree, branch.id),
-  ]);
+  // Sans --node : tout le wiki et toute la bibliothèque.
+  const roots = options.node
+    ? [findBranch(wiki, options.node)]
+    : [wiki.tree.rootId, wiki.tree.libraryId].map((id) => wiki.tree.nodes.get(id)!);
+  const entries = await embeddingEntries(
+    wiki.view,
+    model,
+    roots.flatMap((root) => [root, ...descendants(wiki.tree, root.id)]),
+  );
   let plan = entries.filter((e) => options.force || e.status !== "current");
   const privateCount = plan.filter((e) => !e.node.isPublic).length;
   if (!local && privateCount > 0) {

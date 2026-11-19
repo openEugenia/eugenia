@@ -328,7 +328,16 @@ export async function installFakeClaude(
     calls.push({ system: body.system, messages: body.messages, model: body.model });
     const user = body.messages.map((m) => m.content).join("\n");
     let text: string;
-    if (body.system.includes("description d'un sous-wiki")) {
+    if (user.includes("<flashcards_existantes>")) {
+      text = JSON.stringify({
+        cards: [
+          {
+            question: "Quelle figure les astrologues nomment-ils Lilith ?",
+            answer: "La Lune noire",
+          },
+        ],
+      });
+    } else if (body.system.includes("description d'un sous-wiki")) {
       text = options.summary ?? "Description générée par Eugenia.";
     } else if (body.system.includes("fais réviser")) {
       text = JSON.stringify({

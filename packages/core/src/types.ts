@@ -1,24 +1,71 @@
 /** Types partagés du modèle de données (spécification §5). */
 
 /** Types de nœuds stockés dans le dépôt. */
-export type NodeType = "note" | "summary" | "discussion" | "flashcard";
+export type NodeType = PageType | "summary" | "discussion";
 
-/** Types de pages : nœuds représentés par un dossier contenant un `index.md`. */
-export type PageType = "note" | "flashcard";
+/**
+ * Types de pages : nœuds représentés par un dossier contenant un `index.md`.
+ * - wiki : `category` (sous-wiki) → `knowledge` (connaissance atomique) → `flashcard` ;
+ * - bibliothèque : `source`.
+ */
+export type PageType = "category" | "knowledge" | "flashcard" | "source";
 
-export const PAGE_TYPES: readonly PageType[] = ["note", "flashcard"];
+export const PAGE_TYPES: readonly PageType[] = ["category", "knowledge", "flashcard", "source"];
+
+/** Espaces du dépôt qui contiennent des pages (§5.1). */
+export type Space = "wiki" | "library";
+
+/** Nature d'une source de la bibliothèque. */
+export type SourceKind = "book" | "article" | "web" | "video" | "audio" | "document" | "other";
+
+export const SOURCE_KINDS: readonly SourceKind[] = [
+  "book",
+  "article",
+  "web",
+  "video",
+  "audio",
+  "document",
+  "other",
+];
+
+export function parseSourceKind(value: unknown): SourceKind | undefined {
+  return typeof value === "string" && (SOURCE_KINDS as readonly string[]).includes(value)
+    ? (value as SourceKind)
+    : undefined;
+}
+
+/** Sortes de discussions (§5.6) : discussion libre, question sur l'arbre, quiz, note rapide. */
+export type DiscussionKind = "discussion" | "question" | "quiz" | "note";
+
+export const DISCUSSION_KINDS: readonly DiscussionKind[] = [
+  "discussion",
+  "question",
+  "quiz",
+  "note",
+];
+
+export function parseDiscussionKind(value: unknown): DiscussionKind {
+  return typeof value === "string" && (DISCUSSION_KINDS as readonly string[]).includes(value)
+    ? (value as DiscussionKind)
+    : "discussion";
+}
 
 export type Visibility = "public" | "private";
 
 /** Portée d'une description de sous-wiki (§5.5, §6.3). */
 export type SummaryScope = "private" | "public";
 
-/** Source d'une connaissance (§5.7). Le fichier personnel n'est jamais publié. */
+/**
+ * Référence d'une connaissance à une source (§5.7) : de préférence une source de la
+ * bibliothèque (`ref`), sinon une simple description ou adresse.
+ */
 export interface SourceRef {
+  /** Identifiant d'une source de la bibliothèque. */
+  ref?: string;
+  /** Localisation dans la source : page, chapitre, minutage… */
+  locator?: string;
   description?: string;
   url?: string;
-  /** Fichier personnel joint, relatif au dossier du nœud. */
-  file?: string;
 }
 
 /** Fichier du dépôt : chemin POSIX relatif à la racine et SHA du blob git. */

@@ -32,7 +32,11 @@ describe("initialisation", () => {
     const wiki = await memoryWiki(files);
     const problems = await validateWiki(wiki.view, wiki.configProblems);
     expect(problems).toEqual([]);
-    expect(wiki.tree.nodes.size).toBe(16);
+    // La racine, les catégories par défaut et la racine (virtuelle) de la bibliothèque.
+    expect(wiki.tree.nodes.size).toBe(2 + DEFAULT_CATEGORIES.length);
+    expect(files[".notes/config.yml"]).toContain("library: library/");
+    expect(files[".notes/config.yml"]).toContain("discussions: discussions/");
+    expect(files["wiki/histoire/index.md"]).toContain("type: category");
   });
 
   it("génère un workflow qui utilise l'action de publication", () => {
@@ -47,17 +51,29 @@ describe("validation", () => {
     const wiki = await memoryWiki({
       ".notes/config.yml": "root: wiki\ndefault_visibility: nope\n",
       "wiki/index.md": page({ id: "R", title: "R" }, "[Perdu](absent/index.md)"),
-      "wiki/c/index.md": page(
-        { id: "C", type: "flashcard", title: "Carte" },
-        "## Connaissance\nX",
-      ).replace("title: Carte\n", "title: Carte\nsources:\n  - file: manquant.pdf\n"),
+      "wiki/k/index.md": page({ id: "K", type: "knowledge", title: "Savoir" }, "").replace(
+        "title: Savoir\n",
+        "title: Savoir\nsources:\n  - ref: INCONNUE\n  - ref: R\n",
+      ),
+      "wiki/k/c/index.md": page({ id: "C", type: "flashcard", title: "Carte" }, "## Question\nX"),
+      "library/livre/index.md": page({
+        id: "L",
+        type: "source",
+        title: "Livre",
+        file: "manquant.pdf",
+      }),
+      "discussions/2026-01-01-1000-x.md": "---\nid: D\ntype: discussion\nabout: ABSENT\n---\n",
     });
     const problems = await validateWiki(wiki.view, wiki.configProblems);
     expect(problems.map((p) => p.code).sort()).toEqual([
       "broken-link",
+      "discussion-unknown-node",
       "flashcard-incomplete",
       "invalid-config",
+      "knowledge-empty",
       "missing-source-file",
+      "not-a-source",
+      "unknown-source",
     ]);
     expect(hasErrors(problems)).toBe(true);
   });

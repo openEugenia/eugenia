@@ -6,9 +6,9 @@ model: claude-opus-5-5
 generated: 2026-11-15T09:00:00Z
 locked: false
 sources:
-  01M6BSZRC0GMZD0N3KYADANR5K: 23f3567
-  01M6C0VFM0SQ0N0FZWHWXYHRXB: 855b42e
-  01M6BXDM00JKTP26XWNJ9K0F26: e3f3d6b
+  01M6BSZRC0GMZD0N3KYADANR5K: 3a599e2
+  01M6GAPFZ0FMHD7Q6JQAKK3PHP: 1d15ab1
+  01M6GA4610GKWKVM8WDX8DG6R2: "2929731"
 ---
 
 Cette branche réunit des connaissances d'astronomie sur l'orbite lunaire : l'apogée, point de l'orbite d'un satellite le plus éloigné de la Terre, et la Lune noire, nom donné à l'apogée de l'orbite de la Lune, que les astrologues appellent aussi Lilith.

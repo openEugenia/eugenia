@@ -4,6 +4,7 @@
  * classement des pages par proximité de sens avec une requête.
  */
 import {
+  isEmbeddable,
   embeddingEntries,
   embeddingPath,
   newEmbeddingDocument,
@@ -32,7 +33,7 @@ export async function loadSemanticIndex(model: string): Promise<SemanticIndex> {
   if (!workspace || !derived) throw new Error("Wiki non chargé.");
   const files: RepoFile[] = [];
   for (const node of derived.tree.nodes.values()) {
-    if (node.virtual) continue;
+    if (!isEmbeddable(node)) continue;
     const page = derived.files.get(node.indexPath);
     if (page) files.push(page);
     if (node.embedding) files.push(node.embedding);

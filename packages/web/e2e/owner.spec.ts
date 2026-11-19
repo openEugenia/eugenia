@@ -75,7 +75,7 @@ test.describe("propriétaire", () => {
   test("renomme une page : dossier renommé et liens entrants réécrits", async ({ page }) => {
     const repos = await demoRepos();
     await openOwner(page, repos);
-    await page.goto("?repo=alice/eugenia-wiki#/n/01M6C0VFM0SQ0N0FZWHWXYHRXB/edit");
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6GAPFZ0FMHD7Q6JQAKK3PHP/edit");
     await page.getByLabel("Titre", { exact: true }).fill("Apogée orbitale");
     await page.getByRole("button", { name: "Enregistrer" }).click();
     await expect(page.getByRole("heading", { name: "Apogée orbitale", level: 1 })).toBeVisible();
@@ -83,29 +83,50 @@ test.describe("propriétaire", () => {
     const paths = repos.privateRepo.paths();
     expect(paths).toContain("wiki/science/astronomie/apogee-orbitale/index.md");
     expect(paths).not.toContain("wiki/science/astronomie/apogee/index.md");
+    // Sa flashcard suit le dossier renommé.
+    expect(paths).toContain(
+      "wiki/science/astronomie/apogee-orbitale/comment-s-appelle-le-point-de-l/index.md",
+    );
     expect(repos.privateRepo.read("wiki/science/astronomie/lune-noire/index.md")).toContain(
       "(../apogee-orbitale/index.md)",
     );
   });
 
-  test("crée une connaissance atomique privée par défaut", async ({ page }) => {
+  test("crée une connaissance atomique privée, sa première flashcard et sa source", async ({
+    page,
+  }) => {
     const repos = await demoRepos();
     await openOwner(page, repos);
-    await page.goto("?repo=alice/eugenia-wiki#/n/01M6CEJY409R5NH5S6H1J8AM6Q/new?type=flashcard");
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6CEJY409R5NH5S6H1J8AM6Q/new?type=knowledge");
     await page.getByLabel("Titre", { exact: true }).fill("Bataille de Marignan");
     await page.locator(".cm-content").first().click();
     await page.keyboard.type("La bataille de Marignan a eu lieu en 1515.");
+    await page.getByRole("button", { name: "Nouvelle source" }).click();
+    await page.getByLabel("Titre de la nouvelle source").fill("Histoire de France");
+    await page.getByLabel("Nature de la source").selectOption("book");
+    await page.getByLabel("Localisation dans la source").fill("chap. 4");
     await page.getByLabel("Question").fill("En quelle année a eu lieu la bataille de Marignan ?");
     await page.getByLabel("Réponse attendue").fill("1515");
     await page.getByRole("button", { name: "Enregistrer" }).click();
     await expect(
       page.getByRole("heading", { name: "Bataille de Marignan", level: 1 }),
     ).toBeVisible();
+    await expect(page.locator(".flashcard-list")).toContainText("En quelle année");
     await commitAll(page);
     const text = repos.privateRepo.read("wiki/histoire/bataille-de-marignan/index.md")!;
-    expect(text).toContain("type: flashcard");
+    expect(text).toContain("type: knowledge");
     expect(text).toContain("visibility: private");
-    expect(text).toContain("## Réponse attendue\n1515");
+    expect(text).toMatch(/sources:\n {2}- ref: \w+\n {4}locator: chap\. 4/);
+    const card = repos.privateRepo
+      .paths()
+      .find(
+        (p) =>
+          p.startsWith("wiki/histoire/bataille-de-marignan/") &&
+          p !== "wiki/histoire/bataille-de-marignan/index.md",
+      );
+    expect(repos.privateRepo.read(card!)).toContain("## Réponse attendue\n1515");
+    expect(repos.privateRepo.read(card!)).not.toContain("visibility:");
+    expect(repos.privateRepo.read("library/histoire-de-france/index.md")).toContain("kind: book");
   });
 
   test("quiz en auto-évaluation : la révision est enregistrée", async ({ page }) => {
@@ -123,6 +144,10 @@ test.describe("propriétaire", () => {
     await page.getByRole("button", { name: "Question suivante" }).click();
     await page.getByRole("button", { name: "Révéler la réponse" }).click();
     await page.getByRole("button", { name: /0 — à revoir/ }).click();
+    // Trois flashcards dans la branche, dont deux sur la connaissance « Lilith ».
+    await page.getByRole("button", { name: "Question suivante" }).click();
+    await page.getByRole("button", { name: "Révéler la réponse" }).click();
+    await page.getByRole("button", { name: /1 — acquise/ }).click();
     await page.getByRole("button", { name: "Terminer" }).click();
     await expect(page.getByText("Quiz terminé")).toBeVisible();
     await expect(page.getByText("Modifications enregistrées dans le dépôt.")).toBeVisible();
@@ -130,7 +155,9 @@ test.describe("propriétaire", () => {
       .paths()
       .find(
         (p) =>
-          p.startsWith("wiki/religion-et-croyances/_quizzes/") && !p.endsWith("2026-11-10-1030.md"),
+          p.startsWith("discussions/") &&
+          p.includes("quiz-religion-et-croyances") &&
+          !p.startsWith("discussions/2026-11-10-1030"),
       );
     expect(quiz).toBeTruthy();
     const text = repos.privateRepo.read(quiz!)!;
@@ -167,8 +194,9 @@ test.describe("propriétaire", () => {
   test("rend une page publique avec ses ancêtres, après confirmation", async ({ page }) => {
     const repos = await demoRepos();
     await openOwner(page, repos);
-    await page.goto("?repo=alice/eugenia-wiki#/n/01M6CB52G079754JK5TQAMTDVB");
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6NAM9G0N4ZZ728SJECX39T3");
     await page.getByRole("button", { name: "Rendre public" }).click();
+    await expect(page.getByText("Les flashcards suivent la visibilité")).toBeVisible();
     await expect(
       page.getByText("Une page publique ne peut pas avoir d'ancêtre privé"),
     ).toBeVisible();
@@ -183,6 +211,53 @@ test.describe("propriétaire", () => {
     expect(repos.privateRepo.read("wiki/philosophie-et-pensee/cogito/index.md")).toContain(
       "visibility: public",
     );
+    // La flashcard hérite de sa connaissance, sans visibilité propre.
+    expect(
+      repos.privateRepo.read(
+        "wiki/philosophie-et-pensee/cogito/quelle-formule-descartes-propose/index.md",
+      ),
+    ).not.toContain("visibility:");
+  });
+
+  test("parcourt la bibliothèque et les connaissances tirées d'une source", async ({ page }) => {
+    const repos = await demoRepos();
+    await openOwner(page, repos);
+    await sidebar(page).getByRole("tab", { name: "Bibliothèque" }).click();
+    await sidebar(page).getByRole("link", { name: "Article sur Lilith" }).click();
+    await expect(page.getByRole("heading", { name: "Article sur Lilith", level: 1 })).toBeVisible();
+    await expect(page.locator(".notice")).toContainText("article.pdf");
+    const used = page.locator("section", { hasText: "Connaissances tirées de cette source" });
+    await expect(used.getByRole("link", { name: "Lilith", exact: true })).toBeVisible();
+    await expect(used.getByRole("link", { name: "Lilith, première femme d'Adam" })).toBeVisible();
+    await page.goto("?repo=alice/eugenia-wiki#/library?kind=book");
+    await expect(page.locator(".library-item")).toHaveCount(1);
+    await expect(page.locator(".library-item")).toContainText("René Descartes");
+    // Une connaissance sans source est signalée.
+    await expect(page.locator(".oe-alert", { hasText: "à sourcer" })).toContainText(
+      "Première exoplanète",
+    );
+  });
+
+  test("rassemble toutes les discussions, filtrables par sorte", async ({ page }) => {
+    const repos = await demoRepos();
+    await openOwner(page, repos);
+    await sidebar(page).getByRole("tab", { name: "Discussions" }).click();
+    await expect(sidebar(page)).toContainText("Lilith et la Lune noire");
+    await page.goto("?repo=alice/eugenia-wiki#/discussions");
+    await expect(page.locator(".discussion-item")).toHaveCount(4);
+    await page.getByRole("button", { name: /Note rapide/ }).click();
+    await expect(page.locator(".discussion-item")).toHaveCount(1);
+    await page.locator(".discussion-item").click();
+    await expect(page.getByRole("heading", { name: "51 Pegasi b", level: 1 })).toBeVisible();
+    await expect(page.locator(".conversation")).toContainText("à sourcer");
+    // La connaissance extraite de la note renvoie à sa discussion d'origine.
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6M29CX0YR71WFM59B6FRX44");
+    await expect(page.getByText("Extraite de la discussion")).toBeVisible();
+    // Un quiz se relit, sans se prolonger.
+    await page.goto("?repo=alice/eugenia-wiki#/discussions?kind=quiz");
+    await page.locator(".discussion-item").click();
+    await expect(page.getByRole("link", { name: /Relancer un quiz/ })).toBeVisible();
+    await expect(page.getByLabel("Votre message")).toHaveCount(0);
   });
 });
 
@@ -194,9 +269,12 @@ test.describe("Eugenia (IA simulée)", () => {
     });
     await openOwner(page, repos, { ai: true });
     // Une modification rend périmée la description d'« Astronomie ».
-    await page.goto("?repo=alice/eugenia-wiki#/n/01M6C0VFM0SQ0N0FZWHWXYHRXB/edit");
-    await page.getByLabel("Réponse attendue").fill("L'apogée (point le plus éloigné)");
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6GAPFZ0FMHD7Q6JQAKK3PHP/edit");
+    await page.locator(".cm-content").first().click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" C'est l'inverse du périgée.");
     await page.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.locator(".knowledge")).toContainText("l'inverse du périgée");
     await page.goto("?repo=alice/eugenia-wiki#/summaries?root=01M6BSZRC0GMZD0N3KYADANR5K");
     await page.getByRole("button", { name: /Régénérer la branche/ }).click();
     await page.getByRole("button", { name: "J'ai compris, envoyer" }).click();
@@ -221,7 +299,7 @@ test.describe("Eugenia (IA simulée)", () => {
     await openOwner(page, repos, { ai: true });
     await page.goto("?repo=alice/eugenia-wiki#/n/01M6B8TE80FWZWZ9A13320JP2Z/extract");
     await page.getByRole("tab", { name: "Coller un texte" }).click();
-    await page.getByLabel("Titre de la note source").fill("Notes sur Hypatie");
+    await page.getByLabel("Titre de la source").fill("Notes sur Hypatie");
     await page
       .getByLabel("Texte", { exact: true })
       .fill(
@@ -236,11 +314,18 @@ test.describe("Eugenia (IA simulée)", () => {
     await page.getByRole("button", { name: "Créer 2 connaissances" }).click();
     await expect(page.getByRole("heading", { name: "2 connaissances créées" })).toBeVisible();
     await expect(page.getByText("Modifications enregistrées dans le dépôt.")).toBeVisible();
-    const paths = repos.privateRepo.paths();
-    expect(paths).toContain("wiki/religion-et-croyances/notes-sur-hypatie/index.md");
-    const card = repos.privateRepo.read("wiki/religion-et-croyances/connaissance-1/index.md")!;
-    expect(card).toContain("type: flashcard");
-    expect(card).toContain("extracted_from:");
+    // Le texte collé devient une source de la bibliothèque, citée par les connaissances.
+    const source = repos.privateRepo.read("library/notes-sur-hypatie/index.md")!;
+    expect(source).toContain("type: source");
+    const id = /^id: (\S+)$/m.exec(source)![1]!;
+    const knowledge = repos.privateRepo.read("wiki/religion-et-croyances/connaissance-1/index.md")!;
+    expect(knowledge).toContain("type: knowledge");
+    expect(knowledge).toContain(`extracted_from: ${id}`);
+    expect(knowledge).toContain(`- ref: ${id}`);
+    const card = repos.privateRepo
+      .paths()
+      .find((p) => p.startsWith("wiki/religion-et-croyances/connaissance-1/question-1"));
+    expect(repos.privateRepo.read(card!)).toContain("type: flashcard");
     expect(repos.privateRepo.log()[0]).toBe(
       "Extraction : 2 connaissances depuis « Notes sur Hypatie »",
     );
@@ -251,8 +336,8 @@ test.describe("Eugenia (IA simulée)", () => {
     await installFakeClaude(page);
     await openOwner(page, repos, { ai: true });
     await page.goto("?repo=alice/eugenia-wiki#/n/01M6B8TE80FWZWZ9A13320JP2Z");
+    // Toute la branche est publique : aucune confirmation d'envoi de contenu privé.
     await page.getByRole("button", { name: "Suggérer des sous-catégories" }).click();
-    await page.getByRole("button", { name: "J'ai compris, envoyer" }).click();
     await expect(page.getByText("Regroupe les figures mythologiques.")).toBeVisible();
     await page.getByRole("button", { name: "Créer", exact: true }).click();
     await expect(page.getByText("Catégorie « Mythologies » créée")).toBeVisible();
@@ -299,14 +384,15 @@ test.describe("Eugenia (IA simulée)", () => {
 
     await page.goto("?repo=alice/eugenia-wiki#/search");
     await page.getByLabel("Par le sens").check();
-    await expect(page.getByText("0 / 13 pages indexées · 13 pages à indexer")).toBeVisible();
-    await page.getByRole("button", { name: "Indexer 13 pages" }).click();
+    // Catégories, connaissances et sources ; les flashcards reprennent leur connaissance.
+    await expect(page.getByText("0 / 16 pages indexées · 16 pages à indexer")).toBeVisible();
+    await page.getByRole("button", { name: "Indexer 16 pages" }).click();
     // Des pages privées partent vers Mistral : mêmes confirmations que pour Eugenia.
     await page.getByRole("button", { name: "Non, utiliser mon fournisseur" }).click();
     await page.getByRole("button", { name: "J'ai compris, envoyer" }).click();
     await expect(page.getByText("Modifications enregistrées dans le dépôt.")).toBeVisible();
-    await expect(page.getByText("13 / 13 pages indexées")).toBeVisible();
-    expect(repos.privateRepo.log()[0]).toBe("Index sémantique : 13 page(s)");
+    await expect(page.getByText("16 / 16 pages indexées")).toBeVisible();
+    expect(repos.privateRepo.log()[0]).toBe("Index sémantique : 16 page(s)");
     expect(
       JSON.parse(repos.privateRepo.read("wiki/religion-et-croyances/lilith/_embedding.json")!),
     ).toMatchObject({ format: "eugenia-embedding", model: "mistral-embed", dimensions: 64 });
@@ -320,5 +406,54 @@ test.describe("Eugenia (IA simulée)", () => {
     await expect(results.first()).toContainText("proximité");
     await expect(results.first().locator("a strong")).toHaveText("Apogée");
     expect(mistral.embeddings).toHaveLength(2);
+  });
+
+  test("note rapide : Eugenia répond aussitôt, la note est enregistrée dans les discussions", async ({
+    page,
+  }) => {
+    const repos = await demoRepos();
+    const calls = await installFakeClaude(page, {
+      reply: "1. **Hypatie** enseignait à Alexandrie. Pensez à la sourcer.",
+    });
+    await openOwner(page, repos, { ai: true });
+    await sidebar(page).getByRole("tab", { name: "Discussions" }).click();
+    await sidebar(page).getByRole("link", { name: "Note" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Nouvelle note rapide", level: 1 }),
+    ).toBeVisible();
+    await page.getByLabel("Votre message").fill("Hypatie enseignait à Alexandrie.");
+    await page.getByRole("button", { name: "Envoyer" }).click();
+    await page.getByRole("button", { name: "J'ai compris, envoyer" }).click();
+    await expect(page.locator(".message--eugenia")).toContainText("Pensez à la sourcer.");
+    expect(calls.at(-1)!.system).toContain("note rapide");
+    expect(calls.at(-1)!.system).toContain("<bibliotheque>");
+    await page.getByRole("button", { name: "Terminer" }).click();
+    await expect(page.getByRole("heading", { name: "Discussions", level: 1 })).toBeVisible();
+    await expect(page.getByText("Modifications enregistrées dans le dépôt.")).toBeVisible();
+    const note = repos.privateRepo
+      .paths()
+      .find((p) => p.startsWith("discussions/") && p.includes("hypatie"))!;
+    const text = repos.privateRepo.read(note)!;
+    expect(text).toContain("kind: note");
+    expect(text).toContain("Pensez à la sourcer.");
+  });
+
+  test("propose de nouvelles flashcards pour une connaissance", async ({ page }) => {
+    const repos = await demoRepos();
+    await installFakeClaude(page);
+    await openOwner(page, repos, { ai: true });
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6GA4610GKWKVM8WDX8DG6R2");
+    // Connaissance publique : aucune confirmation d'envoi de contenu privé.
+    await page.getByRole("button", { name: "Proposer des flashcards" }).click();
+    await expect(page.getByLabel("Question").first()).toHaveValue(
+      "Quelle figure les astrologues nomment-ils Lilith ?",
+    );
+    await page.getByRole("button", { name: "Ajouter les flashcards retenues" }).click();
+    await expect(page.getByText("Modifications enregistrées dans le dépôt.")).toBeVisible();
+    await expect(page.locator(".flashcard-list > li")).toHaveCount(2);
+    const added = repos.privateRepo
+      .paths()
+      .find((p) => p.startsWith("wiki/science/astronomie/lune-noire/quelle-figure"))!;
+    expect(repos.privateRepo.read(added)).toContain("## Réponse attendue\nLa Lune noire");
   });
 });

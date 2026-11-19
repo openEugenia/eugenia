@@ -5,7 +5,13 @@
 import type { WikiConfig } from "./config.ts";
 import { parseDiscussion, type DiscussionDocument, serializeDiscussion } from "./discussion.ts";
 import { directoryMapper, encodeLinkPath, rewriteLinksForMove, unlinkTargets } from "./links.ts";
-import { parsePage, serializePage, type PageDocument } from "./pages.ts";
+import {
+  flashcardTitle,
+  parsePage,
+  serializeFlashcardBody,
+  serializePage,
+  type PageDocument,
+} from "./pages.ts";
 import { basename, dirname, extname, isUnder, joinPath, rebase } from "./paths.ts";
 import { folderNameFor } from "./slug.ts";
 import { isoTimestamp } from "./time.ts";
@@ -14,10 +20,20 @@ import {
   directoryEntries,
   getNode,
   isAncestorOf,
+  isContentPath,
+  placementProblem,
   type WikiNode,
   type WikiTree,
 } from "./tree.ts";
-import type { FileChange, PageType, RepoFile, SourceRef, Visibility } from "./types.ts";
+import type {
+  DiscussionKind,
+  FileChange,
+  PageType,
+  RepoFile,
+  SourceKind,
+  SourceRef,
+  Visibility,
+} from "./types.ts";
 import { ulid } from "./ulid.ts";
 import { defaultVisibilityFor } from "./visibility.ts";
 
@@ -50,10 +66,18 @@ export interface NewPage {
   type?: PageType;
   body?: string;
   visibility?: Visibility;
+  /** Ne pas écrire de visibilité : la page hérite de celle de son parent. */
+  inheritVisibility?: boolean;
   tags?: string[];
   order?: number;
   sources?: SourceRef[];
   extracted_from?: string;
+  /** Source : nature, auteurs, adresse, date de publication, fichier personnel. */
+  kind?: SourceKind;
+  authors?: string[];
+  url?: string;
+  published?: string;
+  file?: string;
   id?: string;
   now?: Date;
 }
@@ -83,7 +107,7 @@ export function createPage(
   const doc: PageDocument = {
     fields: {
       id: page.id ?? ulid(page.now?.getTime()),
-      type: page.type ?? "note",
+      type: page.type ?? "category",
       title,
       visibility:
         page.visibility ??
@@ -98,7 +122,13 @@ export function createPage(
   if (page.order !== undefined) doc.fields.order = page.order;
   if (page.sources?.length) doc.fields.sources = page.sources;
   if (page.extracted_from) doc.fields.extracted_from = page.extracted_from;
+  if (page.kind) doc.fields.kind = page.kind;
+  if (page.authors?.length) doc.fields.authors = page.authors;
+  if (page.url) doc.fields.url = page.url;
+  if (page.published) doc.fields.published = page.published;
+  if (page.file) doc.fields.file = page.file;
   if (doc.fields.visibility === "public" && !page.parentIsPublic) doc.fields.visibility = "private";
+  if (page.inheritVisibility && page.visibility === undefined) delete doc.fields.visibility;
   const indexPath = joinPath(path, "index.md");
   return {
     id: doc.fields.id,
@@ -108,12 +138,33 @@ export function createPage(
   };
 }
 
+/** Flashcard d'une connaissance : titre tiré de la question. */
+export function createFlashcard(
+  view: Pick<WikiView, "config" | "files">,
+  knowledge: Pick<WikiNode, "path" | "isPublic">,
+  card: { question: string; answer: string; id?: string; now?: Date },
+  extraPaths: Iterable<string> = [],
+): CreatedPage {
+  const page: NewPage = {
+    parentPath: knowledge.path,
+    parentIsPublic: knowledge.isPublic,
+    title: flashcardTitle(card.question),
+    type: "flashcard",
+    // Une flashcard prolonge sa connaissance : elle en suit la visibilité.
+    inheritVisibility: true,
+    body: serializeFlashcardBody({ question: card.question, answer: card.answer }),
+  };
+  if (card.id) page.id = card.id;
+  if (card.now) page.now = card.now;
+  return createPage(view, page, extraPaths);
+}
+
 /** Document d'une page virtuelle (dossier sans `index.md`), créé à la première édition. */
 function materialize(node: WikiNode, now: Date): PageDocument {
   return {
     fields: {
       id: ulid(now.getTime()),
-      type: "note",
+      type: node.type,
       title: node.title,
       created: isoTimestamp(now),
       updated: isoTimestamp(now),
@@ -141,6 +192,11 @@ export interface PagePatch {
   sources?: SourceRef[];
   visibility?: Visibility | null;
   extracted_from?: string | null;
+  kind?: SourceKind | null;
+  authors?: string[];
+  url?: string | null;
+  published?: string | null;
+  file?: string | null;
 }
 
 /**
@@ -183,10 +239,24 @@ export async function updatePage(
     if (patch.extracted_from === null) delete f.extracted_from;
     else f.extracted_from = patch.extracted_from;
   }
+  if (patch.kind !== undefined) {
+    if (patch.kind === null) delete f.kind;
+    else f.kind = patch.kind;
+  }
+  if (patch.authors !== undefined) {
+    if (patch.authors.length > 0) f.authors = patch.authors;
+    else delete f.authors;
+  }
+  for (const key of ["url", "published", "file"] as const) {
+    const value = patch[key];
+    if (value === undefined) continue;
+    if (value === null || value.trim() === "") delete f[key];
+    else f[key] = value.trim();
+  }
   f.updated = isoTimestamp(now);
   const content = serializePage(doc);
 
-  if (patch.title !== undefined && node.id !== view.tree.rootId) {
+  if (patch.title !== undefined && node.parentId !== null) {
     const parentPath = dirname(node.path);
     const taken = directoryEntries(view.files.keys(), parentPath);
     taken.delete(node.name);
@@ -241,10 +311,10 @@ async function relocate(
     }
   }
 
-  // Liens entrants depuis le reste du wiki.
+  // Liens entrants depuis le reste du dépôt (wiki, bibliothèque, discussions).
   const needles = [node.name, encodeLinkPath(node.name)];
   for (const [path] of view.files) {
-    if (isUnder(oldDir, path) || !isMarkdownPath(path) || !isUnder(view.config.root, path))
+    if (isUnder(oldDir, path) || !isMarkdownPath(path) || !isContentPath(view.config, path))
       continue;
     const content = await read(path);
     const next = needles.some((n) => content.includes(n))
@@ -272,11 +342,13 @@ export async function moveNode(
   const tree = view.tree;
   const node = getNode(tree, nodeId);
   const parent = getNode(tree, newParentId);
-  if (node.id === tree.rootId) throw new OperationError("La racine ne peut pas être déplacée.");
+  if (node.parentId === null) throw new OperationError("La racine ne peut pas être déplacée.");
   if (parent.id === node.id || isAncestorOf(tree, node.id, parent.id)) {
     throw new OperationError("Une page ne peut pas être déplacée dans sa propre branche.");
   }
   if (node.parentId === parent.id) return [];
+  const problem = placementProblem(tree, node, parent.id);
+  if (problem) throw new OperationError(problem);
   const taken = directoryEntries(view.files.keys(), parent.path);
   const name = folderNameFor(node.title, taken, view.config.folder_name_max_length, node.name);
   const transform = parent.isPublic
@@ -299,15 +371,17 @@ export interface DeleteOptions {
   recursive?: boolean;
 }
 
-/** Supprime une page (et sa branche) ; les liens entrants deviennent du texte simple. */
+/**
+ * Supprime une page (et sa branche) ; les liens entrants deviennent du texte simple. Les
+ * connaissances qui citaient une source supprimée gardent une référence libre (son titre).
+ */
 export async function deleteNode(
   view: WikiView,
   nodeId: string,
   options: DeleteOptions = {},
 ): Promise<FileChange[]> {
   const node = getNode(view.tree, nodeId);
-  if (node.id === view.tree.rootId)
-    throw new OperationError("La racine ne peut pas être supprimée.");
+  if (node.parentId === null) throw new OperationError("La racine ne peut pas être supprimée.");
   if (node.childIds.length > 0 && !options.recursive) {
     throw new OperationError(
       `« ${node.title} » contient ${descendants(view.tree, nodeId).length} page(s) : confirmez la suppression récursive.`,
@@ -317,16 +391,40 @@ export async function deleteNode(
   for (const [path] of view.files) {
     if (isUnder(node.path, path)) changes.push({ op: "delete", path });
   }
+  const removed = new Map([node, ...descendants(view.tree, nodeId)].map((n) => [n.id, n] as const));
+  const citing = new Set(
+    [...view.tree.nodes.values()]
+      .filter((n) => !removed.has(n.id) && n.refs.some((r) => removed.has(r)))
+      .map((n) => n.indexPath),
+  );
   const needles = [node.name, encodeLinkPath(node.name)];
   for (const [path] of view.files) {
-    if (isUnder(node.path, path) || !isMarkdownPath(path) || !isUnder(view.config.root, path))
+    if (isUnder(node.path, path) || !isMarkdownPath(path) || !isContentPath(view.config, path))
       continue;
     const content = await view.readText(path);
-    if (!needles.some((n) => content.includes(n))) continue;
-    const next = unlinkTargets(content, path, (target) => isUnder(node.path, target));
+    let next = needles.some((n) => content.includes(n))
+      ? unlinkTargets(content, path, (target) => isUnder(node.path, target))
+      : content;
+    if (citing.has(path)) next = detachSourceRefs(next, removed);
     if (next !== content) changes.push({ op: "write", path, content: next });
   }
   return changes;
+}
+
+/** Remplace les références à des sources supprimées par une référence libre. */
+function detachSourceRefs(content: string, removed: ReadonlyMap<string, WikiNode>): string {
+  const doc = parsePage(content);
+  if (!doc.fields.sources) return content;
+  doc.fields.sources = doc.fields.sources.map((s) => {
+    const source = s.ref ? removed.get(s.ref) : undefined;
+    if (!source) return s;
+    const out: SourceRef = { description: s.description || source.title };
+    if (s.locator) out.locator = s.locator;
+    const url = s.url ?? source.url;
+    if (url) out.url = url;
+    return out;
+  });
+  return serializePage(doc);
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +456,7 @@ export async function applyVisibility(
 export function newDiscussionDocument(input: {
   title: string;
   about?: string;
-  kind?: "quiz";
+  kind?: DiscussionKind;
   scopeNode?: string;
   now?: Date;
 }): DiscussionDocument {
@@ -375,7 +473,7 @@ export function newDiscussionDocument(input: {
     extra: {},
     messages: [],
   };
-  if (input.kind) doc.fields.kind = input.kind;
+  if (input.kind && input.kind !== "discussion") doc.fields.kind = input.kind;
   if (input.about) doc.fields.about = input.about;
   if (input.scopeNode) doc.fields.scope_node = input.scopeNode;
   return doc;
@@ -389,9 +487,14 @@ export function writeDiscussion(path: string, doc: DiscussionDocument): FileChan
   return { op: "write", path, content: serializeDiscussion(doc) };
 }
 
-/** Chemins existants d'un dossier réservé (`_discussions`, `_quizzes`) d'une page. */
+/** Noms des fichiers existants d'un dossier (pour éviter les collisions de noms). */
 export function reservedEntries(view: Pick<WikiView, "files">, dir: string): Set<string> {
   const out = new Set<string>();
   for (const path of view.files.keys()) if (dirname(path) === dir) out.add(basename(path));
   return out;
+}
+
+/** Noms des fichiers existants du dossier des discussions. */
+export function discussionEntries(view: Pick<WikiView, "files" | "config">): Set<string> {
+  return reservedEntries(view, view.config.discussions);
 }

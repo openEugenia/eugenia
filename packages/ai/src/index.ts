@@ -22,6 +22,7 @@ export * from "./tasks/extract.ts";
 export * from "./tasks/summarize.ts";
 export * from "./tasks/evaluate.ts";
 export * from "./tasks/discuss.ts";
+export * from "./tasks/flashcards.ts";
 export * from "./tasks/ask.ts";
 export * from "./tasks/categories.ts";
 export * from "./tasks/embed.ts";

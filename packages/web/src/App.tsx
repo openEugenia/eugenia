@@ -6,6 +6,7 @@ import { ErrorBox, Loading } from "./components/common.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { DialogHost, Toasts } from "./components/Modal.tsx";
 import { href, openRepo, useRepoParam, useRoute, type Route } from "./lib/router.ts";
+import { discussionViewKey } from "./lib/discussions.ts";
 import { repoKey, repoLabel } from "./lib/repo.ts";
 import { useSettings } from "./store/settings.ts";
 import { toast } from "./store/ui.ts";
@@ -40,6 +41,12 @@ const ChangesView = lazy(() =>
 const SummariesView = lazy(() =>
   import("./views/SummariesView.tsx").then((m) => ({ default: m.SummariesView })),
 );
+const LibraryView = lazy(() =>
+  import("./views/LibraryView.tsx").then((m) => ({ default: m.LibraryView })),
+);
+const DiscussionsView = lazy(() =>
+  import("./views/DiscussionsView.tsx").then((m) => ({ default: m.DiscussionsView })),
+);
 const NewWikiView = lazy(() =>
   import("./views/NewWikiView.tsx").then((m) => ({ default: m.NewWikiView })),
 );
@@ -50,14 +57,14 @@ function routeNodeId(route: Route): string | undefined {
     case "edit":
     case "extract":
     case "quiz":
-    case "discussion":
-      return route.id;
-    case "new":
-      return route.parentId;
     case "ask":
     case "graph":
     case "summaries":
       return route.id;
+    case "new":
+      return route.parentId;
+    case "discussion":
+      return route.about;
     default:
       return undefined;
   }
@@ -65,11 +72,27 @@ function routeNodeId(route: Route): string | undefined {
 
 function WikiRoute({ route }: { route: Route }) {
   const rootId = useWiki((s) => s.derived?.tree.rootId);
+  const libraryId = useWiki((s) => s.derived?.tree.libraryId);
   switch (route.name) {
     case "root":
       return rootId ? <NodeView id={rootId} key={rootId} /> : null;
     case "node":
-      return <NodeView id={route.id} key={route.id} />;
+      // La racine de la bibliothèque est la liste des sources.
+      return route.id === libraryId ? <LibraryView /> : <NodeView id={route.id} key={route.id} />;
+    case "library":
+      return (
+        <LibraryView
+          {...(route.kind ? { kind: route.kind } : {})}
+          {...(route.q ? { q: route.q } : {})}
+        />
+      );
+    case "discussions":
+      return (
+        <DiscussionsView
+          {...(route.kind ? { kind: route.kind } : {})}
+          {...(route.q ? { q: route.q } : {})}
+        />
+      );
     case "edit":
       return <EditorView mode="edit" id={route.id} key={`edit-${route.id}`} />;
     case "new":
@@ -84,9 +107,9 @@ function WikiRoute({ route }: { route: Route }) {
     case "extract":
       return (
         <ExtractionView
-          id={route.id}
+          {...(route.id ? { id: route.id } : {})}
           {...(route.discussion ? { discussion: route.discussion } : {})}
-          key={`extract-${route.id}`}
+          key={`extract-${route.id ?? ""}-${route.discussion ?? ""}`}
         />
       );
     case "quiz":
@@ -94,9 +117,10 @@ function WikiRoute({ route }: { route: Route }) {
     case "discussion":
       return (
         <DiscussionView
-          id={route.id}
           {...(route.path ? { path: route.path } : {})}
-          key={`discussion-${route.id}-${route.path ?? "new"}`}
+          {...(route.about ? { about: route.about } : {})}
+          {...(route.kind ? { kind: route.kind } : {})}
+          key={discussionViewKey(route)}
         />
       );
     case "ask":
@@ -173,7 +197,7 @@ export function App() {
     if (first) {
       const count = first.cards.length;
       toast(
-        `${count} connaissance${count > 1 ? "s" : ""} de « ${first.category.title} » ${count > 1 ? "risquent" : "risque"} d'être oubliée${count > 1 ? "s" : ""}.`,
+        `${count} flashcard${count > 1 ? "s" : ""} de « ${first.category.title} » ${count > 1 ? "risquent" : "risque"} d'être oubliée${count > 1 ? "s" : ""}.`,
       );
     }
     // Une seule fois par ouverture de wiki.

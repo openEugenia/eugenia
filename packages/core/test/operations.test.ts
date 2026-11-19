@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  createFlashcard,
   createPage,
   deleteNode,
+  parseFlashcardBody,
   moveNode,
   OperationError,
   parsePage,
@@ -15,8 +17,8 @@ const FILES = {
   "wiki/a/index.md": page({ id: "A", title: "A" }, "[B](../b/index.md) et [C](c/index.md)"),
   "wiki/a/c/index.md": page({ id: "C", title: "C" }, "[Haut](../index.md) [B](../../b/index.md)"),
   "wiki/a/image.png": "PNG",
-  "wiki/a/_discussions/2026-01-01-x.md":
-    "---\nid: D\ntype: discussion\n---\n\n## user · 2026-01-01T10:00:00Z\nVoir [C](../c/index.md)\n",
+  "discussions/2026-01-01-1000-x.md":
+    "---\nid: D\ntype: discussion\n---\n\n## user · 2026-01-01T10:00:00Z\nVoir [C](../wiki/a/c/index.md)\n",
   "wiki/b/index.md": page({ id: "B", title: "B" }, "[A](../a/index.md) [C](../a/c/index.md#x)"),
 };
 
@@ -54,7 +56,7 @@ describe("opérations d'édition", async () => {
     expect(parsePage(out["wiki/b/index.md"]!).body).toBe(
       "[A](../alpha/index.md) [C](../alpha/c/index.md#x)\n",
     );
-    expect(out["wiki/alpha/_discussions/2026-01-01-x.md"]).toContain("[C](../c/index.md)");
+    expect(out["discussions/2026-01-01-1000-x.md"]).toContain("[C](../wiki/alpha/c/index.md)");
   });
 
   it("ne renomme pas si le nom de dossier ne change pas", async () => {
@@ -72,7 +74,7 @@ describe("opérations d'édition", async () => {
       "[B](../b/index.md) et [C](../b/c/index.md)\n",
     );
     expect(parsePage(out["wiki/b/index.md"]!).body).toBe("[A](../a/index.md) [C](c/index.md#x)\n");
-    expect(out["wiki/a/_discussions/2026-01-01-x.md"]).toContain("[C](../../b/c/index.md)");
+    expect(out["discussions/2026-01-01-1000-x.md"]).toContain("[C](../wiki/b/c/index.md)");
     expect(out["wiki/a/c/index.md"]).toBeUndefined();
   });
 
@@ -96,5 +98,62 @@ describe("opérations d'édition", async () => {
     const out = applyChanges(FILES, await deleteNode(wiki.view, "A", { recursive: true }));
     expect(Object.keys(out).some((p) => p.startsWith("wiki/a/"))).toBe(false);
     expect(parsePage(out["wiki/b/index.md"]!).body).toBe("A C\n");
+  });
+});
+
+const SPACES = {
+  ".notes/config.yml": CONFIG,
+  "wiki/index.md": page({ id: "R", title: "Racine", visibility: "public" }),
+  "wiki/cat/index.md": page({ id: "CAT", title: "Catégorie", visibility: "public" }),
+  "wiki/cat/savoir/index.md": page(
+    { id: "K", type: "knowledge", title: "Savoir" },
+    "Un **savoir**.",
+  ).replace("title: Savoir\n", "title: Savoir\nsources:\n  - ref: L\n    locator: p. 12\n"),
+  "wiki/cat/savoir/carte/index.md": page({ id: "C", type: "flashcard", title: "Carte" }),
+  "library/livre/index.md": page(
+    { id: "L", type: "source", title: "Un livre", url: "https://example.org/livre" },
+    "Voir [Savoir](../../wiki/cat/savoir/index.md).",
+  ),
+  "library/livre/livre.pdf": "PDF",
+};
+
+describe("opérations sur les espaces", async () => {
+  const wiki = await memoryWiki(SPACES);
+
+  it("crée une flashcard sous une connaissance, titrée par sa question", () => {
+    const created = createFlashcard(wiki.view, wiki.tree.nodes.get("K")!, {
+      question: "Qu'est-ce qu'un **savoir** ?",
+      answer: "Un savoir.",
+    });
+    expect(created.path).toBe("wiki/cat/savoir/qu-est-ce-qu-un-savoir");
+    const doc = parsePage((created.change as { content: string }).content);
+    expect(doc.fields.type).toBe("flashcard");
+    expect(doc.fields.title).toBe("Qu'est-ce qu'un savoir ?");
+    expect(doc.fields.visibility).toBeUndefined();
+    expect(parseFlashcardBody(doc.body)).toEqual({
+      question: "Qu'est-ce qu'un **savoir** ?",
+      answer: "Un savoir.",
+    });
+  });
+
+  it("refuse un déplacement contraire à la structure", async () => {
+    await expect(moveNode(wiki.view, "C", "CAT")).rejects.toThrow(/connaissance/);
+    await expect(moveNode(wiki.view, "K", wiki.tree.libraryId)).rejects.toThrow(/bibliothèque/);
+    await expect(moveNode(wiki.view, "L", "CAT")).rejects.toThrow(/bibliothèque/);
+  });
+
+  it("renomme une source et réécrit les liens depuis la bibliothèque", async () => {
+    const out = applyChanges(SPACES, await updatePage(wiki.view, "K", { title: "Connaissance" }));
+    expect(parsePage(out["library/livre/index.md"]!).body).toBe(
+      "Voir [Savoir](../../wiki/cat/connaissance/index.md).\n",
+    );
+  });
+
+  it("supprime une source en gardant une référence libre dans les connaissances", async () => {
+    const out = applyChanges(SPACES, await deleteNode(wiki.view, "L"));
+    expect(Object.keys(out).some((p) => p.startsWith("library/livre/"))).toBe(false);
+    expect(parsePage(out["wiki/cat/savoir/index.md"]!).fields.sources).toEqual([
+      { description: "Un livre", locator: "p. 12", url: "https://example.org/livre" },
+    ]);
   });
 });

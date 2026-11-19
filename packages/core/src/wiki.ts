@@ -1,10 +1,23 @@
 /** Chargement d'un wiki complet à partir d'une liste de fichiers et d'un lecteur. */
 import { CONFIG_PATH, parseConfig, type WikiConfig } from "./config.ts";
-import { parseDiscussion, quizEvents, type QuizEvent } from "./discussion.ts";
+import {
+  discussionMeta,
+  parseDiscussion,
+  quizEvents,
+  type DiscussionMeta,
+  type QuizEvent,
+} from "./discussion.ts";
 import { pageMeta } from "./pages.ts";
 import { basename, dirname, isReservedName, segmentsUnder } from "./paths.ts";
 import { parseSummary, type SummaryDocument } from "./summaries.ts";
-import { buildTree, type PageMeta, type WikiTree } from "./tree.ts";
+import {
+  buildTree,
+  isDiscussionPath,
+  spaceOf,
+  spaceRootPath,
+  type PageMeta,
+  type WikiTree,
+} from "./tree.ts";
 import type { RepoFile, TextReader } from "./types.ts";
 
 export interface WikiSource {
@@ -20,27 +33,33 @@ export interface LoadedWiki {
   tree: WikiTree;
   /** Descriptions lues, indexées par chemin. */
   summaries: Map<string, SummaryDocument>;
+  /** Métadonnées des discussions, indexées par chemin. */
+  discussions: Map<string, DiscussionMeta>;
   /** Évaluations de tous les quiz du dépôt. */
   quizEvents: QuizEvent[];
 }
 
 export interface LoadOptions {
   summaries?: boolean;
-  quizzes?: boolean;
+  /** Lire les discussions (nécessaire à la maîtrise, qui rejoue les quiz). */
+  discussions?: boolean;
 }
 
-/** Chemins des `index.md` de pages (hors dossiers réservés) sous la racine. */
+/** Chemins des `index.md` de pages (wiki et bibliothèque, hors dossiers réservés). */
 export function pageIndexPaths(config: WikiConfig, paths: Iterable<string>): string[] {
   const out: string[] = [];
   for (const path of paths) {
     if (basename(path) !== "index.md") continue;
-    const segments = segmentsUnder(config.root, dirname(path));
+    const dir = dirname(path);
+    const space = spaceOf(config, dir);
+    if (!space) continue;
+    const segments = segmentsUnder(spaceRootPath(config, space), dir);
     if (segments && !segments.some(isReservedName)) out.push(path);
   }
   return out;
 }
 
-/** Fichiers à lire pour charger un wiki (pages, descriptions, quiz). */
+/** Fichiers à lire pour charger un wiki (pages, descriptions, discussions). */
 export function filesToLoad(
   config: WikiConfig,
   paths: Iterable<string>,
@@ -49,15 +68,15 @@ export function filesToLoad(
   const all = [...paths];
   const out = pageIndexPaths(config, all);
   for (const path of all) {
-    const segments = segmentsUnder(config.root, path);
-    if (!segments) continue;
-    const name = segments[segments.length - 1] ?? "";
-    if (options.summaries !== false && (name === "_summary.md" || name === "_summary.public.md")) {
+    if (options.discussions !== false && isDiscussionPath(config, path)) {
       out.push(path);
-    } else if (
-      options.quizzes !== false &&
-      segments[segments.length - 2] === "_quizzes" &&
-      name.endsWith(".md")
+      continue;
+    }
+    const name = basename(path);
+    if (
+      options.summaries !== false &&
+      (name === "_summary.md" || name === "_summary.public.md") &&
+      spaceOf(config, path) === "wiki"
     ) {
       out.push(path);
     }
@@ -81,10 +100,11 @@ export async function loadWiki(source: WikiSource, options: LoadOptions = {}): P
   const tree = buildTree({ config, files: files.values(), metas });
 
   const summaries = new Map<string, SummaryDocument>();
+  const discussions = new Map<string, DiscussionMeta>();
   const events: QuizEvent[] = [];
   const reads: Promise<void>[] = [];
-  for (const node of tree.nodes.values()) {
-    if (options.summaries !== false) {
+  if (options.summaries !== false) {
+    for (const node of tree.nodes.values()) {
       for (const file of [node.summaries.private, node.summaries.public]) {
         if (!file) continue;
         reads.push(
@@ -94,16 +114,17 @@ export async function loadWiki(source: WikiSource, options: LoadOptions = {}): P
         );
       }
     }
-    if (options.quizzes !== false) {
-      for (const quiz of node.quizzes) {
-        reads.push(
-          source.readText(quiz.path).then((text) => {
-            events.push(...quizEvents(parseDiscussion(text), quiz.path));
-          }),
-        );
-      }
+  }
+  if (options.discussions !== false) {
+    for (const file of tree.discussions) {
+      reads.push(
+        source.readText(file.path).then((text) => {
+          discussions.set(file.path, discussionMeta(text));
+          events.push(...quizEvents(parseDiscussion(text), file.path));
+        }),
+      );
     }
   }
   await Promise.all(reads);
-  return { config, configProblems, files, metas, tree, summaries, quizEvents: events };
+  return { config, configProblems, files, metas, tree, summaries, discussions, quizEvents: events };
 }

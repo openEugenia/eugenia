@@ -8,8 +8,11 @@ import {
   buildTree,
   CONFIG_PATH,
   dirname,
+  discussionMeta,
+  discussionNodes,
   filesToLoad,
-  isUnder,
+  isContentPath,
+  isDiscussionPath,
   nodeForPath,
   pageIndexPaths,
   pageMeta,
@@ -19,8 +22,11 @@ import {
   PROMPTS_DIR,
   quizEvents,
   replayMastery,
+  spaceOf,
+  spaceRootPath,
   summaryStates,
   type CardState,
+  type DiscussionMeta,
   type PageMeta,
   type QuizEvent,
   type RepoFile,
@@ -35,12 +41,26 @@ import type { Backend } from "./backend.ts";
 import { getBlobs, putBlobs, type Snapshot } from "./db.ts";
 import { workingFiles, type PendingState } from "./pending.ts";
 
+/** Discussion du dossier des discussions, avec ses métadonnées. */
+export interface DiscussionEntry {
+  path: string;
+  meta: DiscussionMeta;
+}
+
 export interface Derived {
   config: WikiConfig;
   configProblems: string[];
   files: Map<string, RepoFile>;
   tree: WikiTree;
   summaries: Map<string, SummaryDocument>;
+  /** Toutes les discussions (questions, quiz, notes rapides), de la plus récente à la plus ancienne. */
+  discussions: DiscussionEntry[];
+  /** Discussions rattachées à chaque page (page d'origine ou périmètre). */
+  discussionsByNode: Map<string, DiscussionEntry[]>;
+  /** Discussion d'après son identifiant (connaissances extraites d'une discussion). */
+  discussionById: Map<string, DiscussionEntry>;
+  /** Connaissances qui citent chaque source, ou en ont été extraites. */
+  knowledgeBySource: Map<string, string[]>;
   quizEvents: QuizEvent[];
   mastery: Map<string, CardState>;
   summaryStates: { private: Map<string, SummaryState>; public: Map<string, SummaryState> };
@@ -57,7 +77,7 @@ export class Workspace implements WikiView {
   private texts = new Map<string, string>();
   private metaCache = new Map<string, PageMeta>();
   private summaryCache = new Map<string, SummaryDocument>();
-  private quizCache = new Map<string, QuizEvent[]>();
+  private discussionCache = new Map<string, { meta: DiscussionMeta; events: QuizEvent[] }>();
   private filesCache: Map<string, RepoFile> | null = null;
   derived: Derived | null = null;
 
@@ -146,9 +166,9 @@ export class Workspace implements WikiView {
    * ou une suppression, qui réécrivent les liens de tous les fichiers).
    */
   async prefetchMarkdown(): Promise<void> {
-    const root = this.config.root;
+    const config = this.config;
     const files = [...this.files.values()].filter(
-      (f) => f.path.endsWith(".md") && (root === "" || f.path.startsWith(`${root}/`)),
+      (f) => f.path.endsWith(".md") && isContentPath(config, f.path),
     );
     await this.prefetch(files);
   }
@@ -184,14 +204,19 @@ export class Workspace implements WikiView {
     const { config, problems } = parseConfig(configFile ? await this.readText(CONFIG_PATH) : null);
     const owner = this.mode === "owner";
     const metasFromIndex = this.snapshot.metas;
+    const discussionsFromIndex = this.snapshot.discussions;
 
-    // Contenus nécessaires : pages (sauf index anonyme), descriptions et quiz (propriétaire), prompts.
+    // Contenus nécessaires : pages et discussions (sauf index anonyme), descriptions
+    // (propriétaire), prompts.
     const toLoad = new Set<string>();
     const indexPaths = pageIndexPaths(config, files.keys());
     if (owner) for (const path of filesToLoad(config, files.keys())) toLoad.add(path);
-    else
+    else {
       for (const path of indexPaths)
         if (!metasFromIndex?.[path] || this.pending.changes[path]) toLoad.add(path);
+      for (const path of files.keys())
+        if (isDiscussionPath(config, path) && !discussionsFromIndex?.[path]) toLoad.add(path);
+    }
     for (const path of files.keys()) if (dirname(path) === PROMPTS_DIR) toLoad.add(path);
     await this.prefetch([...toLoad].map((p) => files.get(p)!).filter(Boolean));
 
@@ -215,7 +240,6 @@ export class Workspace implements WikiView {
     const tree = buildTree({ config, files: files.values(), metas });
 
     const summaries = new Map<string, SummaryDocument>();
-    const events: QuizEvent[] = [];
     for (const node of tree.nodes.values()) {
       for (const file of [node.summaries.private, node.summaries.public]) {
         if (!file) continue;
@@ -228,15 +252,44 @@ export class Workspace implements WikiView {
         }
         summaries.set(file.path, doc);
       }
-      for (const file of node.quizzes) {
-        let list = this.quizCache.get(file.sha);
-        if (!list) {
-          const text = this.peekText(file.path);
-          if (text === undefined) continue;
-          list = quizEvents(parseDiscussion(text));
-          this.quizCache.set(file.sha, list);
-        }
-        for (const event of list) events.push({ ...event, source: file.path });
+    }
+
+    // Discussions : métadonnées (liste, rattachement aux pages) et évaluations des quiz.
+    const events: QuizEvent[] = [];
+    const discussions: DiscussionEntry[] = [];
+    for (const file of tree.discussions) {
+      const fromIndex = !this.pending.changes[file.path]
+        ? discussionsFromIndex?.[file.path]
+        : undefined;
+      if (fromIndex) {
+        discussions.push({ path: file.path, meta: fromIndex });
+        continue;
+      }
+      let parsed = this.discussionCache.get(file.sha);
+      if (!parsed) {
+        const text = this.peekText(file.path);
+        if (text === undefined) continue;
+        parsed = { meta: discussionMeta(text), events: quizEvents(parseDiscussion(text)) };
+        this.discussionCache.set(file.sha, parsed);
+      }
+      discussions.push({ path: file.path, meta: parsed.meta });
+      for (const event of parsed.events) events.push({ ...event, source: file.path });
+    }
+    const discussionsByNode = new Map<string, DiscussionEntry[]>();
+    const discussionById = new Map<string, DiscussionEntry>();
+    for (const entry of discussions) {
+      if (entry.meta.id) discussionById.set(entry.meta.id, entry);
+      for (const id of discussionNodes(entry.meta)) {
+        discussionsByNode.set(id, [...(discussionsByNode.get(id) ?? []), entry]);
+      }
+    }
+    const knowledgeBySource = new Map<string, string[]>();
+    for (const node of tree.nodes.values()) {
+      if (node.type !== "knowledge") continue;
+      const sources = new Set(node.refs);
+      if (node.extractedFrom) sources.add(node.extractedFrom);
+      for (const id of sources) {
+        knowledgeBySource.set(id, [...(knowledgeBySource.get(id) ?? []), node.id]);
       }
     }
 
@@ -247,6 +300,9 @@ export class Workspace implements WikiView {
 
     const pendingNodes = new Set<string>();
     for (const path of Object.keys(this.pending.changes)) {
+      const space = spaceOf(config, path);
+      if (!space) continue;
+      const spaceRoot = spaceRootPath(config, space);
       let dir = dirname(path);
       for (;;) {
         const node = nodeForPath(tree, `${dir}/index.md`) ?? tree.byPath.get(dir);
@@ -254,7 +310,7 @@ export class Workspace implements WikiView {
           pendingNodes.add(node.id);
           break;
         }
-        if (!isUnder(config.root, dir) || dir === config.root || dir === "") break;
+        if (dir === spaceRoot || dir === "") break;
         dir = dirname(dir);
       }
     }
@@ -273,6 +329,10 @@ export class Workspace implements WikiView {
       files,
       tree,
       summaries,
+      discussions,
+      discussionsByNode,
+      discussionById,
+      knowledgeBySource,
       quizEvents: events,
       mastery,
       summaryStates: {

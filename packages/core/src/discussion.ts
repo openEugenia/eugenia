@@ -1,11 +1,15 @@
-/** Discussions et quiz : un fichier, une section par message (§5.6). */
+/**
+ * Discussions : discussions libres, questions sur l'arbre, quiz et notes rapides. Un fichier
+ * par discussion dans le dossier des discussions, une section par message (§5.6).
+ */
+import type { WikiConfig } from "./config.ts";
 import { asString, parseDocument, serializeDocument } from "./frontmatter.ts";
+import { markdownToText, truncate } from "./markdown.ts";
 import { parseVisibility } from "./pages.ts";
 import { joinPath } from "./paths.ts";
 import { slugify, uniqueName } from "./slug.ts";
-import { fileStamp, isoDay } from "./time.ts";
-import { DISCUSSIONS_DIR, QUIZZES_DIR } from "./tree.ts";
-import type { Visibility } from "./types.ts";
+import { fileStamp } from "./time.ts";
+import { parseDiscussionKind, type DiscussionKind, type Visibility } from "./types.ts";
 
 export type DiscussionRole = "user" | "eugenia";
 
@@ -21,10 +25,11 @@ export interface DiscussionMessage {
 export interface DiscussionFields {
   id: string;
   title: string;
-  kind?: "quiz";
-  /** Nœud à l'origine de la discussion. */
+  /** Sorte de discussion ; absente pour une discussion libre. */
+  kind?: Exclude<DiscussionKind, "discussion">;
+  /** Page à l'origine de la discussion. */
   about?: string;
-  /** Catégorie interrogée (quiz). */
+  /** Périmètre : catégorie interrogée (quiz) ou branche d'une question. */
   scope_node?: string;
   visibility?: Visibility;
   created?: string;
@@ -60,7 +65,8 @@ export function parseDiscussion(text: string): DiscussionDocument {
     id: asString(d.id)?.trim() ?? "",
     title: asString(d.title)?.trim() ?? "",
   };
-  if (asString(d.kind) === "quiz") fields.kind = "quiz";
+  const kind = parseDiscussionKind(d.kind);
+  if (kind !== "discussion") fields.kind = kind;
   const about = asString(d.about);
   if (about) fields.about = about;
   const scopeNode = asString(d.scope_node);
@@ -175,8 +181,10 @@ export interface QuizEvent {
   self?: boolean;
 }
 
+/** Évaluations d'un quiz (les autres sortes de discussions n'en portent pas). */
 export function quizEvents(doc: DiscussionDocument, source?: string): QuizEvent[] {
   const events: QuizEvent[] = [];
+  if (doc.fields.kind !== "quiz") return events;
   for (const message of doc.messages) {
     const meta = message.meta;
     if (message.role !== "eugenia" || !meta || meta.role !== "feedback") continue;
@@ -195,24 +203,70 @@ export function quizEvents(doc: DiscussionDocument, source?: string): QuizEvent[
   return events;
 }
 
-/** Chemin d'une nouvelle discussion : `_discussions/<date>-<slug>.md`. */
+/** Chemin d'une nouvelle discussion : `<discussions>/<date>-<heure>-<titre>.md` (UTC). */
 export function newDiscussionPath(
-  pageDir: string,
+  config: Pick<WikiConfig, "discussions">,
   title: string,
   existing: ReadonlySet<string>,
   date: Date = new Date(),
 ): string {
-  const base = `${isoDay(date)}-${slugify(title, 40)}`;
+  const slug = slugify(title, 40);
+  const base = slug ? `${fileStamp(date)}-${slug}` : fileStamp(date);
   const taken = new Set([...existing].map((p) => p.replace(/\.md$/, "")));
-  return joinPath(pageDir, DISCUSSIONS_DIR, `${uniqueName(base, taken)}.md`);
+  return joinPath(config.discussions, `${uniqueName(base, taken)}.md`);
 }
 
-/** Chemin d'un nouveau quiz : `_quizzes/<date>-<heure>.md`. */
-export function newQuizPath(
-  categoryDir: string,
-  existing: ReadonlySet<string>,
-  date: Date = new Date(),
-): string {
-  const taken = new Set([...existing].map((p) => p.replace(/\.md$/, "")));
-  return joinPath(categoryDir, QUIZZES_DIR, `${uniqueName(fileStamp(date), taken)}.md`);
+// ---------------------------------------------------------------------------
+// Métadonnées (liste des discussions, rattachement aux pages)
+// ---------------------------------------------------------------------------
+
+export interface DiscussionMeta {
+  id: string;
+  kind: DiscussionKind;
+  title: string;
+  about?: string;
+  scope_node?: string;
+  visibility?: Visibility;
+  created?: string;
+  updated?: string;
+  /** Nombre de messages. */
+  messages: number;
+  /** Début du premier message de l'utilisateur (ou du premier message). */
+  preview?: string;
+  error?: string;
 }
+
+export const DISCUSSION_PREVIEW_LENGTH = 160;
+
+export function discussionMeta(text: string): DiscussionMeta {
+  const doc = parseDiscussion(text);
+  const f = doc.fields;
+  const meta: DiscussionMeta = {
+    id: f.id,
+    kind: f.kind ?? "discussion",
+    title: f.title,
+    messages: doc.messages.length,
+  };
+  if (f.about) meta.about = f.about;
+  if (f.scope_node) meta.scope_node = f.scope_node;
+  if (f.visibility) meta.visibility = f.visibility;
+  if (f.created) meta.created = f.created;
+  if (f.updated) meta.updated = f.updated;
+  const first = doc.messages.find((m) => m.role === "user") ?? doc.messages[0];
+  const preview = first ? truncate(markdownToText(first.content), DISCUSSION_PREVIEW_LENGTH) : "";
+  if (preview) meta.preview = preview;
+  if (doc.error) meta.error = doc.error;
+  return meta;
+}
+
+/** Pages auxquelles une discussion est rattachée (page d'origine, périmètre). */
+export function discussionNodes(meta: Pick<DiscussionMeta, "about" | "scope_node">): string[] {
+  return [...new Set([meta.about, meta.scope_node].filter((id): id is string => Boolean(id)))];
+}
+
+export const DISCUSSION_KIND_LABELS: Record<DiscussionKind, string> = {
+  discussion: "Discussion",
+  question: "Question",
+  quiz: "Quiz",
+  note: "Note rapide",
+};

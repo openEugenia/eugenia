@@ -213,8 +213,10 @@ export function SearchView({ q }: { q?: string }) {
             aria-label="Type"
           >
             <option value="">Tous les types</option>
-            <option value="note">Notes</option>
-            <option value="flashcard">Connaissances atomiques</option>
+            <option value="category">Catégories</option>
+            <option value="knowledge">Connaissances atomiques</option>
+            <option value="flashcard">Flashcards</option>
+            <option value="source">Sources</option>
           </select>
           <select
             className="oe-select"

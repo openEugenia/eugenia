@@ -7,9 +7,14 @@ fois le nom du projet et celui de l'assistante IA qui accompagne l'utilisateur.
 - Vos connaissances sont des **fichiers Markdown dans vos propres dépôts git** : un dépôt privé
   qui contient tout, un dépôt public généré avec ce que vous choisissez de partager. Aucune base
   de données centrale ; un compte GitHub gratuit suffit.
-- Elles forment un **arbre** : chaque sous-wiki est **décrit par Eugenia**, du plus fin au plus global.
-- Eugenia **extrait des connaissances atomiques** (flashcards) de vos notes, textes et PDF, puis
-  vous aide à les **réviser** par des quiz conversationnels, avec une maîtrise qui décline avec le temps.
+- Trois espaces : le **wiki**, un arbre de catégories (chaque sous-wiki **décrit par Eugenia**)
+  qui contient vos **connaissances atomiques**, chacune testée par une ou plusieurs
+  **flashcards** ; la **bibliothèque**, les sources d'où viennent ces connaissances (livres,
+  articles, sites, PDF) ; les **discussions**, tous vos échanges avec Eugenia (discussions,
+  questions, quiz, notes rapides).
+- Eugenia **extrait des connaissances atomiques** de vos sources, de vos notes rapides et de vos
+  discussions, en les rattachant à leurs sources, puis vous aide à les **réviser** par des quiz
+  conversationnels, avec une maîtrise qui décline avec le temps.
 - **Une seule instance** de l'application, publiée par openEugenia sur GitHub Pages, sert tous
   les utilisateurs : chacun l'ouvre sur son propre dépôt. Elle fonctionne **hors ligne** (PWA).
 
@@ -53,12 +58,13 @@ les seuls nœuds publics dans le dépôt public, en réécrivant son historique.
 
 | | |
 |---|---|
-| **Wiki** | Arbre repliable, descriptions des sous-wikis (rédigées à la première personne), jauges de maîtrise, rétroliens, recherche plein texte ou par le sens (embeddings Mistral), graphe radial, tableau de bord. |
-| **Édition** | Notes en Markdown (CodeMirror), connaissances atomiques (énoncé, cible en gras, question, réponse), sources et fichiers personnels, liens par recherche de titre (`[[`). Renommer ou déplacer une page réécrit ses liens entrants. Toutes les modifications partent en un seul commit. |
+| **Wiki** | Arbre repliable de catégories et de connaissances atomiques, descriptions des sous-wikis (rédigées à la première personne), jauges de maîtrise, connaissances « à sourcer » signalées, rétroliens, recherche plein texte ou par le sens (embeddings Mistral), graphe radial, tableau de bord. |
+| **Bibliothèque** | Sources à plat (livre, article, site, vidéo, audio, document), filtres par nature et étiquette, fichier personnel jamais publié, connaissances qui citent chaque source. |
+| **Édition** | Catégories et sources en Markdown (CodeMirror), connaissances atomiques (énoncé, cible en gras, sources de la bibliothèque avec localisation), flashcards (question, réponse), liens par recherche de titre (`[[`). Renommer ou déplacer une page réécrit ses liens entrants. Toutes les modifications partent en un seul commit. |
 | **Visibilité** | Privé par défaut ; une page publique n'a jamais d'ancêtre privé ; les liens vers le privé deviennent du texte à la publication ; les fichiers personnels et les quiz ne sont jamais publiés. |
-| **Extraction** | Depuis une note, une discussion, un texte collé ou un PDF : surlignage par Eugenia et par vous, propositions de flashcards et de catégories, création en un commit. |
-| **Révision** | Quiz par maîtrise croissante, évaluation par Eugenia ou auto-évaluation hors ligne, maîtrise recalculée en rejouant les quiz, rappels. |
-| **Discussions** | Avec Eugenia depuis n'importe quelle page, résumé de l'échange, extraction ; questions sur tout l'arbre avec citations. |
+| **Extraction** | Depuis une source, une discussion, une note rapide, un texte collé ou un PDF (qui devient une source) : surlignage par Eugenia et par vous, propositions de connaissances, de leur première flashcard et de catégories, création en un commit. Eugenia propose aussi de nouvelles flashcards pour une connaissance. |
+| **Révision** | Quiz sur les flashcards par maîtrise croissante, évaluation par Eugenia ou auto-évaluation hors ligne, maîtrise recalculée en rejouant les quiz, rappels. |
+| **Discussions** | Une section qui rassemble discussions, questions, quiz et notes rapides, filtrables par sorte ; discussion depuis n'importe quelle page, note rapide à laquelle Eugenia répond aussitôt (connaissances candidates, pistes de sources), résumé de l'échange, extraction ; questions sur tout l'arbre avec citations. |
 | **IA** | Claude (par défaut `claude-opus-5-5`), tout fournisseur compatible OpenAI, Ollama. Option « IA locale pour le privé ». Prompts versionnés et surchargeables. |
 | **Hors ligne** | Copie locale (IndexedDB), file de commits, résolution de conflits nœud par nœud. |
 
@@ -70,12 +76,12 @@ fil d'actualité).
 
 ```
 packages/
-  core/   Modèle de données : format des nœuds, arbre, nommage, liens, visibilité,
-          publication, descriptions périmées, algorithme de maîtrise. Sans dépendance
-          navigateur ni Node.
+  core/   Modèle de données : trois espaces (wiki, bibliothèque, discussions), format des
+          pages, arbre, nommage, liens, visibilité, publication, descriptions périmées,
+          algorithme de maîtrise. Sans dépendance navigateur ni Node.
   ai/     Eugenia : fournisseurs (Claude via le SDK officiel, compatible OpenAI, Ollama),
-          prompts (prompts/*.md) et tâches (extraction, descriptions, évaluation,
-          discussion, questions sur l'arbre).
+          prompts (prompts/*.md) et tâches (extraction, flashcards, descriptions,
+          évaluation, discussion, note rapide, questions sur l'arbre).
   cli/    `eugenia init | validate | publish | summarize`, construite en un seul fichier
           et utilisée par l'action de publication.
   web/    Application React (PWA) : vues, synchronisation git, copie hors ligne.

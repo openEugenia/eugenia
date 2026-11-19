@@ -12,13 +12,13 @@ import { useWiki } from "../store/wiki.ts";
 
 const TYPE_COLORS = {
   category: "var(--viz-series-1)",
-  flashcard: "var(--viz-series-2)",
-  note: "var(--viz-series-3)",
+  knowledge: "var(--viz-series-2)",
+  flashcard: "var(--viz-series-3)",
 } as const;
 
 function kind(node: WikiNode): keyof typeof TYPE_COLORS {
-  if (node.type === "flashcard") return "flashcard";
-  return node.childIds.length > 0 || node.virtual ? "category" : "note";
+  if (node.type === "knowledge" || node.type === "flashcard") return node.type;
+  return "category";
 }
 
 const MAX_NODES = 600;
@@ -171,15 +171,15 @@ export function GraphView({ id }: { id?: string }) {
         </span>
         <span className="legend__item">
           <svg width="10" height="10" aria-hidden="true">
-            <circle cx="5" cy="5" r="5" fill={TYPE_COLORS.note} />
+            <circle cx="5" cy="5" r="5" fill={TYPE_COLORS.knowledge} />
           </svg>{" "}
-          Note
+          Connaissance atomique
         </span>
         <span className="legend__item">
           <svg width="10" height="10" aria-hidden="true">
             <circle cx="5" cy="5" r="5" fill={TYPE_COLORS.flashcard} />
           </svg>{" "}
-          Connaissance atomique
+          Flashcard
         </span>
         {showLinks && (
           <span className="legend__item">

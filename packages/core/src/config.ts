@@ -1,7 +1,7 @@
 /** Configuration du wiki : `.notes/config.yml` (§5.9). */
 import { parse as parseYaml } from "yaml";
 import { asNumber, asString, stringifyYaml } from "./frontmatter.ts";
-import { normalizePath } from "./paths.ts";
+import { isReservedName, isUnder, normalizePath } from "./paths.ts";
 import type { Visibility } from "./types.ts";
 
 export const CONFIG_PATH = ".notes/config.yml";
@@ -34,6 +34,10 @@ export interface WikiConfig {
   title: string;
   /** Dossier racine du wiki, normalisé sans `/` final (`""` = racine du dépôt). */
   root: string;
+  /** Dossier de la bibliothèque des sources. */
+  library: string;
+  /** Dossier des discussions (discussions, questions, quiz, notes rapides). */
+  discussions: string;
   /** Dépôt privé déclaré dans le dépôt public (`owner/name`), optionnel. */
   private_repo?: string;
   default_visibility: Visibility;
@@ -46,6 +50,8 @@ export interface WikiConfig {
 export const DEFAULT_CONFIG: Readonly<WikiConfig> = Object.freeze({
   title: "Mon wiki",
   root: "wiki",
+  library: "library",
+  discussions: "discussions",
   default_visibility: "private",
   folder_name_max_length: 32,
   mastery: { ...DEFAULT_MASTERY },
@@ -55,6 +61,8 @@ export const DEFAULT_CONFIG: Readonly<WikiConfig> = Object.freeze({
 const KNOWN_KEYS = new Set([
   "title",
   "root",
+  "library",
+  "discussions",
   "private_repo",
   "default_visibility",
   "folder_name_max_length",
@@ -90,6 +98,27 @@ export function parseConfig(text: string | null | undefined): ConfigResult {
   const rootValue = asString(raw.root);
   const root = rootValue === undefined ? DEFAULT_CONFIG.root : normalizePath(rootValue);
   if (root.startsWith("..")) problems.push("`root` ne peut pas sortir du dépôt.");
+  const space = (key: "library" | "discussions"): string => {
+    const value = asString(raw[key]);
+    const dir = value === undefined ? DEFAULT_CONFIG[key] : normalizePath(value);
+    if (dir === "" || dir.startsWith("..") || dir.split("/").some(isReservedName)) {
+      problems.push(`\`${key}\` doit désigner un dossier du dépôt, non réservé.`);
+      return DEFAULT_CONFIG[key];
+    }
+    return dir;
+  };
+  const library = space("library");
+  const discussions = space("discussions");
+  const safeRoot = root.startsWith("..") ? DEFAULT_CONFIG.root : root;
+  for (const [a, b] of [
+    [library, discussions],
+    [safeRoot, library],
+    [safeRoot, discussions],
+  ] as const) {
+    if (a !== "" && (isUnder(a, b) || isUnder(b, a))) {
+      problems.push(`Les dossiers « ${a} » et « ${b} » ne peuvent pas être imbriqués.`);
+    }
+  }
 
   const visibility = asString(raw.default_visibility);
   if (visibility !== undefined && visibility !== "public" && visibility !== "private") {
@@ -119,7 +148,9 @@ export function parseConfig(text: string | null | undefined): ConfigResult {
   const privateRepo = asString(raw.private_repo);
   const config: WikiConfig = {
     title: asString(raw.title) ?? DEFAULT_CONFIG.title,
-    root: root.startsWith("..") ? DEFAULT_CONFIG.root : root,
+    root: safeRoot,
+    library,
+    discussions,
     default_visibility: visibility === "public" ? "public" : "private",
     folder_name_max_length:
       maxLength !== undefined && maxLength >= 8 && maxLength <= 128
@@ -141,6 +172,8 @@ export function serializeConfig(config: WikiConfig): string {
   const data: Record<string, unknown> = {
     title: config.title,
     root: rootForYaml(config.root),
+    library: rootForYaml(config.library),
+    discussions: rootForYaml(config.discussions),
   };
   if (config.private_repo) data.private_repo = config.private_repo;
   data.default_visibility = config.default_visibility;
@@ -158,6 +191,8 @@ export function serializePublicConfig(config: WikiConfig, privateRepo?: string):
   const data: Record<string, unknown> = {
     title: config.title,
     root: rootForYaml(config.root),
+    library: rootForYaml(config.library),
+    discussions: rootForYaml(config.discussions),
   };
   const repo = privateRepo ?? config.private_repo;
   if (repo) data.private_repo = repo;

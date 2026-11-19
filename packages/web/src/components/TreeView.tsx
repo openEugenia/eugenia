@@ -1,12 +1,21 @@
-/** Arbre du wiki (panneau latéral) : repliable, badges, jauges, glisser-déposer (§9.2). */
+/**
+ * Arbre du wiki (panneau latéral) : catégories et connaissances atomiques, repliable, badges,
+ * jauges, glisser-déposer (§9.2). Les flashcards se consultent depuis leur connaissance.
+ */
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { ancestors, isAncestorOf, type WikiNode, type WikiTree } from "@openeugenia/core";
+import {
+  ancestors,
+  isAncestorOf,
+  placementProblem,
+  type WikiNode,
+  type WikiTree,
+} from "@openeugenia/core";
 import { branchMasteryMap } from "../lib/mastery.ts";
 import { href } from "../lib/router.ts";
 import type { Derived } from "../lib/workspace.ts";
 import { MasteryMeter } from "./charts.tsx";
-import { TypeIcon, VisibilityBadge } from "./common.tsx";
+import { TypeIcon, UnsourcedBadge, VisibilityBadge } from "./common.tsx";
 
 interface TreeViewProps {
   derived: Derived;
@@ -43,6 +52,10 @@ export function TreeView({
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const branch = useMemo(() => branchMasteryMap(tree, mastery), [tree, mastery]);
+  // Une flashcard ouverte est signalée sur sa connaissance.
+  const currentNode = currentId ? tree.nodes.get(currentId) : undefined;
+  const highlighted =
+    currentNode?.type === "flashcard" && currentNode.parentId ? currentNode.parentId : currentId;
 
   // Le nœud courant est toujours visible : ses ancêtres sont dépliés.
   useEffect(() => {
@@ -69,15 +82,24 @@ export function TreeView({
       return next;
     });
 
-  const canDrop = (targetId: string): boolean =>
-    dragging !== null &&
-    dragging !== targetId &&
-    !isAncestorOf(tree, dragging, targetId) &&
-    tree.nodes.get(dragging)?.parentId !== targetId;
+  const canDrop = (targetId: string): boolean => {
+    const moving = dragging ? tree.nodes.get(dragging) : undefined;
+    return (
+      moving !== undefined &&
+      moving.id !== targetId &&
+      !isAncestorOf(tree, moving.id, targetId) &&
+      moving.parentId !== targetId &&
+      placementProblem(tree, moving, targetId) === null
+    );
+  };
 
   const renderNode = (node: WikiNode, tree: WikiTree): React.ReactNode => {
     const open = expanded.has(node.id) || node.id === tree.rootId;
-    const hasChildren = node.childIds.length > 0;
+    const visibleChildren =
+      node.type === "knowledge"
+        ? []
+        : node.childIds.filter((id) => tree.nodes.get(id)?.type !== "flashcard");
+    const hasChildren = visibleChildren.length > 0;
     const stale =
       owner && ["stale", "missing"].includes(summaryStates.private.get(node.id)?.status ?? "");
     const branchMastery = branch.get(node.id);
@@ -117,7 +139,7 @@ export function TreeView({
     return (
       <li key={node.id}>
         <div
-          className={`tree-row${node.id === currentId ? " is-current" : ""}${dropTarget === node.id ? " is-drop-target" : ""}`}
+          className={`tree-row${node.id === highlighted ? " is-current" : ""}${dropTarget === node.id ? " is-drop-target" : ""}`}
           {...dragProps}
           {...dropProps}
         >
@@ -136,13 +158,14 @@ export function TreeView({
           )}
           <a
             href={href({ name: "node", id: node.id })}
-            aria-current={node.id === currentId ? "page" : undefined}
+            aria-current={node.id === highlighted ? "page" : undefined}
             onClick={onNavigate}
           >
             <TypeIcon node={node} tree={tree} />
             <span className="title">{node.title}</span>
           </a>
           <span className="tree-flags">
+            {node.type === "knowledge" && !node.sourced && <UnsourcedBadge compact />}
             {owner && branchMastery?.value !== undefined && (
               <MasteryMeter
                 value={branchMastery.value}
@@ -164,7 +187,7 @@ export function TreeView({
         </div>
         {hasChildren && open && (
           <ul className="tree">
-            {node.childIds.map((id) => renderNode(tree.nodes.get(id)!, tree))}
+            {visibleChildren.map((id) => renderNode(tree.nodes.get(id)!, tree))}
           </ul>
         )}
       </li>

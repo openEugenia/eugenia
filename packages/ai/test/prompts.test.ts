@@ -18,6 +18,8 @@ describe("prompts", () => {
       "discuss",
       "evaluate",
       "extract",
+      "flashcards",
+      "note",
       "summarize",
     ]);
   });

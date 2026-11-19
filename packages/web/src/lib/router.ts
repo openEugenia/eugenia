@@ -3,16 +3,31 @@
  * par le paramètre `?repo=owner/name` (§9.1).
  */
 import { useSyncExternalStore } from "react";
+import {
+  DISCUSSION_KINDS,
+  PAGE_TYPES,
+  SOURCE_KINDS,
+  type DiscussionKind,
+  type PageType,
+  type SourceKind,
+} from "@openeugenia/core";
 import { parseRepo, repoLabel, type RepoRef } from "./repo.ts";
 
 export type Route =
   | { name: "root" }
   | { name: "node"; id: string }
   | { name: "edit"; id: string }
-  | { name: "new"; parentId: string; type: "note" | "flashcard" }
-  | { name: "extract"; id: string; discussion?: string }
+  | { name: "new"; parentId: string; type: PageType }
+  /** Extraction depuis une page (source, catégorie…), une discussion, ou un texte nouveau. */
+  | { name: "extract"; id?: string; discussion?: string }
   | { name: "quiz"; id: string }
-  | { name: "discussion"; id: string; path?: string }
+  /**
+   * Discussion : existante (`path`), ou nouvelle, à partir d'une page (`about`) ou non ;
+   * `kind: "note"` pour une note rapide.
+   */
+  | { name: "discussion"; path?: string; about?: string; kind?: "note" }
+  | { name: "discussions"; kind?: DiscussionKind; q?: string }
+  | { name: "library"; kind?: SourceKind; q?: string }
   | { name: "ask"; id?: string }
   | { name: "graph"; id?: string }
   | { name: "dashboard" }
@@ -41,12 +56,14 @@ export function parseHash(hash: string): Route {
           return { name: "node", id: second };
         case "edit":
           return { name: "edit", id: second };
-        case "new":
+        case "new": {
+          const type = query.get("type") as PageType | null;
           return {
             name: "new",
             parentId: second,
-            type: query.get("type") === "flashcard" ? "flashcard" : "note",
+            type: type && PAGE_TYPES.includes(type) ? type : "category",
           };
+        }
         case "extract":
           return {
             name: "extract",
@@ -56,12 +73,36 @@ export function parseHash(hash: string): Route {
         case "quiz":
           return { name: "quiz", id: second };
         case "discuss":
-          return { name: "discussion", id: second, ...optional("path", query.get("f")) };
+          return { name: "discussion", about: second };
+        case "note":
+          return { name: "discussion", about: second, kind: "note" };
         case "ask":
           return { name: "ask", id: second };
         default:
           return { name: "not-found" };
       }
+    case "d":
+      if (second === "note") return { name: "discussion", kind: "note" };
+      if (second === "new") return { name: "discussion" };
+      return query.get("f") ? { name: "discussion", path: query.get("f")! } : { name: "not-found" };
+    case "discussions": {
+      const kind = query.get("kind") as DiscussionKind | null;
+      return {
+        name: "discussions",
+        ...(kind && DISCUSSION_KINDS.includes(kind) ? { kind } : {}),
+        ...optional("q", query.get("q")),
+      };
+    }
+    case "library": {
+      const kind = query.get("kind") as SourceKind | null;
+      return {
+        name: "library",
+        ...(kind && SOURCE_KINDS.includes(kind) ? { kind } : {}),
+        ...optional("q", query.get("q")),
+      };
+    }
+    case "extract":
+      return { name: "extract", ...optional("discussion", query.get("discussion")) };
     case "graph":
       return { name: "graph", ...optional("id", query.get("root")) };
     case "dashboard":
@@ -85,6 +126,11 @@ export function parseHash(hash: string): Route {
 
 const enc = encodeURIComponent;
 
+function queryString(params: Record<string, string | undefined>): string {
+  const entries = Object.entries(params).filter(([, v]) => v);
+  return entries.length > 0 ? `?${entries.map(([k, v]) => `${k}=${enc(v!)}`).join("&")}` : "";
+}
+
 export function href(route: Route): string {
   switch (route.name) {
     case "root":
@@ -96,12 +142,21 @@ export function href(route: Route): string {
       return `#/n/${enc(route.id)}/edit`;
     case "new":
       return `#/n/${enc(route.parentId)}/new?type=${route.type}`;
-    case "extract":
-      return `#/n/${enc(route.id)}/extract${route.discussion ? `?discussion=${enc(route.discussion)}` : ""}`;
+    case "extract": {
+      const query = queryString({ discussion: route.discussion });
+      return route.id ? `#/n/${enc(route.id)}/extract${query}` : `#/extract${query}`;
+    }
     case "quiz":
       return `#/n/${enc(route.id)}/quiz`;
     case "discussion":
-      return `#/n/${enc(route.id)}/discuss${route.path ? `?f=${enc(route.path)}` : ""}`;
+      if (route.path) return `#/d?f=${enc(route.path)}`;
+      if (route.about)
+        return `#/n/${enc(route.about)}/${route.kind === "note" ? "note" : "discuss"}`;
+      return route.kind === "note" ? "#/d/note" : "#/d/new";
+    case "discussions":
+      return `#/discussions${queryString({ kind: route.kind, q: route.q })}`;
+    case "library":
+      return `#/library${queryString({ kind: route.kind, q: route.q })}`;
     case "ask":
       return route.id ? `#/n/${enc(route.id)}/ask` : "#/ask";
     case "graph":

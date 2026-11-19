@@ -6,9 +6,9 @@ import { useRef, useState, type FormEvent } from "react";
 import { BookOpen, FolderSearch, Save, Send, Square } from "lucide-react";
 import {
   descendants,
+  discussionEntries,
   newDiscussionDocument,
   newDiscussionPath,
-  reservedEntries,
   writeDiscussion,
 } from "@openeugenia/core";
 import { askTree, isAbortError, treeNavigator } from "@openeugenia/ai";
@@ -90,20 +90,16 @@ export function AskView({ id }: { id?: string }) {
     const { workspace, stage, commit } = useWiki.getState();
     if (!workspace || !answer) return;
     const title = asked.length > 70 ? `${asked.slice(0, 67)}…` : asked;
-    const path = newDiscussionPath(
-      scope.path,
-      title,
-      reservedEntries(workspace, `${scope.path}/_discussions`),
-    );
-    const doc = newDiscussionDocument({ title, about: scope.id });
+    const path = newDiscussionPath(workspace.config, title, discussionEntries(workspace));
+    const doc = newDiscussionDocument({ title, kind: "question", scopeNode: scope.id });
     doc.messages = [
       { role: "user", timestamp: now(), content: asked },
       { role: "eugenia", timestamp: now(), content: portableLinks(answer, path, derived.tree) },
     ];
     await stage([writeDiscussion(path, doc)], `Question — ${title}`);
     await commit(`Question — ${title}`, [path]);
-    toast("Échange enregistré comme discussion.", "success");
-    navigate({ name: "discussion", id: scope.id, path });
+    toast("Question enregistrée dans vos discussions.", "success");
+    navigate({ name: "discussion", path });
   };
 
   return (

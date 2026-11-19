@@ -70,4 +70,18 @@ describe("visibilité", async () => {
     });
     expect(tree.nodes.get("R")!.visibility).toBe("private");
   });
+
+  it("rend publique une source sans toucher à la racine de la bibliothèque", async () => {
+    const files = {
+      ...FILES,
+      "library/livre/index.md": page({ id: "L", type: "source", title: "Livre" }),
+    };
+    const w = await memoryWiki(files);
+    expect(planMakePublic(w.tree, "L").privateAncestors).toEqual([]);
+    const assignments = makePublicAssignments(w.tree, "L", new Set(), false);
+    expect(Object.fromEntries(assignments)).toEqual({ L: "public" });
+    const after = await memoryWiki(applyChanges(files, await applyVisibility(w.view, assignments)));
+    expect(after.tree.nodes.get("L")!.isPublic).toBe(true);
+    expect(Object.keys(after.source).some((p) => p === "library/index.md")).toBe(false);
+  });
 });
