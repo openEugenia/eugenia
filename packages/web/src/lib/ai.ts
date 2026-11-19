@@ -3,7 +3,7 @@
  * la règle « IA locale pour le privé » (§11.1), avertissement avant le premier envoi de
  * contenu privé à un fournisseur distant.
  */
-import type { TaskContext } from "@openeugenia/ai";
+import type { AIProvider, TaskContext } from "@openeugenia/ai";
 import { useSettings } from "../store/settings.ts";
 import { confirmDialog } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
@@ -20,6 +20,49 @@ export async function ensurePrivacyChoice(): Promise<void> {
     cancelLabel: "Non, utiliser mon fournisseur",
   });
   await update((s) => ({ ...s, ai: { ...s.ai, localOnlyForPrivate: localOnly } }));
+}
+
+/** Avertit (une fois) avant le premier envoi de contenu privé à un fournisseur distant. */
+async function acknowledgeRemote(provider: AIProvider): Promise<void> {
+  if (useSettings.getState().settings.ai.remoteWarningAcknowledged) return;
+  const { AIError } = await import("@openeugenia/ai");
+  const accepted = await confirmDialog({
+    title: "Envoi de contenu privé",
+    body: `Cette action envoie des connaissances privées à ${provider.info.label} (${provider.info.model}). Elles quittent alors votre appareil pour être traitées par ce fournisseur. Cet avertissement ne s'affiche qu'une fois ; vous pouvez réserver le privé à une IA locale dans les paramètres.`,
+    confirmLabel: "J'ai compris, envoyer",
+  });
+  if (!accepted) throw new AIError("aborted", "Envoi annulé.");
+  await useSettings
+    .getState()
+    .update((s) => ({ ...s, ai: { ...s.ai, remoteWarningAcknowledged: true } }));
+}
+
+export interface EmbeddingAccess {
+  provider: AIProvider;
+  /** Les pages privées peuvent être envoyées à ce fournisseur. */
+  allowsPrivate: boolean;
+}
+
+/**
+ * Fournisseur d'embeddings (recherche sémantique). Si le privé est réservé à une IA locale et
+ * que ce fournisseur est distant, seules les pages publiques lui sont envoyées. Avec
+ * `sendsPrivate`, l'avertissement d'envoi de contenu privé est affiché la première fois.
+ */
+export async function embeddingAccess(sendsPrivate = false): Promise<EmbeddingAccess> {
+  const { AIError, createProvider } = await import("@openeugenia/ai");
+  const config = useSettings.getState().settings.ai.embeddings;
+  if (!config?.model) {
+    throw new AIError(
+      "config",
+      "La recherche sémantique n'est pas configurée : ajoutez une clé Mistral dans les paramètres.",
+    );
+  }
+  const provider = createProvider(config);
+  if (provider.info.local) return { provider, allowsPrivate: true };
+  if (sendsPrivate) await ensurePrivacyChoice();
+  const allowsPrivate = useSettings.getState().settings.ai.localOnlyForPrivate !== true;
+  if (sendsPrivate && allowsPrivate) await acknowledgeRemote(provider);
+  return { provider, allowsPrivate };
 }
 
 /**
@@ -48,17 +91,7 @@ export async function taskContext(
     localOnlyForPrivate: ai.localOnlyForPrivate === true,
   };
   const { provider, sendsPrivateToRemote } = selectProvider(selection, involvesPrivate);
-  if (sendsPrivateToRemote && !ai.remoteWarningAcknowledged) {
-    const accepted = await confirmDialog({
-      title: "Envoi de contenu privé",
-      body: `Cette action envoie des connaissances privées à ${provider.info.label} (${provider.info.model}). Elles quittent alors votre appareil pour être traitées par ce fournisseur. Cet avertissement ne s'affiche qu'une fois ; vous pouvez réserver le privé à une IA locale dans les paramètres.`,
-      confirmLabel: "J'ai compris, envoyer",
-    });
-    if (!accepted) throw new AIError("aborted", "Envoi annulé.");
-    await useSettings
-      .getState()
-      .update((s) => ({ ...s, ai: { ...s.ai, remoteWarningAcknowledged: true } }));
-  }
+  if (sendsPrivateToRemote) await acknowledgeRemote(provider);
   const derived = useWiki.getState().derived;
   return {
     provider,

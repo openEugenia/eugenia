@@ -4,7 +4,17 @@
  * en une fois à la fin de la session.
  */
 import { useEffect, useRef, useState } from "react";
-import { Brain, Check, CircleStop, Eye, RotateCcw, Send, Sparkles } from "lucide-react";
+import {
+  Brain,
+  Check,
+  CircleStop,
+  ExternalLink,
+  Eye,
+  Pencil,
+  RotateCcw,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import {
   applyEvaluation,
   currentMastery,
@@ -28,7 +38,7 @@ import { Breadcrumb, EmptyState, ErrorBox, InfoBox, Spinner } from "../component
 import { Markdown } from "../components/Markdown.tsx";
 import { taskContext } from "../lib/ai.ts";
 import { formatPercent, plural } from "../lib/format.ts";
-import { useCanEdit, useDerived } from "../lib/hooks.ts";
+import { useCanEdit, useDerived, useReveal } from "../lib/hooks.ts";
 import { href } from "../lib/router.ts";
 import { hasAI } from "../lib/settings.ts";
 import { useSettings } from "../store/settings.ts";
@@ -60,6 +70,55 @@ async function loadCard(card: WikiNode): Promise<CardContent> {
   return { knowledge: parsed.knowledge, question, answer };
 }
 
+/**
+ * Sous le retour d'Eugenia : la réponse officielle de la fiche et la connaissance complète,
+ * pour voir ce qu'on aurait pu ajouter, avec de quoi ouvrir ou retoucher la fiche dans un
+ * autre onglet sans interrompre le quiz.
+ */
+function CardReference({
+  card,
+  content,
+  showAnswer,
+}: {
+  card: WikiNode;
+  content: CardContent;
+  showAnswer: boolean;
+}) {
+  const newTab = { target: "_blank", rel: "noopener", title: "S'ouvre dans un nouvel onglet" };
+  return (
+    <div className="message__reference">
+      {showAnswer && (
+        <div>
+          <span className="message__reference-label">Réponse attendue</span>
+          <Markdown text={content.answer} path={card.indexPath} />
+        </div>
+      )}
+      {content.knowledge && content.knowledge !== content.answer && (
+        <div>
+          <span className="message__reference-label">Connaissance</span>
+          <Markdown text={content.knowledge} path={card.indexPath} />
+        </div>
+      )}
+      <div className="actions actions--start">
+        <a
+          className="oe-button oe-button--ghost oe-button--sm"
+          href={href({ name: "node", id: card.id })}
+          {...newTab}
+        >
+          <ExternalLink aria-hidden="true" /> Ouvrir la fiche
+        </a>
+        <a
+          className="oe-button oe-button--ghost oe-button--sm"
+          href={href({ name: "edit", id: card.id })}
+          {...newTab}
+        >
+          <Pencil aria-hidden="true" /> Modifier la fiche
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function QuizView({ id }: { id: string }) {
   const derived = useDerived();
   const editable = useCanEdit();
@@ -71,6 +130,8 @@ export function QuizView({ id }: { id: string }) {
   const [order, setOrder] = useState<WikiNode[]>([]);
   const [index, setIndex] = useState(0);
   const [content, setContent] = useState<CardContent | null>(null);
+  // Contenu des fiches déjà posées, pour afficher la réponse officielle sous chaque retour.
+  const [contents, setContents] = useState<Map<string, CardContent>>(new Map());
   const [answer, setAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,6 +140,7 @@ export function QuizView({ id }: { id: string }) {
   const [results, setResults] = useState<Result[]>([]);
   const [states, setStates] = useState<Map<string, CardState>>(new Map());
   const [lastEvaluation, setLastEvaluation] = useState<Evaluation | null>(null);
+  const latest = useReveal<HTMLDivElement>();
   const live = useRef({ path, answered: 0, phase, title: node?.title ?? "" });
   live.current = { path, answered: results.length, phase, title: node?.title ?? "" };
 
@@ -125,6 +187,7 @@ export function QuizView({ id }: { id: string }) {
     try {
       const c = await loadCard(card);
       setContent(c);
+      setContents((m) => new Map(m).set(card.id, c));
       setIndex(i);
       setDoc({
         ...current,
@@ -138,6 +201,7 @@ export function QuizView({ id }: { id: string }) {
           },
         ],
       });
+      latest.reveal();
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
@@ -187,6 +251,7 @@ export function QuizView({ id }: { id: string }) {
     ];
     const next = { ...doc, fields: { ...doc.fields, updated: now() }, messages };
     setDoc(next);
+    latest.reveal();
     setResults((r) => [...r, { card, score, before, after }]);
     await save(next, path);
   };
@@ -243,6 +308,7 @@ export function QuizView({ id }: { id: string }) {
 
   const card = order[index];
   const answered = card ? results.some((r) => r.card.id === card.id) : false;
+  const lastReply = doc?.messages.findLastIndex((m) => m.role === "eugenia") ?? -1;
   const mean = results.length
     ? results.reduce((s, r) => s + r.score, 0) / results.length
     : undefined;
@@ -328,19 +394,36 @@ export function QuizView({ id }: { id: string }) {
             <span style={{ width: `${(results.length / Math.max(1, order.length)) * 100}%` }} />
           </div>
           <div className="conversation section">
-            {doc?.messages.map((m, i) => (
-              <div key={i} className={`message message--${m.role}`}>
-                <span className="message__who">
-                  {m.role === "eugenia" ? "Eugenia" : "Vous"}
-                  {typeof m.meta?.score === "number" && (
-                    <span className="score">· score {formatPercent(m.meta.score as number)}</span>
-                  )}
-                </span>
-                <div className="message__bubble">
-                  <Markdown text={m.content} path={path ?? node.indexPath} />
+            {doc?.messages.map((m, i) => {
+              const cardId = m.meta?.role === "feedback" ? String(m.meta.card) : undefined;
+              const reference = cardId ? derived.tree.nodes.get(cardId) : undefined;
+              const referenceContent = cardId ? contents.get(cardId) : undefined;
+              return (
+                <div
+                  key={i}
+                  ref={i === lastReply ? latest.ref : undefined}
+                  className={`message message--${m.role}`}
+                >
+                  <span className="message__who">
+                    {m.role === "eugenia" ? "Eugenia" : "Vous"}
+                    {typeof m.meta?.score === "number" && (
+                      <span className="score">· score {formatPercent(m.meta.score as number)}</span>
+                    )}
+                  </span>
+                  <div className="message__bubble">
+                    <Markdown text={m.content} path={path ?? node.indexPath} />
+                    {reference && referenceContent && (
+                      <CardReference
+                        card={reference}
+                        content={referenceContent}
+                        // L'auto-évaluation a déjà révélé la réponse, reprise dans le message.
+                        showAnswer={m.meta?.self !== true}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {busy && <Spinner label="Eugenia réfléchit" />}
           </div>
           {card && content && !answered && (

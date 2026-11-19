@@ -53,6 +53,8 @@ export interface WikiNode {
   summaries: { private?: RepoFile; public?: RepoFile };
   discussions: RepoFile[];
   quizzes: RepoFile[];
+  /** Embedding de la page pour la recherche sémantique (`_embedding.json`), jamais publié. */
+  embedding?: RepoFile;
   /** Fichiers joints (PDF, images…), y compris dans des sous-dossiers qui ne sont pas des pages. */
   attachments: RepoFile[];
 }
@@ -77,6 +79,7 @@ export const SUMMARY_FILE = "_summary.md";
 export const PUBLIC_SUMMARY_FILE = "_summary.public.md";
 export const DISCUSSIONS_DIR = "_discussions";
 export const QUIZZES_DIR = "_quizzes";
+export const EMBEDDING_FILE = "_embedding.json";
 
 const collator = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
 
@@ -237,6 +240,7 @@ export function buildTree(input: TreeInput): WikiTree {
       if (rest.length === 0) {
         if (reserved === SUMMARY_FILE) owner.summaries.private = file;
         else if (reserved === PUBLIC_SUMMARY_FILE) owner.summaries.public = file;
+        else if (reserved === EMBEDDING_FILE) owner.embedding = file;
       } else if (rest.length === 1 && base.endsWith(".md")) {
         if (reserved === DISCUSSIONS_DIR) owner.discussions.push(file);
         else if (reserved === QUIZZES_DIR) owner.quizzes.push(file);

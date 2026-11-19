@@ -4,6 +4,8 @@ import { CheckCircle2, KeyRound, Trash2 } from "lucide-react";
 import type { ProviderConfig, ProviderKind } from "@openeugenia/ai";
 import {
   DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_MISTRAL_URL,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_OLLAMA_URL,
 } from "@openeugenia/ai/constants";
@@ -140,6 +142,122 @@ function ProviderEditor({
           </span>
         </div>
       )}
+      {value && (
+        <div className="actions actions--start">
+          <button
+            type="button"
+            className="oe-button oe-button--secondary oe-button--sm"
+            disabled={testing}
+            onClick={() => void test()}
+          >
+            {testing ? "Test en cours…" : "Tester"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Fournisseur d'embeddings de la recherche sémantique : Mistral par défaut, ou tout serveur
+ * compatible OpenAI (dont Ollama, sans clé).
+ */
+function EmbeddingEditor({
+  value,
+  onChange,
+}: {
+  value: ProviderConfig | undefined;
+  onChange(value: ProviderConfig | undefined): void;
+}) {
+  const [fields, setFields] = useState({
+    baseUrl: value?.baseUrl ?? DEFAULT_MISTRAL_URL,
+    model: value?.model ?? DEFAULT_EMBEDDING_MODEL,
+    apiKey: value?.apiKey ?? "",
+  });
+  const [testing, setTesting] = useState(false);
+  const set = (patch: Partial<typeof fields>): void => {
+    const next = { ...fields, ...patch };
+    setFields(next);
+    const baseUrl = next.baseUrl.trim() || DEFAULT_MISTRAL_URL;
+    const apiKey = next.apiKey.trim();
+    // Sans clé, seul un autre serveur (local, par exemple) a un sens.
+    onChange(
+      apiKey || baseUrl !== DEFAULT_MISTRAL_URL
+        ? {
+            kind: "openai",
+            baseUrl,
+            model: next.model.trim() || DEFAULT_EMBEDDING_MODEL,
+            ...(apiKey ? { apiKey } : {}),
+          }
+        : undefined,
+    );
+  };
+  const test = async (): Promise<void> => {
+    if (!value) return;
+    setTesting(true);
+    try {
+      const { createProvider, embedTexts } = await import("@openeugenia/ai");
+      const provider = createProvider(value);
+      const [vector] = await embedTexts(provider, ["Test de connexion"]);
+      toast(
+        `${provider.info.label} répond (${provider.info.model}) : vecteurs de ${vector!.length} dimensions.`,
+        "success",
+      );
+    } catch (error) {
+      toast(errorMessage(error), "error");
+    } finally {
+      setTesting(false);
+    }
+  };
+  return (
+    <div className="form-grid">
+      <div className="oe-field">
+        <label className="oe-label" htmlFor="embeddings-key">
+          Clé API Mistral
+        </label>
+        <input
+          id="embeddings-key"
+          className="oe-input"
+          type="password"
+          autoComplete="off"
+          value={fields.apiKey}
+          onChange={(e) => set({ apiKey: e.target.value })}
+          placeholder="clé de console.mistral.ai"
+        />
+        <span className="oe-help">
+          Mistral propose un accès gratuit, limité en débit : créez une clé sur{" "}
+          <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer">
+            console.mistral.ai
+          </a>
+          . Conservée dans ce navigateur seulement.
+        </span>
+      </div>
+      <div className="form-row">
+        <div className="oe-field">
+          <label className="oe-label" htmlFor="embeddings-model">
+            Modèle d'embeddings
+          </label>
+          <input
+            id="embeddings-model"
+            className="oe-input"
+            value={fields.model}
+            placeholder={DEFAULT_EMBEDDING_MODEL}
+            onChange={(e) => set({ model: e.target.value })}
+          />
+        </div>
+        <div className="oe-field">
+          <label className="oe-label" htmlFor="embeddings-url">
+            Adresse du serveur
+          </label>
+          <input
+            id="embeddings-url"
+            className="oe-input"
+            value={fields.baseUrl}
+            placeholder={DEFAULT_MISTRAL_URL}
+            onChange={(e) => set({ baseUrl: e.target.value })}
+          />
+        </div>
+      </div>
       {value && (
         <div className="actions actions--start">
           <button
@@ -331,6 +449,26 @@ export function SettingsView() {
             Cette question vous sera posée avant la première utilisation d'Eugenia.
           </p>
         )}
+      </section>
+
+      <section className="section oe-card">
+        <h2 className="oe-card__title">Recherche sémantique</h2>
+        <p className="muted small">
+          La recherche « par le sens » retrouve vos pages à partir d'une question ou d'une idée,
+          même sans mot en commun. Chaque page reçoit un embedding (un vecteur qui résume son sens),
+          calculé par le fournisseur ci-dessous et enregistré à côté de la page dans votre dépôt
+          privé ; il n'est jamais publié. Le contenu des pages lui est envoyé : les pages privées
+          suivent la règle « IA locale pour le privé » ci-dessus.
+        </p>
+        <EmbeddingEditor
+          value={ai.embeddings}
+          onChange={(embeddings) =>
+            setDraft((d) => ({
+              ...d,
+              ai: { ...d.ai, ...(embeddings ? { embeddings } : { embeddings: undefined }) },
+            }))
+          }
+        />
       </section>
 
       <section className="section oe-card">

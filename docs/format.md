@@ -16,6 +16,7 @@ wiki/                        racine (champ `root` de la configuration)
   index.md                   la page racine : le wiki global
   _summary.md                description du wiki global (portée privée)
   _summary.public.md         description du wiki global (portée publique)
+  _embedding.json            embedding de la page (recherche sémantique, jamais publié)
   religion-et-croyances/
     index.md                 une page (catégorie, note ou connaissance atomique)
     _summary.md
@@ -112,6 +113,35 @@ Texte de la description…
 - Une description est **périmée** quand l'ensemble des sources ou l'un de leurs SHA diffère ; la
   péremption remonte aux ancêtres, sauf à travers une description verrouillée.
 - La régénération va des nœuds les plus profonds vers la racine.
+
+## Embeddings (recherche sémantique)
+
+`_embedding.json`, dans le dossier de la page, résume le sens de son `index.md` par un vecteur,
+pour la recherche « par le sens » de l'application. Il est calculé par l'application ou par
+`eugenia embed` (Mistral `mistral-embed` par défaut, ou tout fournisseur compatible OpenAI).
+
+```json
+{
+  "format": "eugenia-embedding",
+  "version": 1,
+  "model": "mistral-embed",
+  "text_sha": "2f6e197",
+  "generated": "2026-11-18T13:54:22Z",
+  "dimensions": 1024,
+  "encoding": "int8",
+  "scale": 0.00076,
+  "vector": "7SUl8vw+DsML8e0q…"
+}
+```
+
+- Texte envoyé au modèle : titre, étiquettes, puis contenu en texte brut (pour une connaissance
+  atomique : énoncé, question et réponse, sans les titres de section). Ni frontmatter ni adresse
+  de lien : déplacer une page ou changer sa visibilité ne rend pas son embedding périmé.
+- `text_sha` : SHA (blob git, 7 caractères) de ce texte. L'embedding est **périmé** quand ce SHA
+  ou le modèle diffère ; un embedding d'un autre modèle n'est jamais comparé à la requête.
+- `vector` : composantes quantifiées sur 8 bits signés (base64), à multiplier par `scale`.
+- Le fichier suit la page quand elle est renommée ou déplacée, et disparaît avec elle. Il n'est
+  **jamais publié**, même pour une page publique : il est calculé sur le contenu du dépôt privé.
 
 ## Discussions et quiz
 

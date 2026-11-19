@@ -17,7 +17,7 @@ import { Markdown } from "../components/Markdown.tsx";
 import { NodePicker } from "../components/NodePicker.tsx";
 import { taskContext } from "../lib/ai.ts";
 import { portableLinks } from "../lib/discussions.ts";
-import { useCanEdit, useDerived, useIsOwner } from "../lib/hooks.ts";
+import { useCanEdit, useDerived, useIsOwner, useReveal } from "../lib/hooks.ts";
 import { href, navigate } from "../lib/router.ts";
 import { errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
@@ -44,6 +44,7 @@ export function AskView({ id }: { id?: string }) {
   const [done, setDone] = useState(false);
   const [picker, setPicker] = useState(false);
   const abort = useRef<AbortController | null>(null);
+  const response = useReveal<HTMLElement>();
 
   const run = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
@@ -63,6 +64,7 @@ export function AskView({ id }: { id?: string }) {
       const context = await taskContext(involvesPrivate, controller.signal);
       const navigator = treeNavigator(workspace, owner ? "private" : "public", derived.summaries);
       const title = (nid: string): string => derived.tree.nodes.get(nid)?.title ?? nid;
+      let answering = false;
       for await (const event of askTree(context, {
         question: text,
         scopeId: scope.id,
@@ -70,8 +72,11 @@ export function AskView({ id }: { id?: string }) {
       })) {
         if (event.type === "explore" || event.type === "read")
           setSteps((s) => [...s, { kind: event.type, titles: event.ids.map(title) }]);
-        else if (event.type === "answer") setAnswer((a) => a + event.text);
-        else if (event.type === "done") setDone(true);
+        else if (event.type === "answer") {
+          setAnswer((a) => a + event.text);
+          if (!answering) response.reveal();
+          answering = true;
+        } else if (event.type === "done") setDone(true);
       }
     } catch (error) {
       if (!isAbortError(error)) toast(errorMessage(error), "error");
@@ -167,7 +172,7 @@ export function AskView({ id }: { id?: string }) {
         </section>
       )}
       {answer && (
-        <section className="section oe-card">
+        <section ref={response.ref} className="section oe-card">
           <span className="oe-eyebrow" style={{ fontSize: "var(--oe-font-size-xs)" }}>
             Réponse
           </span>

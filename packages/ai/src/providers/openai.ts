@@ -73,10 +73,14 @@ export class OpenAICompatibleProvider implements AIProvider {
     return [{ role: "system", content: request.system }, ...request.messages];
   }
 
-  private async post(body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
+  private async post(
+    body: Record<string, unknown>,
+    signal?: AbortSignal,
+    endpoint = "/chat/completions",
+  ): Promise<Response> {
     let response: Response;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
+      response = await this.fetchImpl(`${this.baseUrl}${endpoint}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -189,6 +193,25 @@ export class OpenAICompatibleProvider implements AIProvider {
     throw new AIError("invalid_output", "La réponse du modèle n'a pas le format attendu.", {
       cause: lastError,
     });
+  }
+
+  /** Vecteurs d'embeddings (`/embeddings`), dans l'ordre des textes. */
+  async embed(texts: string[], signal?: AbortSignal): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    const response = await this.post(
+      { model: this.info.model, input: texts },
+      signal,
+      "/embeddings",
+    );
+    const data = (await response.json()) as { data?: { index?: number; embedding?: unknown }[] };
+    const rows = [...(data.data ?? [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    if (rows.length !== texts.length || rows.some((r) => !Array.isArray(r.embedding))) {
+      throw new AIError(
+        "invalid_output",
+        `${this.info.label} n'a pas renvoyé un embedding par texte : vérifiez que « ${this.info.model} » est un modèle d'embeddings.`,
+      );
+    }
+    return rows.map((r) => r.embedding as number[]);
   }
 
   async countTokens(request: GenerateRequest): Promise<number> {

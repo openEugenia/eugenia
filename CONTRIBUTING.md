@@ -27,6 +27,7 @@ pnpm --filter @openeugenia/web exec playwright install chromium   # pour les tes
 |---|---|
 | `pnpm test` | Vitest : `core`, `ai` (fournisseurs simulés), `cli` (dépôts git temporaires), `web` (logique de synchronisation). |
 | `pnpm test:e2e` | Playwright sur l'application construite ; GitHub (REST, GraphQL, raw, commits) et l'API Claude sont simulés en mémoire (`packages/web/e2e/fakes.ts`). |
+| `pnpm test:live` | Vitest contre de vraies API d'IA (`packages/ai/test/live/`) : fournisseur compatible OpenAI et évaluation des quiz, avec Mistral. Clé `MISTRAL_API_KEY` lue dans le `.env` de la racine (ignoré par git) ; sans clé, les tests sont ignorés. Hors CI : lents et soumis au quota gratuit (2 requêtes par minute et par modèle). |
 
 ## Prompts
 

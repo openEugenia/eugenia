@@ -28,6 +28,7 @@ export function summaryMessage(input: SummaryInput): string {
     "<mode>sous-wiki</mode>",
     "<page>",
     `Titre : ${input.title}`,
+    `Niveau : ${input.path.length === 0 ? "racine du wiki" : "branche"}`,
     `Chemin : ${[...input.path, input.title].join(" > ")}`,
     input.content?.trim() ? `Contenu :\n${excerpt(input.content, 4000)}` : "Contenu : (aucun)",
     "</page>",

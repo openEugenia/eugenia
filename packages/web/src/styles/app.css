@@ -1043,6 +1043,20 @@ dialog.modal::backdrop {
 .message--user .message__who {
   justify-content: flex-end;
 }
+.message__reference {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oe-space-2);
+  margin-top: var(--oe-space-3);
+  padding-top: var(--oe-space-3);
+  border-top: var(--oe-border-width) solid var(--oe-color-border);
+}
+.message__reference-label {
+  display: block;
+  font-size: var(--oe-font-size-xs);
+  font-weight: var(--oe-font-weight-semibold);
+  color: var(--oe-color-text-muted);
+}
 .composer {
   position: sticky;
   bottom: 0;
@@ -1247,4 +1261,22 @@ dialog.modal::backdrop {
   body {
     overflow: visible;
   }
+}
+
+/* ---- Recherche par le sens ---------------------------------------------------- */
+
+.search-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oe-space-2) var(--oe-space-5);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.semantic-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--oe-space-3);
+  margin-top: var(--oe-space-3);
 }

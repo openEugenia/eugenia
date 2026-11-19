@@ -2,6 +2,7 @@
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import type { SummaryScope } from "@openeugenia/core";
 import type { ProviderKind } from "@openeugenia/ai";
+import { embedCommand } from "./commands/embed.ts";
 import { initCommand } from "./commands/init.ts";
 import { publishCommand } from "./commands/publish.ts";
 import { summarizeCommand } from "./commands/summarize.ts";
@@ -53,6 +54,17 @@ Commandes :
       --base-url <url>         Adresse du serveur (OpenAI compatible, Ollama)
       --local-only-private     N'envoie jamais de contenu privé à un fournisseur distant
       --dry-run                Affiche les descriptions sans les écrire
+
+  embed [dossier]       Calcule les embeddings des pages (recherche sémantique) manquants
+                        ou périmés : un _embedding.json par page, jamais publié.
+      --force                  Recalcule aussi les embeddings à jour
+      --node <id|dossier>      Limite à une branche
+      --model <modèle>         Modèle (défaut : mistral-embed, ou EUGENIA_EMBED_MODEL)
+      --base-url <url>         Serveur compatible OpenAI (défaut : Mistral, ou
+                               EUGENIA_EMBED_BASE_URL) ; clé MISTRAL_API_KEY ou
+                               EUGENIA_EMBED_API_KEY
+      --local-only-private     N'envoie jamais de contenu privé à un fournisseur distant
+      --dry-run                Affiche les pages concernées sans appeler le modèle
 
   help                  Affiche cette aide.
   version               Affiche la version.
@@ -206,6 +218,31 @@ export async function main(argv: string[], log: Logger = consoleLogger): Promise
           localOnlyPrivate: values["local-only-private"] === true,
           ...(node ? { node } : {}),
           ...(provider ? { provider: provider as ProviderKind } : {}),
+          ...(model ? { model } : {}),
+          ...(baseUrl ? { baseUrl } : {}),
+        },
+        log,
+      );
+    }
+    case "embed": {
+      const { values, dir } = parse(rest, {
+        force: { type: "boolean", default: false },
+        node: { type: "string" },
+        model: { type: "string" },
+        "base-url": { type: "string" },
+        "local-only-private": { type: "boolean", default: false },
+        "dry-run": { type: "boolean", default: false },
+      });
+      const node = str(values.node);
+      const model = str(values.model);
+      const baseUrl = str(values["base-url"]);
+      return embedCommand(
+        {
+          dir,
+          force: values.force === true,
+          dryRun: values["dry-run"] === true,
+          localOnlyPrivate: values["local-only-private"] === true,
+          ...(node ? { node } : {}),
           ...(model ? { model } : {}),
           ...(baseUrl ? { baseUrl } : {}),
         },

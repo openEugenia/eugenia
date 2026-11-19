@@ -32,17 +32,28 @@ export function createProvider(
         ...(config.label ? { label: config.label } : {}),
         ...(options.fetch ? { fetch: options.fetch } : {}),
       });
-    case "openai":
+    case "openai": {
+      const baseUrl = config.baseUrl || DEFAULT_OPENAI_URL;
+      const label = config.label || (isMistralUrl(baseUrl) ? "Mistral" : undefined);
       return new OpenAICompatibleProvider({
         kind: "openai",
-        baseUrl: config.baseUrl || DEFAULT_OPENAI_URL,
+        baseUrl,
         model: config.model ?? "",
         ...(config.apiKey ? { apiKey: config.apiKey } : {}),
-        ...(config.label ? { label: config.label } : {}),
+        ...(label ? { label } : {}),
         ...(options.fetch ? { fetch: options.fetch } : {}),
       });
+    }
     default:
       throw new AIError("config", "Fournisseur d'IA inconnu.");
+  }
+}
+
+function isMistralUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === "api.mistral.ai";
+  } catch {
+    return false;
   }
 }
 

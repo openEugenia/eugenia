@@ -47,8 +47,8 @@ export interface AIProvider {
   json<T>(request: JsonRequest<T>): Promise<T>;
   /** Nombre de jetons d'entrée (estimation si le fournisseur ne sait pas compter). */
   countTokens(request: GenerateRequest): Promise<number>;
-  /** Vecteurs d'embeddings (évolution prévue, §14). */
-  embed?(texts: string[]): Promise<number[][]>;
+  /** Vecteurs d'embeddings, dans l'ordre des textes (fournisseurs compatibles OpenAI). */
+  embed?(texts: string[], signal?: AbortSignal): Promise<number[][]>;
 }
 
 /** Configuration d'un fournisseur, telle que saisie dans les paramètres. */

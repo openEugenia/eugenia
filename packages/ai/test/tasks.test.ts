@@ -114,8 +114,17 @@ describe("descriptions et évaluation", () => {
     expect(text).toBe("Une description.");
     const message = provider.calls[0]!.messages[0]!.content;
     expect(message).toContain("Chemin : Racine > Science > Astronomie");
+    expect(message).toContain("Niveau : branche");
     expect(message).toContain("- [flashcard] Lune : La **Lune**…");
     expect(provider.calls[0]!.system).toContain("« W »");
+    expect(provider.calls[0]!.system).toContain("première personne");
+  });
+
+  it("signale la racine du wiki, décrite par « Voici mon wiki… »", async () => {
+    const provider = new FakeProvider({ text: ["Voici mon wiki."] });
+    await summarizeNode({ provider }, { title: "Racine", path: [], children: [] });
+    expect(provider.calls[0]!.messages[0]!.content).toContain("Niveau : racine du wiki");
+    expect(provider.calls[0]!.system).toContain("« Voici mon wiki… »");
   });
 
   it("borne le score entre 0 et 1", async () => {

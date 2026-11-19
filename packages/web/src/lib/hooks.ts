@@ -1,5 +1,5 @@
 /** Accès aux données du wiki depuis les composants. */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { WikiNode } from "@openeugenia/core";
 import { canEdit, useWiki } from "../store/wiki.ts";
 import type { Derived } from "./workspace.ts";
@@ -22,6 +22,26 @@ export function useCanEdit(): boolean {
 
 export function useIsOwner(): boolean {
   return useWiki((s) => s.workspace?.mode === "owner");
+}
+
+/**
+ * Amène le début de l'élément référencé en haut de la zone visible, après le rendu qui suit
+ * chaque appel à `reveal()` : sert à montrer une nouvelle réponse d'Eugenia dès qu'elle
+ * apparaît, sans suivre la suite du texte pendant qu'on le lit.
+ */
+export function useReveal<T extends HTMLElement>(): {
+  ref: RefObject<T | null>;
+  reveal: () => void;
+} {
+  const ref = useRef<T>(null);
+  const [requests, setRequests] = useState(0);
+  useEffect(() => {
+    if (requests === 0) return;
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    ref.current?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+  }, [requests]);
+  const reveal = useCallback(() => setRequests((n) => n + 1), []);
+  return { ref, reveal };
 }
 
 export interface AsyncState<T> {

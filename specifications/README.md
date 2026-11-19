@@ -473,7 +473,7 @@ L'utilisateur pose une question sur un périmètre donné (wiki entier ou branch
 ## 11. Intelligence artificielle (Eugenia)
 
 ### 11.1 Fournisseurs
-Interface commune `AIProvider` (`complete`, `stream`, `countTokens`, `embed` pour plus tard) avec adaptateurs :
+Interface commune `AIProvider` (`complete`, `stream`, `countTokens`, et `embed` pour la recherche sémantique, chez les fournisseurs compatibles OpenAI : Mistral `mistral-embed` par défaut) avec adaptateurs :
 - **Anthropic (Claude)** : appel direct depuis le navigateur avec la clé de l'utilisateur.
 - **Ollama / serveur local** : nécessite d'autoriser l'origine `openeugenia.github.io` en CORS.
 - **Compatible OpenAI** : tout autre fournisseur.

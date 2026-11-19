@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { AIError, createProvider, DEFAULT_ANTHROPIC_MODEL } from "../src/index.ts";
+import {
+  AIError,
+  createProvider,
+  DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_MISTRAL_URL,
+  embedTexts,
+} from "../src/index.ts";
 import { sse } from "./fake.ts";
 
 interface Captured {
@@ -245,5 +252,55 @@ describe("fournisseurs compatibles OpenAI et Ollama", () => {
     await expect(
       provider.complete({ system: "S", messages: [{ role: "user", content: "x" }] }),
     ).rejects.toThrow(/OLLAMA_ORIGINS/);
+  });
+});
+
+describe("embeddings", () => {
+  const vectors = (n: number, offset = 0): { index: number; embedding: number[] }[] =>
+    Array.from({ length: n }, (_, i) => ({ index: i, embedding: [offset + i, 1] }));
+
+  it("appelle /embeddings de Mistral et remet les vecteurs dans l'ordre des textes", async () => {
+    const { fetch, calls } = mockFetch([Response.json({ data: [vectors(2)[1], vectors(2)[0]] })]);
+    const provider = createProvider(
+      { kind: "openai", model: DEFAULT_EMBEDDING_MODEL, apiKey: "k", baseUrl: DEFAULT_MISTRAL_URL },
+      { fetch },
+    );
+    expect(provider.info.label).toBe("Mistral");
+    expect(await provider.embed!(["a", "b"])).toEqual([
+      [0, 1],
+      [1, 1],
+    ]);
+    expect(calls[0]!.url).toBe("https://api.mistral.ai/v1/embeddings");
+    expect(calls[0]!.body).toEqual({ model: "mistral-embed", input: ["a", "b"] });
+    expect(calls[0]!.headers.get("authorization")).toBe("Bearer k");
+  });
+
+  it("découpe en lots par nombre de textes et par taille", async () => {
+    const { fetch, calls } = mockFetch([
+      Response.json({ data: vectors(2) }),
+      Response.json({ data: vectors(1, 2) }),
+      Response.json({ data: vectors(1, 3) }),
+    ]);
+    const provider = createProvider({ kind: "ollama", model: "nomic-embed-text" }, { fetch });
+    const progress: number[] = [];
+    const result = await embedTexts(provider, ["a", "b", "c", "x".repeat(50)], {
+      batchSize: 2,
+      maxChars: 40,
+      onProgress: (done) => progress.push(done),
+    });
+    expect(calls.map((c) => c.body.input)).toEqual([["a", "b"], ["c"], ["x".repeat(50)]]);
+    expect(result.map((v) => v[0])).toEqual([0, 1, 2, 3]);
+    expect(progress).toEqual([2, 3, 4]);
+  });
+
+  it("refuse un fournisseur sans embeddings et une réponse incomplète", async () => {
+    const anthropic = createProvider({ kind: "anthropic", apiKey: "sk" });
+    await expect(embedTexts(anthropic, ["a"])).rejects.toMatchObject({ kind: "config" });
+    const { fetch } = mockFetch([Response.json({ data: vectors(1) })]);
+    const provider = createProvider(
+      { kind: "openai", model: "m", baseUrl: "https://x/v1" },
+      { fetch },
+    );
+    await expect(provider.embed!(["a", "b"])).rejects.toMatchObject({ kind: "invalid_output" });
   });
 });

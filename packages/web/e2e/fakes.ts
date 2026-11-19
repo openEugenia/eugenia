@@ -395,3 +395,58 @@ export async function installFakeClaude(
   });
   return calls;
 }
+
+/** Requêtes reçues par le faux Mistral : textes de chaque appel à /embeddings. */
+export interface MistralCalls {
+  embeddings: string[][];
+}
+
+/**
+ * Faux Mistral (`/v1/embeddings`) : vecteur déterministe de 64 dimensions, sac des radicaux
+ * (5 premières lettres sans accents) des mots de 4 lettres ou plus. Deux textes qui partagent
+ * des mots sont donc proches, comme avec un vrai modèle sur ces exemples simples.
+ */
+export async function installFakeMistral(page: Page): Promise<MistralCalls> {
+  const calls: MistralCalls = { embeddings: [] };
+  const embed = (text: string): number[] => {
+    const vector = new Array<number>(64).fill(0);
+    const words = text
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .match(/[a-z]{4,}/g);
+    for (const word of words ?? []) {
+      let hash = 0;
+      for (const c of word.slice(0, 5)) hash = (hash * 31 + c.charCodeAt(0)) % 9973;
+      vector[hash % 64]! += 1;
+    }
+    const norm = Math.hypot(...vector) || 1;
+    return vector.map((v) => v / norm);
+  };
+  await page.route("https://api.mistral.ai/**", async (route) => {
+    const request = route.request();
+    const cors = {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "*",
+      "access-control-allow-methods": "*",
+    };
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    const body = JSON.parse(request.postData() ?? "{}") as { model: string; input: string[] };
+    calls.embeddings.push(body.input);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: cors,
+      body: JSON.stringify({
+        object: "list",
+        model: body.model,
+        data: body.input.map((text, index) => ({
+          object: "embedding",
+          index,
+          embedding: embed(text),
+        })),
+      }),
+    });
+  });
+  return calls;
+}

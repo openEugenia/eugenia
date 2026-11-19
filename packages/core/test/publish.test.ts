@@ -27,6 +27,9 @@ const BASE: Files = {
     "extracted_from: P\nsources:\n  - description: Article\n    url: https://example.org\n    file: article.pdf\n",
   ),
   "wiki/science/photo.png": "PNG",
+  // Embeddings de pages publiques : calculés sur le contenu privé, jamais publiés.
+  "wiki/_embedding.json": '{"format": "eugenia-embedding"}\n',
+  "wiki/science/_embedding.json": '{"format": "eugenia-embedding"}\n',
   "wiki/science/article.pdf": "PDF personnel",
   "wiki/science/_quizzes/2026-01-01-1000.md": "---\nid: Q\ntype: discussion\nkind: quiz\n---\n",
   "wiki/science/_discussions/2026-01-01-perso.md":
@@ -73,6 +76,14 @@ describe("publication", async () => {
     now: new Date("2026-11-17T12:00:00Z"),
   });
   const paths = publication.files.map((f) => f.path).sort();
+
+  it("ne publie jamais les embeddings, même ceux des pages publiques", () => {
+    expect(wiki.tree.nodes.get("S")!.embedding?.path).toBe("wiki/science/_embedding.json");
+    expect(wiki.tree.nodes.get("S")!.attachments.map((a) => a.path)).not.toContain(
+      "wiki/science/_embedding.json",
+    );
+    expect(paths.filter((p) => p.endsWith("_embedding.json"))).toEqual([]);
+  });
 
   it("ne publie que les nœuds publics, sans quiz ni fichiers personnels", () => {
     expect(publication.ok).toBe(true);

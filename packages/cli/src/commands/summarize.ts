@@ -88,7 +88,8 @@ export function providerFromEnvironment(
   }
 }
 
-function findBranch(wiki: DiskWiki, node: string | undefined): WikiNode {
+/** Nœud désigné par son identifiant, son dossier ou son titre (racine par défaut). */
+export function findBranch(wiki: DiskWiki, node: string | undefined): WikiNode {
   if (!node) return wiki.tree.nodes.get(wiki.tree.rootId)!;
   const found =
     wiki.tree.nodes.get(node) ??

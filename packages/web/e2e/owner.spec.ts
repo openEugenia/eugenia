@@ -1,5 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import { installFakeClaude, installFakeGitHub, type FakeRepo } from "./fakes.ts";
+import {
+  installFakeClaude,
+  installFakeGitHub,
+  installFakeMistral,
+  type FakeRepo,
+} from "./fakes.ts";
 import { demoRepos, saveSettings, sidebar, TOKEN } from "./fixtures.ts";
 
 async function openOwner(
@@ -111,6 +116,10 @@ test.describe("propriétaire", () => {
     await page.getByRole("button", { name: "Commencer" }).click();
     await page.getByRole("button", { name: "Révéler la réponse" }).click();
     await page.getByRole("button", { name: /1 — acquise/ }).click();
+    // Sous le retour : la fiche s'ouvre ou se modifie dans un autre onglet, sans quitter le quiz.
+    const edit = page.getByRole("link", { name: "Modifier la fiche" });
+    await expect(edit).toHaveAttribute("href", /^#\/n\/[^/]+\/edit$/);
+    await expect(edit).toHaveAttribute("target", "_blank");
     await page.getByRole("button", { name: "Question suivante" }).click();
     await page.getByRole("button", { name: "Révéler la réponse" }).click();
     await page.getByRole("button", { name: /0 — à revoir/ }).click();
@@ -251,5 +260,65 @@ test.describe("Eugenia (IA simulée)", () => {
     expect(repos.privateRepo.read("wiki/religion-et-croyances/mythologies/index.md")).toContain(
       "title: Mythologies",
     );
+  });
+
+  test("quiz évalué par Eugenia : réponse officielle et liens vers la fiche sous le retour", async ({
+    page,
+  }) => {
+    const repos = await demoRepos();
+    await installFakeClaude(page, { score: 0.6 });
+    await openOwner(page, repos, { ai: true });
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6B8TE80FWZWZ9A13320JP2Z/quiz");
+    await page.getByRole("button", { name: "Commencer" }).click();
+    await page.getByLabel("Votre réponse").fill("Lilith");
+    await page.getByRole("button", { name: "Répondre" }).click();
+    const reference = page.locator(".message__reference");
+    await expect(reference.getByText("Réponse attendue")).toBeVisible();
+    await expect(reference.getByText("Connaissance")).toBeVisible();
+    await expect(reference).toContainText("Lilith");
+    await expect(reference.getByRole("link", { name: "Ouvrir la fiche" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
+    await expect(reference.getByRole("link", { name: "Modifier la fiche" })).toHaveAttribute(
+      "href",
+      /^#\/n\/[^/]+\/edit$/,
+    );
+  });
+
+  test("recherche par le sens : indexation en un commit, puis pages proches d'une question", async ({
+    page,
+  }) => {
+    const repos = await demoRepos();
+    const mistral = await installFakeMistral(page);
+    await openOwner(page, repos);
+    await page.goto("?repo=alice/eugenia-wiki#/settings");
+    await page.getByLabel("Clé API Mistral").fill("mistral-test");
+    await page.getByRole("button", { name: "Enregistrer les paramètres" }).click();
+    await expect(page.getByText("Paramètres enregistrés.")).toBeVisible();
+
+    await page.goto("?repo=alice/eugenia-wiki#/search");
+    await page.getByLabel("Par le sens").check();
+    await expect(page.getByText("0 / 13 pages indexées · 13 pages à indexer")).toBeVisible();
+    await page.getByRole("button", { name: "Indexer 13 pages" }).click();
+    // Des pages privées partent vers Mistral : mêmes confirmations que pour Eugenia.
+    await page.getByRole("button", { name: "Non, utiliser mon fournisseur" }).click();
+    await page.getByRole("button", { name: "J'ai compris, envoyer" }).click();
+    await expect(page.getByText("Modifications enregistrées dans le dépôt.")).toBeVisible();
+    await expect(page.getByText("13 / 13 pages indexées")).toBeVisible();
+    expect(repos.privateRepo.log()[0]).toBe("Index sémantique : 13 page(s)");
+    expect(
+      JSON.parse(repos.privateRepo.read("wiki/religion-et-croyances/lilith/_embedding.json")!),
+    ).toMatchObject({ format: "eugenia-embedding", model: "mistral-embed", dimensions: 64 });
+    expect(mistral.embeddings).toHaveLength(1);
+
+    await page
+      .locator(".page")
+      .getByLabel("Recherche", { exact: true })
+      .fill("Comment s'appelle le point le plus éloigné de la Terre sur une orbite ?");
+    const results = page.locator(".link-list > li");
+    await expect(results.first()).toContainText("proximité");
+    await expect(results.first().locator("a strong")).toHaveText("Apogée");
+    expect(mistral.embeddings).toHaveLength(2);
   });
 });

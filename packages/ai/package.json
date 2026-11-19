@@ -15,7 +15,8 @@
   "scripts": {
     "prompts": "node scripts/embed-prompts.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.9.0",

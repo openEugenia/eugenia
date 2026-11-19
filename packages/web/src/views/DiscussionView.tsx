@@ -19,7 +19,7 @@ import { Markdown } from "../components/Markdown.tsx";
 import { taskContext } from "../lib/ai.ts";
 import { pathTitles, portableLinks, relatedPages } from "../lib/discussions.ts";
 import { formatDateTime } from "../lib/format.ts";
-import { useCanEdit, useDerived, useText } from "../lib/hooks.ts";
+import { useCanEdit, useDerived, useReveal, useText } from "../lib/hooks.ts";
 import { href, navigate } from "../lib/router.ts";
 import { errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
@@ -39,6 +39,7 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const dirty = useRef(false);
+  const latest = useReveal<HTMLDivElement>();
   const live = useRef<{ filePath: string | undefined; title: string }>({ filePath, title: "" });
   live.current = { filePath, title: doc?.fields.title ?? "" };
 
@@ -75,6 +76,9 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
 
   // Une discussion est personnelle et privée : son contenu compte toujours comme privé.
   const involvesPrivate = true;
+  // Dernière réponse d'Eugenia : celle en cours de diffusion, sinon la dernière enregistrée.
+  const lastReply =
+    streaming === null ? (doc?.messages.findLastIndex((m) => m.role === "eugenia") ?? -1) : -1;
 
   const persist = async (next: DiscussionDocument, target: string): Promise<void> => {
     const tree = useWiki.getState().derived?.tree ?? derived.tree;
@@ -125,6 +129,7 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
       const context = await taskContext(involvesPrivate, controller.signal);
       const body = page.data ? parsePage(page.data).body : "";
       setStreaming("");
+      latest.reveal();
       for await (const chunk of streamDiscussion(context, {
         page: {
           id: node.id,
@@ -177,6 +182,7 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
         ],
       };
       setDoc(next);
+      latest.reveal();
       await persist(next, filePath);
     } catch (error) {
       toast(errorMessage(error), "error");
@@ -213,7 +219,11 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
           </InfoBox>
         )}
         {doc?.messages.map((m, i) => (
-          <div key={i} className={`message message--${m.role}`}>
+          <div
+            key={i}
+            ref={i === lastReply ? latest.ref : undefined}
+            className={`message message--${m.role}`}
+          >
             <span className="message__who">
               {m.role === "eugenia"
                 ? m.meta?.role === "summary"
@@ -228,7 +238,7 @@ export function DiscussionView({ id, path }: { id: string; path?: string }) {
           </div>
         ))}
         {streaming !== null && (
-          <div className="message message--eugenia">
+          <div ref={latest.ref} className="message message--eugenia">
             <span className="message__who">
               Eugenia <Spinner small label="Eugenia répond" />
             </span>

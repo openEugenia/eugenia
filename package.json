@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "pnpm --filter @openeugenia/web test:e2e",
+    "test:live": "pnpm --filter @openeugenia/ai test:live",
     "typecheck": "pnpm -r typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

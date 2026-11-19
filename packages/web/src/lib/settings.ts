@@ -9,6 +9,8 @@ export interface AISettings {
   main?: ProviderConfig;
   /** Fournisseur local (Ollama…). */
   local?: ProviderConfig;
+  /** Embeddings pour la recherche sémantique (Mistral par défaut, ou compatible OpenAI). */
+  embeddings?: ProviderConfig;
   /** Réserver les nœuds privés à l'IA locale ; `null` : question pas encore posée. */
   localOnlyForPrivate: boolean | null;
   /** L'avertissement « contenu privé vers un fournisseur distant » a été accepté. */
@@ -44,4 +46,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
 
 export function hasAI(settings: Settings): boolean {
   return Boolean(settings.ai.main || settings.ai.local);
+}
+
+export function hasEmbeddings(settings: Settings): boolean {
+  return Boolean(settings.ai.embeddings?.model);
 }

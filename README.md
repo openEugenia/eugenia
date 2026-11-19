@@ -53,7 +53,7 @@ les seuls nœuds publics dans le dépôt public, en réécrivant son historique.
 
 | | |
 |---|---|
-| **Wiki** | Arbre repliable, descriptions des sous-wikis, jauges de maîtrise, rétroliens, recherche plein texte, graphe radial, tableau de bord. |
+| **Wiki** | Arbre repliable, descriptions des sous-wikis (rédigées à la première personne), jauges de maîtrise, rétroliens, recherche plein texte ou par le sens (embeddings Mistral), graphe radial, tableau de bord. |
 | **Édition** | Notes en Markdown (CodeMirror), connaissances atomiques (énoncé, cible en gras, question, réponse), sources et fichiers personnels, liens par recherche de titre (`[[`). Renommer ou déplacer une page réécrit ses liens entrants. Toutes les modifications partent en un seul commit. |
 | **Visibilité** | Privé par défaut ; une page publique n'a jamais d'ancêtre privé ; les liens vers le privé deviennent du texte à la publication ; les fichiers personnels et les quiz ne sont jamais publiés. |
 | **Extraction** | Depuis une note, une discussion, un texte collé ou un PDF : surlignage par Eugenia et par vous, propositions de flashcards et de catégories, création en un commit. |

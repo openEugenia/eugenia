@@ -3,8 +3,9 @@ import { cp, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseSummary, summaryStates, type SummaryScope } from "@openeugenia/core";
+import { parseEmbedding, parseSummary, summaryStates, type SummaryScope } from "@openeugenia/core";
 import type { AIProvider, GenerateRequest, JsonRequest } from "@openeugenia/ai";
+import { embedCommand, type EmbedOptions } from "../src/commands/embed.ts";
 import { summarizeCommand } from "../src/commands/summarize.ts";
 import { loadDiskWiki, listFiles } from "../src/fs-source.ts";
 import { main } from "../src/main.ts";
@@ -224,5 +225,74 @@ describe("eugenia summarize", () => {
     );
     expect(lines.join("\n")).toContain("contenu privé et fournisseur distant");
     expect(provider.requests.length).toBe(0);
+  });
+});
+
+describe("eugenia embed", () => {
+  class EmbeddingProvider extends ScriptedProvider {
+    readonly batches: string[][] = [];
+    async embed(texts: string[]): Promise<number[][]> {
+      this.batches.push(texts);
+      return texts.map((t) => [t.length, 1, 0]);
+    }
+  }
+  const run = (dir: string, provider: AIProvider, extra: Partial<EmbedOptions> = {}) =>
+    embedCommand(
+      {
+        dir,
+        force: false,
+        dryRun: false,
+        localOnlyPrivate: false,
+        providerInstance: provider,
+        ...extra,
+      },
+      logger().log,
+    );
+
+  it("écrit un _embedding.json par page, puis ne recalcule que les pages modifiées", async () => {
+    const dir = await demoCopy();
+    const provider = new EmbeddingProvider();
+    expect(await run(dir, provider)).toBe(0);
+    const pages = (await listFiles(dir)).filter((p) => p.endsWith("/index.md"));
+    const embeddings = (await listFiles(dir)).filter((p) => p.endsWith("/_embedding.json"));
+    expect(embeddings).toHaveLength(pages.length);
+    const lilith = parseEmbedding(
+      await readFile(join(dir, "wiki/religion-et-croyances/lilith/_embedding.json"), "utf8"),
+    );
+    expect(lilith.model).toBe("test-model");
+    expect(provider.batches.flat().find((t) => t.startsWith("Lilith\n"))).toContain(
+      "démon féminin",
+    );
+
+    expect(await run(dir, provider)).toBe(0);
+    expect(provider.batches).toHaveLength(1);
+
+    const apogee = join(dir, "wiki/science/astronomie/apogee/index.md");
+    await writeFile(
+      apogee,
+      (await readFile(apogee, "utf8")).replace("le plus éloigné", "le plus lointain"),
+    );
+    await run(dir, provider);
+    expect(provider.batches).toHaveLength(2);
+    expect(provider.batches[1]).toHaveLength(1);
+    expect(provider.batches[1]![0]).toContain("le plus lointain");
+
+    // Les embeddings ne sont jamais publiés.
+    const out = await temp("eugenia-public-");
+    expect(await main(["publish", dir, "--out", out], logger().log)).toBe(0);
+    const published = await listFiles(out);
+    expect(published).toContain("wiki/religion-et-croyances/lilith/index.md");
+    expect(published.filter((p) => p.includes("_embedding"))).toEqual([]);
+  });
+
+  it("n'envoie que les pages publiques à un fournisseur distant avec --local-only-private", async () => {
+    const dir = await demoCopy();
+    const provider = new EmbeddingProvider();
+    (provider.info as { local: boolean }).local = false;
+    await run(dir, provider, { localOnlyPrivate: true });
+    const wiki = await loadDiskWiki(dir);
+    const nodes = [...wiki.tree.nodes.values()].filter((n) => !n.virtual);
+    expect(nodes.filter((n) => n.embedding).every((n) => n.isPublic)).toBe(true);
+    expect(nodes.filter((n) => n.isPublic).every((n) => n.embedding)).toBe(true);
   });
 });

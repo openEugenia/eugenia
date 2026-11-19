@@ -24,4 +24,5 @@ export * from "./tasks/evaluate.ts";
 export * from "./tasks/discuss.ts";
 export * from "./tasks/ask.ts";
 export * from "./tasks/categories.ts";
+export * from "./tasks/embed.ts";
 export * from "./wiki.ts";
