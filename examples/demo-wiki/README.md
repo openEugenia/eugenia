@@ -1,21 +1,21 @@
-# Wiki de démonstration
+# Demo wiki
 
-Exemple de dépôt **privé** d'un wiki [Eugenia](https://github.com/openEugenia/eugenia), utilisé par
-la documentation et les tests. Il reprend les exemples de la documentation fonctionnelle (Lilith,
-la Lune noire) et montre les trois espaces d'un wiki :
+Example of the **private** repository of an [Eugenia](https://github.com/openEugenia/eugenia)
+wiki, used by the documentation and the tests. It takes up the examples of the functional
+documentation (Lilith, the Black Moon) and shows the three spaces of a wiki:
 
-- **le wiki** (`wiki/`) : des catégories, des connaissances atomiques (`type: knowledge`) qui
-  citent leurs sources, et les flashcards (`type: flashcard`) qui les testent, dont une
-  connaissance à deux flashcards et une connaissance « à sourcer » ;
-- **la bibliothèque** (`library/`) : des sources (`type: source`), publiques ou privées, dont un
-  article avec son fichier personnel (jamais publié) ;
-- **les discussions** (`discussions/`) : une discussion libre, une question sur l'arbre, une
-  note rapide d'où une connaissance a été extraite, et un quiz, trace des révisions d'où est
-  recalculée la maîtrise ;
-- des pages publiques et privées (`visibility`), et les descriptions des sous-wikis, en portée
-  privée (`_summary.md`) et publique (`_summary.public.md`).
+- **the wiki** (`wiki/`): categories, atomic knowledge items (`type: knowledge`) that cite their
+  sources, and the flashcards (`type: flashcard`) that test them, including a knowledge item with
+  two flashcards and a knowledge item that "needs a source";
+- **the library** (`library/`): sources (`type: source`), public or private, including an article
+  with its personal file (never published; as a private source, only its bibliographic record is
+  published);
+- **the discussions** (`discussions/`): a free discussion, a question about the tree, a quick note
+  a knowledge item was extracted from, and a quiz, the review trace mastery is recomputed from;
+- public and private pages (`visibility`), and the sub-wiki descriptions, in private
+  (`_summary.md`) and public (`_summary.public.md`) scope.
 
-Validez-le et construisez sa partie publique :
+Validate it and build its public part:
 
 ```sh
 pnpm eugenia validate examples/demo-wiki

@@ -7,7 +7,7 @@ generated: 2026-11-15T09:00:00Z
 locked: false
 sources:
   01M6BPHWR00VX9TQG7VPS616CF: 2b5d271
-  01M6BSZRC0GMZD0N3KYADANR5K: 826e3d1
+  01M6BSZRC0GMZD0N3KYADANR5K: b2c9d9f
 ---
 
-La branche Science est consacrée pour l'instant à l'astronomie : l'orbite de la Lune, avec son apogée et la Lune noire, et la découverte des exoplanètes.
+For now, my Science branch is devoted to astronomy: the orbit of the Moon, with its apogee and the Black Moon, and the discovery of exoplanets.
