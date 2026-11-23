@@ -1,24 +1,24 @@
-/** Paramètres personnels, conservés dans le navigateur seulement (§5.9, §7, §11.1). */
+/** Personal settings, kept in the browser only (§5.9, §7, §11.1). */
 import type { ProviderConfig } from "@openeugenia/ai";
 import { getSettingsRecord, putSettingsRecord } from "./db.ts";
 
 export type Theme = "auto" | "light" | "dark";
 
 export interface AISettings {
-  /** Fournisseur principal (Claude, compatible OpenAI…). */
+  /** Main provider (Claude, OpenAI-compatible…). */
   main?: ProviderConfig;
-  /** Fournisseur local (Ollama…). */
+  /** Local provider (Ollama…). */
   local?: ProviderConfig;
-  /** Embeddings pour la recherche sémantique (Mistral par défaut, ou compatible OpenAI). */
+  /** Embeddings for semantic search (Mistral by default, or OpenAI-compatible). */
   embeddings?: ProviderConfig;
-  /** Réserver les nœuds privés à l'IA locale ; `null` : question pas encore posée. */
+  /** Keep private nodes for the local AI; `null`: question not asked yet. */
   localOnlyForPrivate: boolean | null;
-  /** L'avertissement « contenu privé vers un fournisseur distant » a été accepté. */
+  /** The "private content to a remote provider" warning was acknowledged. */
   remoteWarningAcknowledged: boolean;
 }
 
 export interface Settings {
-  /** Jeton GitHub fine-grained (lecture/écriture limitées au dépôt privé). */
+  /** Fine-grained GitHub token (read/write limited to the private repository). */
   githubToken?: string;
   ai: AISettings;
   theme: Theme;

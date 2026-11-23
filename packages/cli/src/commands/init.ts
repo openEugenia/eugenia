@@ -1,4 +1,4 @@
-/** `eugenia init` : crée un nouveau wiki, et éventuellement ses dépôts GitHub. */
+/** `eugenia init`: creates a new wiki, and optionally its GitHub repositories. */
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { CONFIG_PATH, DEFAULT_CATEGORIES, scaffoldWiki } from "@openeugenia/core";
@@ -29,7 +29,7 @@ export async function initCommand(options: InitOptions, log: Logger): Promise<nu
   const dir = resolve(options.dir);
   if ((await exists(join(dir, CONFIG_PATH))) && !options.force) {
     throw new CliError(
-      `Un wiki existe déjà dans ${dir} (${CONFIG_PATH}). Utilisez --force pour l'écraser.`,
+      `A wiki already exists in ${dir} (${CONFIG_PATH}). Use --force to overwrite it.`,
     );
   }
   let privateRepo = options.privateRepo;
@@ -45,7 +45,7 @@ export async function initCommand(options: InitOptions, log: Logger): Promise<nu
   }
 
   const files = scaffoldWiki({
-    title: options.title ?? "Mon wiki",
+    title: options.title ?? "My wiki",
     ...(options.root !== undefined ? { root: options.root } : {}),
     categories: options.categories ? DEFAULT_CATEGORIES : [],
     ...(privateRepo ? { privateRepo } : {}),
@@ -57,17 +57,17 @@ export async function initCommand(options: InitOptions, log: Logger): Promise<nu
   for (const [path, content] of files) {
     const target = join(dir, path);
     if ((await exists(target)) && !options.force) {
-      log.warn(`  ${dim("ignoré")} ${path} (existe déjà)`);
+      log.warn(`  ${dim("skipped")} ${path} (already exists)`);
       continue;
     }
     if (!options.dryRun) {
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, content);
     }
-    log.info(`  ${green("créé")} ${path}`);
+    log.info(`  ${green("created")} ${path}`);
     written++;
   }
-  log.info(bold(`Wiki initialisé dans ${dir} (${written} fichier(s)).`));
+  log.info(bold(`Wiki initialized in ${dir} (${written} file(s)).`));
 
   if (options.github && privateRepo && publicRepo) {
     await setupGithub({
@@ -79,18 +79,18 @@ export async function initCommand(options: InitOptions, log: Logger): Promise<nu
       dryRun: options.dryRun,
     });
     log.info(
-      `Ouvrez votre wiki : ${cyan(`https://openeugenia.github.io/eugenia/?repo=${privateRepo}`)}`,
+      `Open your wiki: ${cyan(`https://openeugenia.github.io/eugenia/?repo=${privateRepo}`)}`,
     );
   } else {
     log.info(
       [
         "",
-        "Étapes suivantes :",
-        "  1. Créez un dépôt GitHub **privé** et poussez-y ce dossier.",
-        "  2. Ouvrez https://openeugenia.github.io/eugenia/?repo=<compte>/<dépôt> et saisissez un jeton",
-        "     fine-grained (lecture/écriture sur ce seul dépôt) dans les paramètres.",
-        "  3. Pour publier la partie publique : relancez avec --github (crée les dépôts, la clé de",
-        "     déploiement et le secret avec la CLI gh), ou suivez docs/publication.md.",
+        "Next steps:",
+        "  1. Create a **private** GitHub repository and push this folder to it.",
+        "  2. Open https://openeugenia.github.io/eugenia/?repo=<account>/<repository> and enter a",
+        "     fine-grained token (read/write on this repository only) in the settings.",
+        "  3. To publish the public part: run again with --github (creates the repositories, the",
+        "     deploy key and the secret with the gh CLI), or follow docs/publication.md.",
       ].join("\n"),
     );
   }

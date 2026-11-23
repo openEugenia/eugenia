@@ -1,4 +1,4 @@
-/** Maîtrise et déclin des connaissances, recalculés en rejouant les quiz (§8.3). */
+/** Knowledge mastery and decay, recomputed by replaying quizzes (§8.3). */
 import { DEFAULT_MASTERY, type MasteryParams } from "./config.ts";
 import type { QuizEvent } from "./discussion.ts";
 import { parseTime } from "./time.ts";
@@ -7,22 +7,22 @@ import { isUlid, ulidTime } from "./ulid.ts";
 
 export const DAY_MS = 86_400_000;
 
-/** État dérivé d'une flashcard (jamais saisi). */
+/** Derived state of a flashcard (never entered by hand). */
 export interface CardState {
-  /** Maîtrise m à la date de la dernière évaluation. */
+  /** Mastery m on the day of the last evaluation. */
   mastery: number;
-  /** Jour du dernier échec f. */
+  /** Day of the last failure f. */
   failureDay: number;
-  /** Facteur de déclin quotidien β. */
+  /** Daily decay factor β. */
   decay: number;
-  /** Jour de la dernière évaluation e. */
+  /** Day of the last evaluation e. */
   lastEvalDay: number;
   evaluations: number;
   lastScore?: number;
   lastEvalAt?: string;
 }
 
-/** Numéro de jour (jours entiers depuis l'époque Unix, en UTC). */
+/** Day number (whole days since the Unix epoch, in UTC). */
 export function dayNumber(date: string | number | Date): number {
   const t =
     typeof date === "number" ? date : date instanceof Date ? date.getTime() : Date.parse(date);
@@ -48,12 +48,12 @@ export function initialCardState(
   };
 }
 
-/** Maîtrise actuelle au jour `day` : m · β^(d − e). */
+/** Current mastery on day `day`: m · β^(d − e). */
 export function currentMastery(state: CardState, day: number): number {
   return clamp01(state.mastery * state.decay ** Math.max(0, day - state.lastEvalDay));
 }
 
-/** Mise à jour après une évaluation de score `score` au jour `day`. */
+/** Update after an evaluation with score `score` on day `day`. */
 export function applyEvaluation(
   state: CardState,
   score: number,
@@ -61,22 +61,22 @@ export function applyEvaluation(
   params: MasteryParams = DEFAULT_MASTERY,
 ): CardState {
   const x = clamp01(score);
-  // 1. Le déclin est d'abord appliqué.
+  // 1. Decay is applied first.
   let m = currentMastery(state, day);
-  // 2. Moyenne mobile exponentielle (α = ½ par défaut), réussite ou échec.
+  // 2. Exponential moving average (α = ½ by default), success or failure.
   m = (1 - params.alpha) * m + params.alpha * x;
   let failureDay = state.failureDay;
   let decay: number;
   if (x > params.success_threshold) {
-    // 3. Réussite : l'oubli ralentit avec le temps écoulé depuis le dernier échec.
+    // 3. Success: forgetting slows down with the time elapsed since the last failure.
     const t = Math.max(0, day - failureDay);
     decay = 1 - params.decay_rate / (1 + t);
   } else {
-    // 4. Échec : le déclin repart à son rythme le plus rapide.
+    // 4. Failure: decay restarts at its fastest pace.
     failureDay = day;
     decay = 1 - params.decay_rate;
   }
-  // 5. Date de la dernière évaluation.
+  // 5. Date of the last evaluation.
   return {
     mastery: clamp01(m),
     failureDay,
@@ -92,7 +92,7 @@ export interface CardRef {
   created?: string;
 }
 
-/** Jour de création d'une flashcard : champ `created`, sinon date de son ULID. */
+/** Creation day of a flashcard: `created` field, otherwise the date of its ULID. */
 export function creationDay(card: CardRef, fallback: number): number {
   const t = parseTime(card.created);
   if (t !== undefined) return dayNumber(t);
@@ -105,8 +105,8 @@ export function sortEvents(events: readonly QuizEvent[]): QuizEvent[] {
 }
 
 /**
- * Rejoue chronologiquement toutes les évaluations des quiz pour reconstruire l'état
- * de chaque flashcard. Les évaluations de flashcards inconnues sont ignorées.
+ * Replays all quiz evaluations in chronological order to rebuild the state of each
+ * flashcard. Evaluations of unknown flashcards are ignored.
  */
 export function replayMastery(
   cards: readonly CardRef[],
@@ -132,7 +132,7 @@ export interface MasteryPoint {
   mastery: number;
 }
 
-/** Courbe de maîtrise d'une flashcard, jour par jour, de sa création à `toDay`. */
+/** Mastery curve of a flashcard, day by day, from its creation to `toDay`. */
 export function masteryCurve(
   card: CardRef,
   events: readonly QuizEvent[],
@@ -157,7 +157,7 @@ export function masteryCurve(
   return points;
 }
 
-/** Courbe moyenne d'un ensemble de flashcards (une flashcard compte à partir de sa création). */
+/** Average curve of a set of flashcards (a flashcard counts from its creation). */
 export function averageCurve(
   cards: readonly CardRef[],
   events: readonly QuizEvent[],
@@ -185,7 +185,7 @@ export function averageCurve(
   return out;
 }
 
-/** Maîtrise d'une branche : moyenne de la maîtrise actuelle de ses flashcards. */
+/** Mastery of a branch: average current mastery of its flashcards. */
 export function branchMastery(
   tree: WikiTree,
   nodeId: string,
@@ -204,7 +204,7 @@ export function branchMastery(
   return { value: count > 0 ? sum / count : undefined, count };
 }
 
-/** Flashcards d'une branche triées par maîtrise actuelle croissante (ordre du quiz). */
+/** Flashcards of a branch sorted by increasing current mastery (quiz order). */
 export function quizOrder(
   tree: WikiTree,
   nodeId: string,
@@ -220,17 +220,17 @@ export function quizOrder(
     (a, b) =>
       value(a) - value(b) ||
       (states.get(a.id)?.lastEvalDay ?? 0) - (states.get(b.id)?.lastEvalDay ?? 0) ||
-      a.title.localeCompare(b.title, "fr"),
+      a.title.localeCompare(b.title, "en"),
   );
 }
 
 export interface ReminderGroup {
-  /** Catégorie de premier niveau (ou la racine). */
+  /** Top-level category (or the root). */
   category: WikiNode;
   cards: WikiNode[];
 }
 
-/** Rappels de révision : flashcards sous le seuil, regroupées par catégorie de premier niveau. */
+/** Review reminders: flashcards below the threshold, grouped by top-level category. */
 export function reminders(
   tree: WikiTree,
   states: ReadonlyMap<string, CardState>,

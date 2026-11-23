@@ -1,4 +1,4 @@
-/** Modifications en attente, enregistrement (commit), file hors ligne et conflits (§9.3, §10.3). */
+/** Pending changes, saving (commit), offline queue and conflicts (§9.3, §10.3). */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CloudOff, GitCommitHorizontal, RefreshCw, RotateCcw, Upload } from "lucide-react";
 import { MergeView } from "@codemirror/merge";
@@ -18,9 +18,9 @@ import { confirmDialog } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
 
 function changeLabel(change: PendingChange): string {
-  if (change.kind === "delete") return "suppression";
-  if (change.kind === "copy") return "déplacement";
-  return change.baseSha === null ? "ajout" : "modification";
+  if (change.kind === "delete") return "deletion";
+  if (change.kind === "copy") return "move";
+  return change.baseSha === null ? "addition" : "change";
 }
 
 function ConflictPanel({ conflict }: { conflict: Conflict }) {
@@ -45,12 +45,12 @@ function ConflictPanel({ conflict }: { conflict: Conflict }) {
     <div className="oe-card">
       <strong>{conflict.path}</strong>
       <p className="muted small">
-        Ce fichier a été modifié ici et à distance.{" "}
+        This file was changed here and remotely.{" "}
         {conflict.local === null
-          ? "Vous l'avez supprimé localement."
+          ? "You deleted it locally."
           : conflict.remote === null
-            ? "Il a été supprimé à distance."
-            : "Comparez les deux versions : à gauche la vôtre (modifiable), à droite celle du dépôt."}
+            ? "It was deleted remotely."
+            : "Compare the two versions: yours on the left (editable), the repository's on the right."}
       </p>
       {mergeable && <div className="merge-host cm-host" ref={host} />}
       <div className="actions actions--start">
@@ -59,14 +59,14 @@ function ConflictPanel({ conflict }: { conflict: Conflict }) {
           className="oe-button oe-button--secondary oe-button--sm"
           onClick={() => void resolve(conflict.path, { kind: "local" })}
         >
-          Garder ma version
+          Keep my version
         </button>
         <button
           type="button"
           className="oe-button oe-button--secondary oe-button--sm"
           onClick={() => void resolve(conflict.path, { kind: "remote" })}
         >
-          Garder la version du dépôt
+          Keep the repository's version
         </button>
         {mergeable && (
           <button
@@ -77,7 +77,7 @@ function ConflictPanel({ conflict }: { conflict: Conflict }) {
               if (content !== undefined) void resolve(conflict.path, { kind: "merged", content });
             }}
           >
-            Enregistrer la fusion (à gauche)
+            Save the merge (left)
           </button>
         )}
       </div>
@@ -104,10 +104,9 @@ export function ChangesView() {
   if (!owner) {
     return (
       <div className="page">
-        <h1>Modifications</h1>
+        <h1>Changes</h1>
         <InfoBox>
-          Vous consultez la partie publique de ce wiki : la lecture seule ne produit pas de
-          modification.
+          You are viewing the public part of this wiki: reading it does not produce any change.
         </InfoBox>
       </div>
     );
@@ -121,9 +120,9 @@ export function ChangesView() {
 
   const discardAll = async (): Promise<void> => {
     const ok = await confirmDialog({
-      title: "Annuler toutes les modifications",
-      body: "Toutes les modifications non enregistrées dans le dépôt seront perdues.",
-      confirmLabel: "Tout annuler",
+      title: "Discard all the changes",
+      body: "All the changes not saved to the repository will be lost.",
+      confirmLabel: "Discard all",
       danger: true,
     });
     if (ok) await discard(uncommitted);
@@ -131,35 +130,34 @@ export function ChangesView() {
 
   return (
     <div className="page">
-      <h1>Modifications</h1>
+      <h1>Changes</h1>
       <p className="muted">
         {online ? (
-          "En ligne."
+          "Online."
         ) : (
           <>
             <CloudOff aria-hidden="true" style={{ display: "inline", verticalAlign: "-0.15em" }} />{" "}
-            Hors ligne : vos modifications sont conservées sur cet appareil et seront envoyées au
-            retour du réseau.
+            Offline: your changes are kept on this device and will be sent when the network is back.
           </>
         )}{" "}
-        {pending.lastSyncAt && `Dernière synchronisation ${formatRelative(pending.lastSyncAt)}.`}
+        {pending.lastSyncAt && `Last synchronization ${formatRelative(pending.lastSyncAt)}.`}
       </p>
       {!resolved?.canWrite && (
         <InfoBox kind="warning">
-          {resolved?.readOnlyReason ?? "Écriture impossible dans ce dépôt."}
+          {resolved?.readOnlyReason ?? "Cannot write to this repository."}
         </InfoBox>
       )}
       {pending.lastError && (
-        <InfoBox kind="warning" title="Dernière erreur de synchronisation">
+        <InfoBox kind="warning" title="Last synchronization error">
           {pending.lastError}
         </InfoBox>
       )}
 
       {pending.conflicts.length > 0 && (
         <section className="section">
-          <h2>Conflits à résoudre</h2>
+          <h2>Conflicts to resolve</h2>
           <p className="muted small">
-            Rien n'est résolu automatiquement : choisissez, nœud par nœud, la version à garder.
+            Nothing is resolved automatically: choose, node by node, the version to keep.
           </p>
           <div className="form-grid">
             {pending.conflicts.map((c) => (
@@ -171,21 +169,21 @@ export function ChangesView() {
 
       <section className="section">
         <div className="section__head">
-          <h2>À enregistrer</h2>
+          <h2>To save</h2>
           {uncommitted.length > 0 && (
             <button
               type="button"
               className="oe-button oe-button--ghost oe-button--sm"
               onClick={() => void discardAll()}
             >
-              <RotateCcw aria-hidden="true" /> Tout annuler
+              <RotateCcw aria-hidden="true" /> Discard all
             </button>
           )}
         </div>
         {uncommitted.length === 0 ? (
-          <EmptyState title="Aucune modification en attente">
-            Les pages que vous modifiez apparaissent ici avant d'être enregistrées dans le dépôt, en
-            un seul commit.
+          <EmptyState title="No pending change">
+            The pages you change appear here before being saved to the repository, in a single
+            commit.
           </EmptyState>
         ) : (
           <>
@@ -197,7 +195,7 @@ export function ChangesView() {
                     <strong>{entry.description}</strong>
                     <span className="muted small">{formatDateTime(entry.at)}</span>
                     <details>
-                      <summary className="small">{entry.paths.length} fichier(s)</summary>
+                      <summary className="small">{entry.paths.length} file(s)</summary>
                       <ul className="small">
                         {entry.paths
                           .filter((p) => pending.changes[p])
@@ -210,7 +208,7 @@ export function ChangesView() {
                                 className="oe-button oe-button--ghost oe-button--sm"
                                 onClick={() => void discard([p])}
                               >
-                                Annuler
+                                Discard
                               </button>
                             </li>
                           ))}
@@ -221,7 +219,7 @@ export function ChangesView() {
             </ul>
             <div className="oe-field section">
               <label className="oe-label" htmlFor="message">
-                Message du commit
+                Commit message
               </label>
               <textarea
                 id="message"
@@ -244,7 +242,7 @@ export function ChangesView() {
                 }}
               >
                 <GitCommitHorizontal aria-hidden="true" />{" "}
-                {online ? "Enregistrer dans le dépôt" : "Mettre en file (hors ligne)"}
+                {online ? "Save to the repository" : "Queue (offline)"}
               </button>
             </div>
           </>
@@ -254,14 +252,14 @@ export function ChangesView() {
       {pending.queue.length > 0 && (
         <section className="section">
           <div className="section__head">
-            <h2>En file d'attente</h2>
+            <h2>Queued</h2>
             <button
               type="button"
               className="oe-button oe-button--ghost oe-button--sm"
               disabled={!online || syncing}
               onClick={() => void flush()}
             >
-              <Upload aria-hidden="true" /> Envoyer maintenant
+              <Upload aria-hidden="true" /> Send now
             </button>
           </div>
           <ul className="link-list">
@@ -269,7 +267,7 @@ export function ChangesView() {
               <li key={c.id}>
                 <GitCommitHorizontal aria-hidden="true" /> {c.message.split("\n")[0]}{" "}
                 <span className="muted small">
-                  ({c.paths.length} fichier(s), {formatRelative(c.createdAt)})
+                  ({c.paths.length} file(s), {formatRelative(c.createdAt)})
                 </span>
               </li>
             ))}
@@ -284,7 +282,7 @@ export function ChangesView() {
           disabled={!online}
           onClick={() => void refresh()}
         >
-          <RefreshCw aria-hidden="true" /> Récupérer l'état du dépôt
+          <RefreshCw aria-hidden="true" /> Fetch the repository state
         </button>
       </section>
     </div>

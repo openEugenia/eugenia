@@ -31,13 +31,7 @@ import type {
 import { ancestors } from "@openeugenia/core";
 import { href } from "../lib/router.ts";
 
-export function Spinner({
-  small = false,
-  label = "Chargement",
-}: {
-  small?: boolean;
-  label?: string;
-}) {
+export function Spinner({ small = false, label = "Loading" }: { small?: boolean; label?: string }) {
   return (
     <span className={`spinner${small ? " spinner--sm" : ""}`} role="status" aria-label={label} />
   );
@@ -51,12 +45,12 @@ export function Loading({ message }: { message?: string | null }) {
   return (
     <CenterState>
       <Spinner />
-      <p className="muted">{message ?? "Chargement…"}</p>
+      <p className="muted">{message ?? "Loading…"}</p>
     </CenterState>
   );
 }
 
-export function ErrorBox({ title = "Erreur", children }: { title?: string; children: ReactNode }) {
+export function ErrorBox({ title = "Error", children }: { title?: string; children: ReactNode }) {
   return (
     <div className="oe-alert oe-alert--danger" role="alert">
       <strong className="oe-alert__title">{title}</strong>
@@ -83,13 +77,13 @@ export function InfoBox({
 }
 
 export const SOURCE_KIND_LABELS: Record<SourceKind, string> = {
-  book: "Livre",
+  book: "Book",
   article: "Article",
-  web: "Site web",
-  video: "Vidéo",
+  web: "Website",
+  video: "Video",
   audio: "Audio",
   document: "Document",
-  other: "Autre",
+  other: "Other",
 };
 
 export function SourceKindIcon({ kind }: { kind: SourceKind | undefined }) {
@@ -111,7 +105,7 @@ export function SourceKindIcon({ kind }: { kind: SourceKind | undefined }) {
   }
 }
 
-/** Icône du type de nœud (décorative : le titre l'accompagne toujours). */
+/** Icon of the node type (decorative: the title always comes with it). */
 export function TypeIcon({ node }: { node: WikiNode; tree?: WikiTree }) {
   switch (node.type) {
     case "knowledge":
@@ -132,13 +126,13 @@ export function TypeIcon({ node }: { node: WikiNode; tree?: WikiTree }) {
 export function typeLabel(node: WikiNode): string {
   switch (node.type) {
     case "knowledge":
-      return "Connaissance atomique";
+      return "Atomic knowledge";
     case "flashcard":
       return "Flashcard";
     case "source":
       return node.sourceKind ? `Source · ${SOURCE_KIND_LABELS[node.sourceKind]}` : "Source";
     default:
-      return node.space === "library" ? "Bibliothèque" : "Catégorie";
+      return node.space === "library" ? "Library" : "Category";
   }
 }
 
@@ -157,15 +151,15 @@ export function DiscussionKindIcon({ kind }: { kind: DiscussionKind }) {
   }
 }
 
-/** Connaissance sans source : à appuyer sur une source de la bibliothèque. */
+/** Knowledge without a source: to be backed by a library source. */
 export function UnsourcedBadge({ compact = false }: { compact?: boolean }) {
   return (
     <span
       className={compact ? "unsourced unsourced--compact" : "oe-badge oe-badge--warning unsourced"}
-      title="Aucune source n'appuie cette connaissance"
+      title="No source backs this knowledge item"
     >
       <AlertTriangle aria-hidden="true" />
-      <span className={compact ? "sr-only" : ""}>À sourcer</span>
+      <span className={compact ? "sr-only" : ""}>Needs a source</span>
     </span>
   );
 }
@@ -181,10 +175,10 @@ export function VisibilityBadge({
   return (
     <span
       className={`visibility ${compact ? "" : `oe-badge ${isPublic ? "oe-badge--success" : ""}`}`}
-      title={isPublic ? "Public : visible par tous" : "Privé : visible par vous seul"}
+      title={isPublic ? "Public: visible to everyone" : "Private: visible to you only"}
     >
       {isPublic ? <Globe aria-hidden="true" /> : <Lock aria-hidden="true" />}
-      <span className={compact ? "sr-only" : ""}>{isPublic ? "Public" : "Privé"}</span>
+      <span className={compact ? "sr-only" : ""}>{isPublic ? "Public" : "Private"}</span>
     </span>
   );
 }
@@ -196,17 +190,17 @@ export function SummaryStatusBadge({ state }: { state: SummaryState | undefined 
       return (
         <span
           className="oe-badge oe-badge--info"
-          title="Le contenu a changé depuis la génération de cette description"
+          title="The content changed since this description was generated"
         >
-          <RefreshCw aria-hidden="true" /> Description périmée
+          <RefreshCw aria-hidden="true" /> Stale description
         </span>
       );
     case "missing":
-      return <span className="oe-badge oe-badge--warning">Description manquante</span>;
+      return <span className="oe-badge oe-badge--warning">Missing description</span>;
     case "locked":
       return (
         <span className="oe-badge">
-          <Lock aria-hidden="true" /> Verrouillée
+          <Lock aria-hidden="true" /> Locked
         </span>
       );
     default:
@@ -214,7 +208,7 @@ export function SummaryStatusBadge({ state }: { state: SummaryState | undefined 
   }
 }
 
-/** Lien vers une page ; la racine de la bibliothèque ouvre la liste des sources. */
+/** Link to a page; the library root opens the list of sources. */
 export function nodeHref(tree: WikiTree, node: Pick<WikiNode, "id">): string {
   return node.id === tree.libraryId
     ? href({ name: "library" })
@@ -228,7 +222,7 @@ export function Breadcrumb({
 }: {
   tree: WikiTree;
   node?: WikiNode;
-  /** Étapes supplémentaires, en tête (ex. « Discussions »). */
+  /** Extra steps, first (e.g. "Discussions"). */
   trail?: { label: string; href: string }[];
 }) {
   const chain = node ? ancestors(tree, node.id) : [];
@@ -238,7 +232,7 @@ export function Breadcrumb({
   ];
   if (steps.length === 0) return null;
   return (
-    <nav className="breadcrumb" aria-label="Fil d'Ariane">
+    <nav className="breadcrumb" aria-label="Breadcrumb">
       {steps.map((step, i) => (
         <span key={`${step.href}-${i}`}>
           <a href={step.href}>{step.label}</a>
@@ -272,6 +266,22 @@ export function EmptyState({
       </strong>
       {children && <div className="oe-card__body">{children}</div>}
     </div>
+  );
+}
+
+/**
+ * Private source shown in the public part of a wiki: only its bibliographic record (title,
+ * kind, authors, date, URL) is published, so that public knowledge can still cite it.
+ */
+export function RecordBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className={compact ? "visibility" : "oe-badge"}
+      title="Private source: only its bibliographic record is published"
+    >
+      <Lock aria-hidden="true" />
+      <span className={compact ? "sr-only" : ""}>Record only</span>
+    </span>
   );
 }
 

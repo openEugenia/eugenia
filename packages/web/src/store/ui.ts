@@ -1,4 +1,4 @@
-/** Notifications et boîtes de dialogue (confirmation, choix). */
+/** Notifications and dialogs (confirmation, choice). */
 import type { ReactNode } from "react";
 import { create } from "zustand";
 
@@ -46,7 +46,7 @@ export const useUI = create<UIState>((set, get) => ({
     return new Promise<boolean>((resolve) => {
       const id = nextId++;
       set((s) => ({
-        dialogs: [...s.dialogs, { confirmLabel: "Confirmer", ...options, id, resolve }],
+        dialogs: [...s.dialogs, { confirmLabel: "Confirm", ...options, id, resolve }],
       }));
     });
   },

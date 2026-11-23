@@ -1,21 +1,21 @@
-/** Types partagés du modèle de données (spécification §5). */
+/** Shared types of the data model (specification §5). */
 
-/** Types de nœuds stockés dans le dépôt. */
+/** Node types stored in the repository. */
 export type NodeType = PageType | "summary" | "discussion";
 
 /**
- * Types de pages : nœuds représentés par un dossier contenant un `index.md`.
- * - wiki : `category` (sous-wiki) → `knowledge` (connaissance atomique) → `flashcard` ;
- * - bibliothèque : `source`.
+ * Page types: nodes stored as a folder containing an `index.md`.
+ * - wiki: `category` (sub-wiki) → `knowledge` (atomic knowledge) → `flashcard`;
+ * - library: `source`.
  */
 export type PageType = "category" | "knowledge" | "flashcard" | "source";
 
 export const PAGE_TYPES: readonly PageType[] = ["category", "knowledge", "flashcard", "source"];
 
-/** Espaces du dépôt qui contiennent des pages (§5.1). */
+/** Repository spaces that contain pages (§5.1). */
 export type Space = "wiki" | "library";
 
-/** Nature d'une source de la bibliothèque. */
+/** Kind of a library source. */
 export type SourceKind = "book" | "article" | "web" | "video" | "audio" | "document" | "other";
 
 export const SOURCE_KINDS: readonly SourceKind[] = [
@@ -34,7 +34,7 @@ export function parseSourceKind(value: unknown): SourceKind | undefined {
     : undefined;
 }
 
-/** Sortes de discussions (§5.6) : discussion libre, question sur l'arbre, quiz, note rapide. */
+/** Discussion kinds (§5.6): free discussion, question about the tree, quiz, quick note. */
 export type DiscussionKind = "discussion" | "question" | "quiz" | "note";
 
 export const DISCUSSION_KINDS: readonly DiscussionKind[] = [
@@ -52,40 +52,40 @@ export function parseDiscussionKind(value: unknown): DiscussionKind {
 
 export type Visibility = "public" | "private";
 
-/** Portée d'une description de sous-wiki (§5.5, §6.3). */
+/** Scope of a sub-wiki description (§5.5, §6.3). */
 export type SummaryScope = "private" | "public";
 
 /**
- * Référence d'une connaissance à une source (§5.7) : de préférence une source de la
- * bibliothèque (`ref`), sinon une simple description ou adresse.
+ * Reference from a knowledge item to a source (§5.7): preferably a library source (`ref`),
+ * otherwise a plain description or URL.
  */
 export interface SourceRef {
-  /** Identifiant d'une source de la bibliothèque. */
+  /** Identifier of a library source. */
   ref?: string;
-  /** Localisation dans la source : page, chapitre, minutage… */
+  /** Location in the source: page, chapter, timestamp… */
   locator?: string;
   description?: string;
   url?: string;
 }
 
-/** Fichier du dépôt : chemin POSIX relatif à la racine et SHA du blob git. */
+/** Repository file: POSIX path relative to the root and git blob SHA. */
 export interface RepoFile {
   path: string;
   sha: string;
   size?: number;
 }
 
-/** Modification d'un fichier, produite par les opérations d'édition. */
+/** File change produced by editing operations. */
 export type FileChange =
   | { op: "write"; path: string; content: string }
   | { op: "write-binary"; path: string; base64: string }
-  /** Copie d'un blob existant (déplacement sans renvoyer le contenu). */
+  /** Copy of an existing blob (a move without re-sending the content). */
   | { op: "copy"; path: string; from: string; sha: string }
   | { op: "delete"; path: string };
 
 export type ProblemLevel = "error" | "warning";
 
-/** Problème détecté lors de la construction de l'arbre ou de la validation. */
+/** Problem found while building the tree or validating. */
 export interface Problem {
   level: ProblemLevel;
   code: string;
@@ -94,5 +94,5 @@ export interface Problem {
   nodeId?: string;
 }
 
-/** Lecture des fichiers texte d'un dépôt. */
+/** Reads the text files of a repository. */
 export type TextReader = (path: string) => Promise<string>;

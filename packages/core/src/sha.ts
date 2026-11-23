@@ -1,4 +1,4 @@
-/** Empreintes git : SHA-1 d'un blob (`blob <taille>\0<contenu>`), via WebCrypto. */
+/** Git fingerprints: SHA-1 of a blob (`blob <size>\0<content>`), via WebCrypto. */
 
 const encoder = new TextEncoder();
 
@@ -16,12 +16,12 @@ export async function gitBlobSha(content: string | Uint8Array): Promise<string> 
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Forme abrégée stockée dans les résumés (7 caractères, comme `git log --oneline`). */
+/** Short form stored in summaries (7 characters, like `git log --oneline`). */
 export function shortSha(sha: string): string {
   return sha.slice(0, 7).toLowerCase();
 }
 
-/** Compare une empreinte stockée (éventuellement abrégée) à un SHA complet. */
+/** Compares a stored fingerprint (possibly abbreviated) with a full SHA. */
 export function shaMatches(stored: string | undefined, actual: string | undefined): boolean {
   if (!stored || !actual) return false;
   const s = String(stored).toLowerCase();

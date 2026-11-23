@@ -1,6 +1,6 @@
 /**
- * Fournisseur Anthropic (Claude), appelé directement depuis le navigateur ou la CLI
- * avec la clé de l'utilisateur, via le SDK officiel.
+ * Anthropic provider (Claude), called directly from the browser or the CLI with the user's
+ * key, through the official SDK.
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import type {
@@ -15,22 +15,22 @@ export { DEFAULT_ANTHROPIC_MODEL };
 
 type SDK = typeof import("@anthropic-ai/sdk");
 
-/** Le SDK n'est chargé qu'au premier appel (allège l'application web). */
+/** The SDK is only loaded on the first call (keeps the web app light). */
 let sdkPromise: Promise<SDK> | null = null;
 function loadSdk(): Promise<SDK> {
   sdkPromise ??= import("@anthropic-ai/sdk");
   return sdkPromise;
 }
 
-/** Repli côté serveur sur un autre modèle en cas de refus (option recommandée). */
+/** Server-side fallback to another model on refusal (recommended option). */
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
-/** Modèles qui acceptent `fallbacks: "default"`. */
+/** Models that accept `fallbacks: "default"`. */
 export function supportsServerFallback(model: string): boolean {
   return /^claude-(fable|mythos|opus)-5(?:-|$)/.test(model) || model === "claude-sonnet-5-5";
 }
 
-/** Modèles qui acceptent `output_config.effort`. */
+/** Models that accept `output_config.effort`. */
 export function supportsEffort(model: string): boolean {
   return (
     /^claude-(fable|mythos|opus|sonnet|haiku)-5(?:-|$)/.test(model) ||
@@ -41,8 +41,8 @@ export function supportsEffort(model: string): boolean {
 
 export interface AnthropicProviderOptions {
   /**
-   * Clé API. Dans le navigateur, elle est obligatoire ; en ligne de commande, le SDK
-   * peut aussi trouver seul les identifiants (ANTHROPIC_API_KEY, profil `ant auth login`).
+   * API key. In the browser it is required; on the command line, the SDK can also find the
+   * credentials by itself (ANTHROPIC_API_KEY, `ant auth login` profile).
    */
   apiKey?: string;
   model?: string;
@@ -69,7 +69,7 @@ export class AnthropicProvider implements AIProvider {
       (sdk) =>
         new sdk.default({
           ...(this.options.apiKey ? { apiKey: this.options.apiKey } : {}),
-          // La clé appartient à l'utilisateur et ne quitte son navigateur que vers l'API.
+          // The key belongs to the user and only leaves their browser to reach the API.
           dangerouslyAllowBrowser: true,
           maxRetries: 2,
           ...(this.options.baseURL ? { baseURL: this.options.baseURL } : {}),
@@ -145,7 +145,7 @@ export class AnthropicProvider implements AIProvider {
       );
       checkStop(message);
       if (message.parsed_output === null || message.parsed_output === undefined) {
-        throw new AIError("invalid_output", "La réponse d'Eugenia n'a pas le format attendu.");
+        throw new AIError("invalid_output", "Eugenia's answer does not have the expected format.");
       }
       return message.parsed_output as T;
     } catch (error) {
@@ -175,23 +175,22 @@ function textOf(message: BetaMessage): string {
     .trim();
 }
 
-/** Vérifie la raison d'arrêt avant de lire le contenu. */
+/** Checks the stop reason before reading the content. */
 function checkStop<M extends BetaMessage>(message: M): M {
   if (message.stop_reason === "refusal") {
     const details = message.stop_details;
     throw new AIError(
       "refusal",
-      `Le modèle a refusé de traiter cette demande${details?.explanation ? ` : ${details.explanation}` : "."}`,
+      `The model refused to process this request${details?.explanation ? `: ${details.explanation}` : "."}`,
     );
   }
   return message;
 }
 
-/** Erreurs typées du SDK → erreurs Eugenia, du cas le plus précis au plus général. */
+/** Typed SDK errors → Eugenia errors, from the most specific case to the most general. */
 export function mapError(error: unknown, sdk: SDK | null): AIError {
   if (error instanceof AIError) return error;
-  if (!sdk)
-    return new AIError("network", "Impossible de charger le client Anthropic.", { cause: error });
+  if (!sdk) return new AIError("network", "Cannot load the Anthropic client.", { cause: error });
   const {
     APIConnectionError,
     APIError,
@@ -204,36 +203,28 @@ export function mapError(error: unknown, sdk: SDK | null): AIError {
     RateLimitError,
   } = sdk;
   if (error instanceof APIUserAbortError) {
-    return new AIError("aborted", "Demande annulée.", { cause: error });
+    return new AIError("aborted", "Request cancelled.", { cause: error });
   }
   if (error instanceof AuthenticationError || error instanceof PermissionDeniedError) {
-    return new AIError("auth", "Clé API Anthropic refusée : vérifiez-la dans les paramètres.", {
+    return new AIError("auth", "Anthropic API key refused: check it in the settings.", {
       cause: error,
       status: error.status,
     });
   }
   if (error instanceof RateLimitError) {
-    return new AIError(
-      "rate_limit",
-      "Limite de requêtes Anthropic atteinte : réessayez dans un instant.",
-      {
-        cause: error,
-        status: error.status,
-      },
-    );
+    return new AIError("rate_limit", "Anthropic rate limit reached: try again in a moment.", {
+      cause: error,
+      status: error.status,
+    });
   }
   if (error instanceof NotFoundError) {
-    return new AIError(
-      "config",
-      "Modèle Claude inconnu : vérifiez le nom du modèle dans les paramètres.",
-      {
-        cause: error,
-        status: error.status,
-      },
-    );
+    return new AIError("config", "Unknown Claude model: check the model name in the settings.", {
+      cause: error,
+      status: error.status,
+    });
   }
   if (error instanceof BadRequestError) {
-    return new AIError("other", `Requête refusée par l'API Anthropic : ${error.message}`, {
+    return new AIError("other", `Request refused by the Anthropic API: ${error.message}`, {
       cause: error,
       status: error.status,
     });
@@ -241,7 +232,7 @@ export function mapError(error: unknown, sdk: SDK | null): AIError {
   if (error instanceof InternalServerError) {
     return new AIError(
       "overloaded",
-      "L'API Anthropic est surchargée ou indisponible : réessayez plus tard.",
+      "The Anthropic API is overloaded or unavailable: try again later.",
       {
         cause: error,
         status: error.status,
@@ -249,22 +240,18 @@ export function mapError(error: unknown, sdk: SDK | null): AIError {
     );
   }
   if (error instanceof APIConnectionError) {
-    return new AIError(
-      "network",
-      "Impossible de joindre l'API Anthropic : vérifiez votre connexion.",
-      {
-        cause: error,
-      },
-    );
+    return new AIError("network", "Cannot reach the Anthropic API: check your connection.", {
+      cause: error,
+    });
   }
   if (error instanceof APIError) {
-    return new AIError("other", `Erreur de l'API Anthropic : ${error.message}`, {
+    return new AIError("other", `Anthropic API error: ${error.message}`, {
       cause: error,
       ...(error.status !== undefined ? { status: error.status } : {}),
     });
   }
   if (error instanceof Error && error.name === "AbortError") {
-    return new AIError("aborted", "Demande annulée.", { cause: error });
+    return new AIError("aborted", "Request cancelled.", { cause: error });
   }
   return new AIError("other", error instanceof Error ? error.message : String(error), {
     cause: error,

@@ -1,4 +1,4 @@
-/** Interface commune des fournisseurs d'IA (spécification §11.1). */
+/** Common interface of AI providers (specification §11.1). */
 import type { z } from "zod";
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -9,21 +9,21 @@ export interface ChatMessage {
 }
 
 export interface GenerateRequest {
-  /** Prompt système (rôle d'Eugenia pour la tâche). */
+  /** System prompt (Eugenia's role for the task). */
   system: string;
   messages: ChatMessage[];
   maxTokens?: number;
-  /** Profondeur de réflexion, pour les modèles qui la prennent en charge. */
+  /** Reasoning depth, for models that support it. */
   effort?: Effort;
-  /** Met en cache le préfixe de la conversation (discussions à plusieurs tours). */
+  /** Caches the conversation prefix (multi-turn discussions). */
   cache?: boolean;
   signal?: AbortSignal;
 }
 
 export interface JsonRequest<T> extends GenerateRequest {
-  /** Schéma de la sortie structurée, validé côté client. */
+  /** Schema of the structured output, validated client-side. */
   schema: z.ZodType<T>;
-  /** Nom court du format (utilisé par les API compatibles OpenAI). */
+  /** Short name of the format (used by OpenAI-compatible APIs). */
   name: string;
 }
 
@@ -33,25 +33,25 @@ export interface ProviderInfo {
   kind: ProviderKind;
   label: string;
   model: string;
-  /** Le modèle tourne sur l'appareil ou le réseau local de l'utilisateur. */
+  /** The model runs on the user's device or local network. */
   local: boolean;
 }
 
 export interface AIProvider {
   readonly info: ProviderInfo;
-  /** Réponse complète en texte. */
+  /** Complete text answer. */
   complete(request: GenerateRequest): Promise<string>;
-  /** Réponse diffusée au fil de l'eau (fragments de texte). */
+  /** Streamed answer (text fragments). */
   stream(request: GenerateRequest): AsyncIterable<string>;
-  /** Sortie structurée JSON, validée par le schéma. */
+  /** Structured JSON output, validated by the schema. */
   json<T>(request: JsonRequest<T>): Promise<T>;
-  /** Nombre de jetons d'entrée (estimation si le fournisseur ne sait pas compter). */
+  /** Number of input tokens (an estimate if the provider cannot count). */
   countTokens(request: GenerateRequest): Promise<number>;
-  /** Vecteurs d'embeddings, dans l'ordre des textes (fournisseurs compatibles OpenAI). */
+  /** Embedding vectors, in the order of the texts (OpenAI-compatible providers). */
   embed?(texts: string[], signal?: AbortSignal): Promise<number[][]>;
 }
 
-/** Configuration d'un fournisseur, telle que saisie dans les paramètres. */
+/** Configuration of a provider, as entered in the settings. */
 export interface ProviderConfig {
   kind: ProviderKind;
   model?: string;

@@ -11,29 +11,29 @@ import { applyChanges, CONFIG, memoryWiki, page } from "./helpers.ts";
 
 const FILES = {
   ".notes/config.yml": CONFIG,
-  "wiki/index.md": page({ id: "R", title: "Racine" }),
+  "wiki/index.md": page({ id: "R", title: "Root" }),
   "wiki/a/index.md": page({ id: "A", title: "A" }),
   "wiki/a/b/index.md": page({ id: "B", title: "B" }),
   "wiki/a/b/c/index.md": page({ id: "C", title: "C" }),
   "wiki/a/b/d/index.md": page({ id: "D", title: "D", visibility: "public" }),
 };
 
-describe("visibilité", async () => {
+describe("visibility", async () => {
   const wiki = await memoryWiki(FILES);
 
-  it("propose de rendre publique toute la branche jusqu'à la racine", () => {
+  it("offers to make the whole branch public up to the root", () => {
     const plan = planMakePublic(wiki.tree, "B");
     expect(plan.privateAncestors.map((n) => n.id)).toEqual(["R", "A"]);
     expect(plan.descendants.map((n) => n.id)).toEqual(["C", "D"]);
   });
 
-  it("ne change rien sans confirmation pour les ancêtres", () => {
+  it("changes nothing without confirmation for the ancestors", () => {
     expect(makePublicAssignments(wiki.tree, "B", new Set(), false).size).toBe(0);
   });
 
-  it("rend publics la branche et les seuls descendants cochés", async () => {
+  it("makes the branch and only the checked descendants public", async () => {
     const assignments = makePublicAssignments(wiki.tree, "B", new Set(["D"]), true);
-    // Seuls les nœuds dont la visibilité effective changerait sont écrits (héritage, règle 2).
+    // Only nodes whose effective visibility would change are written (inheritance, rule 2).
     expect(Object.fromEntries(assignments)).toEqual({ R: "public", C: "private" });
     const changes = await applyVisibility(wiki.view, assignments);
     const after = await memoryWiki(applyChanges(FILES, changes));
@@ -43,7 +43,7 @@ describe("visibilité", async () => {
     expect(t.problems.filter((p) => p.code === "public-under-private")).toEqual([]);
   });
 
-  it("rend privés un nœud et ses descendants publics", async () => {
+  it("makes a node and its public descendants private", async () => {
     const pub = await memoryWiki(
       applyChanges(
         FILES,
@@ -61,7 +61,7 @@ describe("visibilité", async () => {
     expect(after.tree.nodes.get("R")!.isPublic).toBe(true);
   });
 
-  it("un nouveau calcul d'arbre reste cohérent avec les métadonnées", () => {
+  it("a new tree computation stays consistent with the metadata", () => {
     const metas = new Map([["wiki/index.md", pageMeta(FILES["wiki/index.md"])]]);
     const tree = buildTree({
       config: wiki.config,
@@ -71,10 +71,10 @@ describe("visibilité", async () => {
     expect(tree.nodes.get("R")!.visibility).toBe("private");
   });
 
-  it("rend publique une source sans toucher à la racine de la bibliothèque", async () => {
+  it("makes a source public without touching the library root", async () => {
     const files = {
       ...FILES,
-      "library/livre/index.md": page({ id: "L", type: "source", title: "Livre" }),
+      "library/book/index.md": page({ id: "L", type: "source", title: "Book" }),
     };
     const w = await memoryWiki(files);
     expect(planMakePublic(w.tree, "L").privateAncestors).toEqual([]);

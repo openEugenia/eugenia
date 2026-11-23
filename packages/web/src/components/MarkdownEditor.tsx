@@ -1,6 +1,6 @@
 /**
- * Éditeur Markdown (CodeMirror 6). Les liens vers d'autres pages s'insèrent en cherchant
- * un titre (bouton ou saisie de `[[`) ; le chemin relatif est généré automatiquement (§5.8).
+ * Markdown editor (CodeMirror 6). Links to other pages are inserted by searching for a title
+ * (button or typing `[[`); the relative path is generated automatically (§5.8).
  */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import {
@@ -18,7 +18,7 @@ import { tags } from "@lezer/highlight";
 export interface LinkCompletion {
   label: string;
   detail?: string;
-  /** Texte Markdown inséré (`[Titre](chemin)`). */
+  /** Inserted Markdown text (`[Title](path)`). */
   apply: string;
 }
 
@@ -34,7 +34,7 @@ interface MarkdownEditorProps {
   placeholder?: string;
   small?: boolean;
   ariaLabel?: string;
-  /** Propositions de liens pour la saisie `[[titre`. */
+  /** Link suggestions for typing `[[title`. */
   linkCompletions?(query: string): LinkCompletion[];
 }
 
@@ -113,7 +113,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           theme,
           ...(placeholder ? [placeholderExt(placeholder)] : []),
           EditorView.contentAttributes.of({
-            "aria-label": ariaLabel ?? "Texte Markdown",
+            "aria-label": ariaLabel ?? "Markdown text",
             spellcheck: "true",
             lang: "fr",
           }),
@@ -127,7 +127,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         view.current?.destroy();
         view.current = null;
       };
-      // L'éditeur est créé une fois ; la valeur externe est synchronisée ci-dessous.
+      // The editor is created once; the external value is synchronized below.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

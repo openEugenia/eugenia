@@ -2,7 +2,7 @@
   "name": "@openeugenia/cli",
   "version": "0.1.0",
   "private": true,
-  "description": "CLI d'Eugenia : initialisation, validation, publication vers le dépôt public, descriptions en lot.",
+  "description": "Eugenia's CLI: initialization, validation, publication to the public repository, batch descriptions.",
   "license": "MIT",
   "type": "module",
   "bin": {

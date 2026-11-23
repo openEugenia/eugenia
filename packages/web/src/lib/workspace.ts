@@ -1,7 +1,6 @@
 /**
- * Copie de travail d'un wiki dans le navigateur : instantané distant, modifications en
- * attente, caches de contenus (mémoire et IndexedDB, adressés par SHA) et état dérivé
- * (arbre, descriptions, maîtrise).
+ * Working copy of a wiki in the browser: remote snapshot, pending changes, content caches
+ * (memory and IndexedDB, addressed by SHA) and derived state (tree, descriptions, mastery).
  */
 import {
   basename,
@@ -41,7 +40,7 @@ import type { Backend } from "./backend.ts";
 import { getBlobs, putBlobs, type Snapshot } from "./db.ts";
 import { workingFiles, type PendingState } from "./pending.ts";
 
-/** Discussion du dossier des discussions, avec ses métadonnées. */
+/** Discussion of the discussions folder, with its metadata. */
 export interface DiscussionEntry {
   path: string;
   meta: DiscussionMeta;
@@ -53,21 +52,21 @@ export interface Derived {
   files: Map<string, RepoFile>;
   tree: WikiTree;
   summaries: Map<string, SummaryDocument>;
-  /** Toutes les discussions (questions, quiz, notes rapides), de la plus récente à la plus ancienne. */
+  /** All discussions (questions, quizzes, quick notes), from newest to oldest. */
   discussions: DiscussionEntry[];
-  /** Discussions rattachées à chaque page (page d'origine ou périmètre). */
+  /** Discussions attached to each page (originating page or scope). */
   discussionsByNode: Map<string, DiscussionEntry[]>;
-  /** Discussion d'après son identifiant (connaissances extraites d'une discussion). */
+  /** Discussion by identifier (knowledge extracted from a discussion). */
   discussionById: Map<string, DiscussionEntry>;
-  /** Connaissances qui citent chaque source, ou en ont été extraites. */
+  /** Knowledge items that cite each source, or were extracted from it. */
   knowledgeBySource: Map<string, string[]>;
   quizEvents: QuizEvent[];
   mastery: Map<string, CardState>;
   summaryStates: { private: Map<string, SummaryState>; public: Map<string, SummaryState> };
-  /** Nœuds ayant des modifications non synchronisées. */
+  /** Nodes with unsynchronized changes. */
   pendingNodes: Set<string>;
   prompts: PromptOverrides;
-  /** Le dépôt ne contient pas encore de wiki. */
+  /** The repository does not contain a wiki yet. */
   empty: boolean;
 }
 
@@ -93,7 +92,7 @@ export class Workspace implements WikiView {
     return this.snapshot.mode;
   }
 
-  /** Remplace l'instantané ou l'état en attente (invalide la vue de travail). */
+  /** Replaces the snapshot or the pending state (invalidates the working view). */
   update(snapshot: Snapshot, pending: PendingState): void {
     this.snapshot = snapshot;
     this.pending = pending;
@@ -110,11 +109,11 @@ export class Workspace implements WikiView {
   }
 
   get tree(): WikiTree {
-    if (!this.derived) throw new Error("Wiki non chargé.");
+    if (!this.derived) throw new Error("Wiki not loaded.");
     return this.derived.tree;
   }
 
-  /** Contenu connu sans réseau (en mémoire), ou `undefined`. */
+  /** Content known without network (in memory), or `undefined`. */
   peekText(path: string): string | undefined {
     const change = this.pending.changes[path];
     if (change?.kind === "write" && change.content !== undefined) return change.content;
@@ -130,16 +129,16 @@ export class Workspace implements WikiView {
         return textDecoder.decode(Uint8Array.from(atob(change.base64), (c) => c.charCodeAt(0)));
     }
     const file = this.files.get(path);
-    if (!file) throw new Error(`Fichier introuvable : ${path}`);
+    if (!file) throw new Error(`File not found: ${path}`);
     const cached = this.texts.get(file.sha);
     if (cached !== undefined) return cached;
     await this.prefetch([file]);
     const text = this.texts.get(file.sha);
-    if (text === undefined) throw new Error(`Contenu indisponible hors ligne : ${path}`);
+    if (text === undefined) throw new Error(`Content unavailable offline: ${path}`);
     return text;
   }
 
-  /** Charge en lot les contenus manquants : mémoire, puis IndexedDB, puis réseau. */
+  /** Loads the missing contents in a batch: memory, then IndexedDB, then network. */
   async prefetch(files: Iterable<RepoFile>): Promise<void> {
     const missing = new Map<string, RepoFile>();
     for (const file of files) {
@@ -162,8 +161,8 @@ export class Workspace implements WikiView {
   }
 
   /**
-   * Charge en un lot tous les fichiers Markdown du wiki (avant un renommage, un déplacement
-   * ou une suppression, qui réécrivent les liens de tous les fichiers).
+   * Loads all the Markdown files of the wiki in one batch (before a rename, a move or a
+   * deletion, which rewrite the links of all files).
    */
   async prefetchMarkdown(): Promise<void> {
     const config = this.config;
@@ -173,7 +172,7 @@ export class Workspace implements WikiView {
     await this.prefetch(files);
   }
 
-  /** Mémorise des contenus connus (après un commit, par exemple). */
+  /** Remembers known contents (after a commit, for example). */
   async remember(contents: ReadonlyMap<string, string>): Promise<void> {
     for (const [sha, content] of contents) this.texts.set(sha, content);
     if (this.persist) await putBlobs(this.key, contents).catch(() => undefined);
@@ -192,11 +191,11 @@ export class Workspace implements WikiView {
     }
     if (change?.kind === "write" && change.content !== undefined) return new Blob([change.content]);
     const file = this.files.get(path);
-    if (!file) throw new Error(`Fichier introuvable : ${path}`);
+    if (!file) throw new Error(`File not found: ${path}`);
     return this.backend.readBinary(file);
   }
 
-  /** Recalcule l'état dérivé à partir de la vue de travail. */
+  /** Recomputes the derived state from the working view. */
   async derive(): Promise<Derived> {
     const files = this.files;
     const configFile = files.get(CONFIG_PATH);
@@ -206,8 +205,8 @@ export class Workspace implements WikiView {
     const metasFromIndex = this.snapshot.metas;
     const discussionsFromIndex = this.snapshot.discussions;
 
-    // Contenus nécessaires : pages et discussions (sauf index anonyme), descriptions
-    // (propriétaire), prompts.
+    // Contents needed: pages and discussions (except with the anonymous index), descriptions
+    // (owner), prompts.
     const toLoad = new Set<string>();
     const indexPaths = pageIndexPaths(config, files.keys());
     if (owner) for (const path of filesToLoad(config, files.keys())) toLoad.add(path);
@@ -254,7 +253,7 @@ export class Workspace implements WikiView {
       }
     }
 
-    // Discussions : métadonnées (liste, rattachement aux pages) et évaluations des quiz.
+    // Discussions: metadata (list, attachment to pages) and quiz evaluations.
     const events: QuizEvent[] = [];
     const discussions: DiscussionEntry[] = [];
     for (const file of tree.discussions) {

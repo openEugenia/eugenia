@@ -1,4 +1,4 @@
-/** @openeugenia/ai — Eugenia : fournisseurs d'IA, prompts et tâches. */
+/** @openeugenia/ai — Eugenia: AI providers, prompts and tasks. */
 export * from "./types.ts";
 export * from "./constants.ts";
 export * from "./errors.ts";
@@ -25,5 +25,6 @@ export * from "./tasks/discuss.ts";
 export * from "./tasks/flashcards.ts";
 export * from "./tasks/ask.ts";
 export * from "./tasks/categories.ts";
+export * from "./tasks/categorize.ts";
 export * from "./tasks/embed.ts";
 export * from "./wiki.ts";

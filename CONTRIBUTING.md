@@ -1,46 +1,55 @@
-# Contribuer à Eugenia
+# Contributing to Eugenia
 
-## Mise en place
+## Setup
 
 ```sh
 pnpm install
-pnpm --filter @openeugenia/web exec playwright install chromium   # pour les tests de bout en bout
+pnpm --filter @openeugenia/web exec playwright install chromium   # for the end-to-end tests
 ```
 
 ## Conventions
 
-- **TypeScript strict** partout (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`), imports
-  relatifs avec l'extension `.ts`.
-- **`core` ne dépend ni du navigateur ni de Node** : chemins POSIX, WebCrypto, aucune E/S. Les
-  accès aux fichiers passent par un lecteur (`readText`) fourni par l'appelant.
-- **Interface et messages en français.** Les textes destinés à l'utilisateur expliquent la règle
-  appliquée (visibilité, conflit, IA locale…).
-- **Les fichiers écrits restent lisibles à la main** : ordre des clés stable, pas de valeur vide,
-  contenu Markdown préservé (les liens sont réécrits sans reformater le reste).
-- **Aucun contenu privé ne doit pouvoir atteindre le dépôt public** : toute évolution de la
-  publication s'accompagne d'un test dans `packages/core/test/publish.test.ts`.
-- Formatage : `pnpm format` (Prettier).
+- **Strict TypeScript** everywhere (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`), relative
+  imports with the `.ts` extension.
+- **`core` depends on neither the browser nor Node**: POSIX paths, WebCrypto, no I/O. File access
+  goes through a reader (`readText`) provided by the caller.
+- **Interface, messages, comments and documentation in English.** User-facing texts explain the
+  rule being applied (visibility, conflict, local AI…). Eugenia answers in the language of the
+  content or of the user.
+- **Written files stay readable by hand**: stable key order, no empty value, Markdown content
+  preserved (links are rewritten without reformatting the rest).
+- **No private content must ever reach the public repository**: any change to publication comes
+  with a test in `packages/core/test/publish.test.ts`. Private sources only publish their
+  bibliographic record (an allow-list of fields).
+- Formatting: `pnpm format` (Prettier).
 
 ## Tests
 
-| Commande | Portée |
+| Command | Scope |
 |---|---|
-| `pnpm test` | Vitest : `core`, `ai` (fournisseurs simulés), `cli` (dépôts git temporaires), `web` (logique de synchronisation). |
-| `pnpm test:e2e` | Playwright sur l'application construite ; GitHub (REST, GraphQL, raw, commits) et l'API Claude sont simulés en mémoire (`packages/web/e2e/fakes.ts`). |
-| `pnpm test:live` | Vitest contre de vraies API d'IA (`packages/ai/test/live/`) : fournisseur compatible OpenAI et évaluation des quiz, avec Mistral. Clé `MISTRAL_API_KEY` lue dans le `.env` de la racine (ignoré par git) ; sans clé, les tests sont ignorés. Hors CI : lents et soumis au quota gratuit (2 requêtes par minute et par modèle). |
+| `pnpm test` | Vitest: `core`, `ai` (simulated providers), `cli` (temporary git repositories), `web` (synchronization logic). |
+| `pnpm test:e2e` | Playwright on the built app; GitHub (REST, GraphQL, raw, commits) and the Claude API are simulated in memory (`packages/web/e2e/fakes.ts`). |
+| `pnpm test:live` | Vitest against real AI APIs (`packages/ai/test/live/`): OpenAI-compatible provider and quiz evaluation, with Mistral. `MISTRAL_API_KEY` key read from the `.env` file at the root (ignored by git); without a key, the tests are skipped. Outside CI: slow and subject to the free quota (2 requests per minute and per model). |
 
 ## Prompts
 
-Les prompts sont dans `packages/ai/prompts/*.md` et embarqués dans
-`packages/ai/src/prompts/defaults.generated.ts`. Après modification :
+The prompts are in `packages/ai/prompts/*.md` and embedded in
+`packages/ai/src/prompts/defaults.generated.ts`. After a change:
 
 ```sh
 pnpm --filter @openeugenia/ai prompts
 ```
 
-Un test et la CI vérifient que le module embarqué est à jour.
+A test and the CI check that the embedded module is up to date.
+
+## Demo wiki
+
+`examples/demo-wiki` is used by the CLI and end-to-end tests. Its sub-wiki descriptions store the
+fingerprints of their sources: after changing a page, regenerate them (`eugenia summarize
+examples/demo-wiki`) or update their `sources`, so that `eugenia validate` and the tests keep
+seeing them as fresh.
 
 ## Versions
 
-Une version est publiée par un tag `vX.Y.Z` : la CI construit et déploie l'application sur
-GitHub Pages. Le tag majeur `v1` de l'action de publication suit la dernière version compatible.
+A version is released by a `vX.Y.Z` tag: the CI builds and deploys the app to GitHub Pages. The
+`v1` major tag of the publication action follows the latest compatible version.

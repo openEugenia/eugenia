@@ -1,6 +1,6 @@
 /**
- * Recherche plein texte avec filtres par type, étiquette, visibilité et maîtrise (§9.2, vue 9),
- * et, pour le propriétaire, recherche par le sens grâce aux embeddings des pages (§14).
+ * Full-text search with filters by type, tag, visibility and mastery (§9.2, view 9), and, for
+ * the owner, search by meaning thanks to the page embeddings (§14).
  */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Sparkles } from "lucide-react";
@@ -49,7 +49,7 @@ export function SearchView({ q }: { q?: string }) {
   const [indexing, setIndexing] = useState<{ done: number; total: number } | null>(null);
   useEffect(() => setQuery(q ?? ""), [q]);
 
-  // En lecture publique, les contenus sont chargés en arrière-plan pour l'index.
+  // When reading the public part, contents are loaded in the background for the index.
   useEffect(() => {
     if (!workspace || workspace.mode === "owner") return;
     const files = pageIndexPaths(derived.config, derived.files.keys()).map((p) =>
@@ -84,7 +84,7 @@ export function SearchView({ q }: { q?: string }) {
   const text = tagQuery ? "" : query.trim();
   const meaning = mode === "meaning";
 
-  // Recherche par le sens : embeddings du wiki, rechargés après chaque modification.
+  // Search by meaning: embeddings of the wiki, reloaded after each change.
   useEffect(() => {
     if (!meaning || !embeddingModel) return;
     let cancelled = false;
@@ -99,7 +99,7 @@ export function SearchView({ q }: { q?: string }) {
 
   const pending = semantic ? pendingEntries(semantic) : [];
   const indexed = semantic ? semantic.entries.filter((e) => e.vector).length : 0;
-  // La requête est envoyée au fournisseur d'embeddings une fois la frappe terminée.
+  // The query is sent to the embedding provider once typing is over.
   const semanticQuery = meaning && semantic && indexed > 0 ? text : "";
   useEffect(() => {
     setHits(null);
@@ -144,9 +144,9 @@ export function SearchView({ q }: { q?: string }) {
         onProgress: (done, total) => setIndexing({ done, total }),
       });
       toast(
-        `${plural(result.indexed, "page indexée", "pages indexées")}${
+        `${plural(result.indexed, "page")} indexed${
           result.skippedPrivate
-            ? ` ; ${plural(result.skippedPrivate, "page privée ignorée", "pages privées ignorées")} (réservées à une IA locale)`
+            ? `; ${plural(result.skippedPrivate, "private page")} skipped (kept for a local AI)`
             : ""
         }.`,
         "success",
@@ -167,22 +167,20 @@ export function SearchView({ q }: { q?: string }) {
 
   return (
     <div className="page">
-      <h1>Recherche</h1>
+      <h1>Search</h1>
       <form className="form-grid" onSubmit={submit} role="search">
         <input
           className="oe-input"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={
-            meaning ? "Une question, une idée… (recherche par le sens)" : "Mots, ou #étiquette"
-          }
-          aria-label="Recherche"
+          placeholder={meaning ? "A question, an idea… (search by meaning)" : "Words, or #tag"}
+          aria-label="Search"
           autoFocus
         />
         {owner && (
           <fieldset className="search-mode">
-            <legend className="sr-only">Type de recherche</legend>
+            <legend className="sr-only">Kind of search</legend>
             <label className="check">
               <input
                 type="radio"
@@ -190,7 +188,7 @@ export function SearchView({ q }: { q?: string }) {
                 checked={!meaning}
                 onChange={() => setMode("words")}
               />
-              <span>Par mots-clés</span>
+              <span>By keywords</span>
             </label>
             <label className="check">
               <input
@@ -199,7 +197,7 @@ export function SearchView({ q }: { q?: string }) {
                 checked={meaning}
                 onChange={() => setMode("meaning")}
               />
-              <span>Par le sens</span>
+              <span>By meaning</span>
             </label>
           </fieldset>
         )}
@@ -212,9 +210,9 @@ export function SearchView({ q }: { q?: string }) {
             }
             aria-label="Type"
           >
-            <option value="">Tous les types</option>
-            <option value="category">Catégories</option>
-            <option value="knowledge">Connaissances atomiques</option>
+            <option value="">All types</option>
+            <option value="category">Categories</option>
+            <option value="knowledge">Atomic knowledge</option>
             <option value="flashcard">Flashcards</option>
             <option value="source">Sources</option>
           </select>
@@ -222,9 +220,9 @@ export function SearchView({ q }: { q?: string }) {
             className="oe-select"
             value={filters.tag ?? ""}
             onChange={(e) => setFilters((f) => ({ ...f, tag: e.target.value }))}
-            aria-label="Étiquette"
+            aria-label="Tag"
           >
-            <option value="">Toutes les étiquettes</option>
+            <option value="">All tags</option>
             {tags.map((t) => (
               <option key={t} value={t}>
                 #{t}
@@ -241,11 +239,11 @@ export function SearchView({ q }: { q?: string }) {
                   visibility: e.target.value as SearchFilters["visibility"],
                 }))
               }
-              aria-label="Visibilité"
+              aria-label="Visibility"
             >
-              <option value="">Publiques et privées</option>
-              <option value="public">Publiques</option>
-              <option value="private">Privées</option>
+              <option value="">Public and private</option>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
             </select>
           )}
           {owner && (
@@ -255,32 +253,31 @@ export function SearchView({ q }: { q?: string }) {
               onChange={(e) =>
                 setFilters((f) => ({ ...f, mastery: e.target.value as SearchFilters["mastery"] }))
               }
-              aria-label="Maîtrise"
+              aria-label="Mastery"
             >
-              <option value="">Toute maîtrise</option>
-              <option value="low">À réviser</option>
-              <option value="mid">Moyenne</option>
-              <option value="high">Solide (≥ 70 %)</option>
+              <option value="">Any mastery</option>
+              <option value="low">To review</option>
+              <option value="mid">Medium</option>
+              <option value="high">Solid (≥ 70%)</option>
             </select>
           )}
         </div>
       </form>
       {meaning && !embeddingModel && (
         <InfoBox>
-          La recherche par le sens compare votre requête au sens de vos pages, grâce à leurs
-          embeddings. Ajoutez une clé Mistral dans les{" "}
-          <a href={href({ name: "settings" })}>paramètres</a> (« Recherche sémantique ») pour
-          l'activer.
+          Search by meaning compares your query with the meaning of your pages, thanks to their
+          embeddings. Add a Mistral key in the <a href={href({ name: "settings" })}>settings</a>{" "}
+          ("Semantic search") to turn it on.
         </InfoBox>
       )}
       {meaning && embeddingModel && (
         <div className="semantic-status small">
           {!semantic ? (
-            <Spinner small label="Chargement de l'index sémantique" />
+            <Spinner small label="Loading the semantic index" />
           ) : (
             <span className="muted">
-              {indexed} / {plural(semantic.entries.length, "page indexée", "pages indexées")}
-              {pending.length > 0 && ` · ${plural(pending.length, "page")} à indexer`}
+              {indexed} / {plural(semantic.entries.length, "page")} indexed
+              {pending.length > 0 && ` · ${plural(pending.length, "page")} to index`}
             </span>
           )}
           {semantic && pending.length > 0 && editable && (
@@ -292,8 +289,8 @@ export function SearchView({ q }: { q?: string }) {
             >
               <Sparkles aria-hidden="true" />{" "}
               {indexing
-                ? `Indexation… ${indexing.done}/${indexing.total}`
-                : `Indexer ${plural(pending.length, "page")}`}
+                ? `Indexing… ${indexing.done}/${indexing.total}`
+                : `Index ${plural(pending.length, "page")}`}
             </button>
           )}
         </div>
@@ -302,18 +299,16 @@ export function SearchView({ q }: { q?: string }) {
         {!text && !anyFilter ? (
           <p className="muted">
             {meaning
-              ? "Décrivez ce que vous cherchez, avec vos mots : une question, une idée, un souvenir."
-              : "Saisissez des mots ou choisissez un filtre."}
+              ? "Describe what you are looking for, in your own words: a question, an idea, a memory."
+              : "Type words or choose a filter."}
           </p>
         ) : meaning && text && semantic && indexed === 0 ? (
-          <p className="muted">
-            Aucune page n'est encore indexée : lancez l'indexation pour chercher par le sens.
-          </p>
+          <p className="muted">No page is indexed yet: start indexing to search by meaning.</p>
         ) : meaning && text && (searching || hits === null) ? (
-          <Spinner label="Recherche par le sens" />
+          <Spinner label="Searching by meaning" />
         ) : (
           <>
-            <p className="muted small">{plural(results.length, "résultat")}</p>
+            <p className="muted small">{plural(results.length, "result")}</p>
             <ul className="link-list">
               {results.map(({ node, terms, score }) => {
                 const state = derived.mastery.get(node.id);
@@ -342,8 +337,8 @@ export function SearchView({ q }: { q?: string }) {
                         />
                       )}
                       {score !== undefined && (
-                        <span className="muted small" title="Proximité de sens avec la requête">
-                          proximité {formatPercent(score)}
+                        <span className="muted small" title="Closeness of meaning to the query">
+                          closeness {formatPercent(score)}
                         </span>
                       )}
                       {owner && state && (

@@ -1,7 +1,6 @@
 /**
- * Discussions : tous les échanges avec Eugenia au même endroit (discussions libres, questions
- * sur l'arbre, quiz, notes rapides), filtrables par sorte, avec la page à laquelle chacun se
- * rattache.
+ * Discussions: all the exchanges with Eugenia in one place (free discussions, questions about
+ * the tree, quizzes, quick notes), filterable by kind, with the page each one is attached to.
  */
 import { useMemo, useState } from "react";
 import {
@@ -25,14 +24,14 @@ import { href, navigate } from "../lib/router.ts";
 import { normalizeTerm } from "../lib/text.ts";
 import type { DiscussionEntry } from "../lib/workspace.ts";
 
-/** Libellé d'un groupe de dates (aujourd'hui, cette semaine, mois). */
+/** Label of a group of dates (today, this week, month). */
 function period(value: string | undefined, now: Date): string {
-  if (!value) return "Sans date";
+  if (!value) return "No date";
   const date = new Date(value);
   const days = Math.floor((now.getTime() - date.getTime()) / 86_400_000);
-  if (days < 1 && date.getDate() === now.getDate()) return "Aujourd'hui";
-  if (days < 7) return "Cette semaine";
-  return date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  if (days < 1 && date.getDate() === now.getDate()) return "Today";
+  if (days < 7) return "This week";
+  return date.toLocaleDateString("en", { month: "long", year: "numeric" });
 }
 
 export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string }) {
@@ -94,8 +93,8 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
         <div>
           <h1>Discussions</h1>
           <p className="muted">
-            Vos échanges avec Eugenia : discussions, questions sur le wiki, quiz et notes rapides.
-            Les connaissances qui en naissent gardent la trace de leur discussion d'origine.
+            Your exchanges with Eugenia: discussions, questions about the wiki, quizzes and quick
+            notes. The knowledge born from them keeps track of its original discussion.
           </p>
         </div>
       </header>
@@ -105,10 +104,9 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
           <a className="quick-action oe-card" href={href({ name: "discussion", kind: "note" })}>
             <StickyNote aria-hidden="true" />
             <span>
-              <strong>Note rapide</strong>
+              <strong>Quick note</strong>
               <span className="muted small">
-                Une idée, un fait entendu : Eugenia en tire des connaissances et vous suggère des
-                sources.
+                An idea, a fact you heard: Eugenia draws knowledge from it and suggests sources.
               </span>
             </span>
           </a>
@@ -117,7 +115,7 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
             <span>
               <strong>Question</strong>
               <span className="muted small">
-                Interrogez tout le wiki : Eugenia répond en citant vos pages.
+                Ask the whole wiki: Eugenia answers citing your pages.
               </span>
             </span>
           </a>
@@ -128,7 +126,7 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
             <GraduationCap aria-hidden="true" />
             <span>
               <strong>Quiz</strong>
-              <span className="muted small">Révisez les flashcards les moins bien maîtrisées.</span>
+              <span className="muted small">Review the least mastered flashcards.</span>
             </span>
           </a>
           <a className="quick-action oe-card" href={href({ name: "discussion" })}>
@@ -136,7 +134,7 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
             <span>
               <strong>Discussion</strong>
               <span className="muted small">
-                Un échange libre ; depuis une page, il s'y rattache.
+                A free exchange; started from a page, it is attached to it.
               </span>
             </span>
           </a>
@@ -149,20 +147,20 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
           <input
             className="oe-input"
             type="search"
-            placeholder="Titre, contenu, page concernée…"
+            placeholder="Title, content, related page…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Rechercher dans les discussions"
+            aria-label="Search the discussions"
           />
         </label>
-        <div className="chips" role="group" aria-label="Sorte de discussion">
+        <div className="chips" role="group" aria-label="Kind of discussion">
           <button
             type="button"
             className={`chip${kind ? "" : " is-active"}`}
             aria-pressed={!kind}
             onClick={() => setKind(undefined)}
           >
-            Toutes <span className="chip__count">{derived.discussions.length}</span>
+            All <span className="chip__count">{derived.discussions.length}</span>
           </button>
           {DISCUSSION_KINDS.map((k) => (
             <button
@@ -180,13 +178,13 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
       </div>
 
       {derived.discussions.length === 0 ? (
-        <EmptyState icon={<MessagesSquare aria-hidden="true" />} title="Aucune discussion">
+        <EmptyState icon={<MessagesSquare aria-hidden="true" />} title="No discussions">
           {owner
-            ? "Écrivez une note rapide, posez une question sur votre wiki ou lancez un quiz : vos échanges avec Eugenia apparaîtront ici."
-            : "Ce wiki ne publie aucune discussion."}
+            ? "Write a quick note, ask a question about your wiki or start a quiz: your exchanges with Eugenia will appear here."
+            : "This wiki does not publish any discussion."}
         </EmptyState>
       ) : groups.length === 0 ? (
-        <p className="muted">Aucune discussion ne correspond à ces filtres.</p>
+        <p className="muted">No discussion matches these filters.</p>
       ) : (
         groups.map((group) => (
           <section key={group.label} className="section">
@@ -209,7 +207,7 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
                       </span>
                       <span className="discussion-item__main">
                         <span className="discussion-item__title">
-                          {entry.meta.title || "Sans titre"}
+                          {entry.meta.title || "Untitled"}
                         </span>
                         {entry.meta.preview && entry.meta.kind !== "quiz" && (
                           <span className="discussion-item__text">{entry.meta.preview}</span>
@@ -224,7 +222,7 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
                           )}
                           {" · "}
                           {entry.meta.kind === "quiz" && score
-                            ? `${plural(score.count, "réponse")}, score moyen ${formatPercent(score.sum / score.count)}`
+                            ? `${plural(score.count, "answer")}, average score ${formatPercent(score.sum / score.count)}`
                             : plural(entry.meta.messages, "message")}
                         </span>
                       </span>

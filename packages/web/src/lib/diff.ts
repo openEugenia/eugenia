@@ -1,4 +1,4 @@
-/** Différence mot à mot (plus longue sous-séquence commune), pour relire une description. */
+/** Word-by-word difference (longest common subsequence), to review a description. */
 
 export type DiffPart = { kind: "same" | "added" | "removed"; text: string };
 

@@ -1,7 +1,7 @@
 /**
- * Page d'un nœud (§9.2, vues 2 et 3) : catégorie (description, sous-catégories, connaissances),
- * connaissance atomique (énoncé, sources, flashcards), flashcard (question, réponse, maîtrise),
- * source de la bibliothèque (notice, fichier, connaissances qui en sont tirées).
+ * Page of a node (§9.2, views 2 and 3): category (description, subcategories, knowledge),
+ * atomic knowledge (statement, sources, flashcards), flashcard (question, answer, mastery),
+ * library source (bibliographic record, file, knowledge drawn from it).
  */
 import { useMemo, useState, type ReactNode } from "react";
 import {
@@ -52,6 +52,8 @@ import {
   DISCUSSION_KIND_LABELS,
   EmptyState,
   ErrorBox,
+  InfoBox,
+  RecordBadge,
   SOURCE_KIND_LABELS,
   SourceKindIcon,
   SummaryStatusBadge,
@@ -88,14 +90,14 @@ function Description({ node }: { node: WikiNode }) {
   const derived = useDerived();
   const owner = useIsOwner();
   const editable = useCanEdit();
-  // En lecture publique, `_summary.md` contient la description publique.
+  // When reading the public part, `_summary.md` holds the public description.
   const file = node.summaries.private ?? node.summaries.public;
   const { data, loading } = useText(file?.path);
   const state = owner ? derived.summaryStates.private.get(node.id) : undefined;
   if (!file && !(owner && state?.status === "missing")) return null;
   const summary = data ? parseSummary(data) : undefined;
   return (
-    <section className="description oe-frame" aria-label="Description du sous-wiki">
+    <section className="description oe-frame" aria-label="Sub-wiki description">
       <div className="description__head">
         <span className="oe-eyebrow" style={{ fontSize: "var(--oe-font-size-xs)" }}>
           Description
@@ -106,17 +108,18 @@ function Description({ node }: { node: WikiNode }) {
             className="oe-button oe-button--ghost oe-button--sm"
             href={href({ name: "summaries", id: node.id })}
           >
-            <RefreshCw aria-hidden="true" /> {state.status === "missing" ? "Générer" : "Régénérer"}
+            <RefreshCw aria-hidden="true" />{" "}
+            {state.status === "missing" ? "Generate" : "Regenerate"}
           </a>
         )}
       </div>
-      {loading && <p className="muted">Chargement…</p>}
+      {loading && <p className="muted">Loading…</p>}
       {summary && <Markdown text={summary.body} path={file!.path} />}
-      {!file && <p className="muted">Ce sous-wiki n'a pas encore de description.</p>}
+      {!file && <p className="muted">This sub-wiki has no description yet.</p>}
       {summary?.fields.generated && (
         <p className="muted small" style={{ marginTop: "0.5rem" }}>
-          Générée le {formatDate(summary.fields.generated)}
-          {summary.fields.model ? ` par ${summary.fields.model}` : ""}
+          Generated on {formatDate(summary.fields.generated)}
+          {summary.fields.model ? ` by ${summary.fields.model}` : ""}
         </p>
       )}
     </section>
@@ -156,12 +159,12 @@ function FlashcardBody({ node, body }: { node: WikiNode; body: string }) {
     <div className="card-face">
       <div className="card-face__block oe-card">
         <span className="card-face__label">Question</span>
-        <Markdown text={card.question || "_(question manquante)_"} path={node.indexPath} />
+        <Markdown text={card.question || "_(missing question)_"} path={node.indexPath} />
         <div style={{ marginTop: "0.75rem" }}>
           {revealed ? (
             <>
-              <span className="card-face__label">Réponse attendue</span>
-              <Markdown text={card.answer || "_(réponse manquante)_"} path={node.indexPath} />
+              <span className="card-face__label">Expected answer</span>
+              <Markdown text={card.answer || "_(missing answer)_"} path={node.indexPath} />
             </>
           ) : (
             <button
@@ -169,7 +172,7 @@ function FlashcardBody({ node, body }: { node: WikiNode; body: string }) {
               className="oe-button oe-button--secondary oe-button--sm"
               onClick={() => setRevealed(true)}
             >
-              <Eye aria-hidden="true" /> Révéler la réponse
+              <Eye aria-hidden="true" /> Reveal the answer
             </button>
           )}
         </div>
@@ -177,7 +180,7 @@ function FlashcardBody({ node, body }: { node: WikiNode; body: string }) {
       {statement !== undefined && (
         <div className="card-face__block oe-card">
           <span className="card-face__label">
-            Connaissance testée
+            Tested knowledge
             {knowledge && knowledge.id !== node.id && (
               <>
                 {" · "}
@@ -187,7 +190,7 @@ function FlashcardBody({ node, body }: { node: WikiNode; body: string }) {
           </span>
           <Markdown
             className="prose knowledge"
-            text={statement || "_(énoncé manquant)_"}
+            text={statement || "_(missing statement)_"}
             path={knowledge?.indexPath ?? node.indexPath}
           />
         </div>
@@ -199,33 +202,33 @@ function FlashcardBody({ node, body }: { node: WikiNode; body: string }) {
         />
       )}
       {owner && state && (
-        <section className="oe-card" aria-label="Maîtrise">
+        <section className="oe-card" aria-label="Mastery">
           <div className="section__head" style={{ marginBottom: 0 }}>
-            <h2 style={{ fontSize: "var(--oe-font-size-lg)" }}>Maîtrise</h2>
+            <h2 style={{ fontSize: "var(--oe-font-size-lg)" }}>Mastery</h2>
             <MasteryMeter value={current} threshold={derived.config.mastery.reminder_threshold} />
           </div>
           <p className="muted small">
             {state.evaluations === 0
-              ? "Jamais évaluée : la maîtrise décroît depuis la création de la flashcard."
-              : `${plural(state.evaluations, "évaluation")}, la dernière le ${formatDate(state.lastEvalAt)} (score ${formatPercent(state.lastScore)}). Déclin quotidien actuel : ${formatPercent(1 - state.decay, 1)}.`}
+              ? "Never evaluated: mastery has been decaying since the flashcard was created."
+              : `${plural(state.evaluations, "evaluation")}, the last one on ${formatDate(state.lastEvalAt)} (score ${formatPercent(state.lastScore)}). Current daily decay: ${formatPercent(1 - state.decay, 1)}.`}
           </p>
           {curve.length > 1 && (
             <LineChart
-              title="Maîtrise dans le temps"
+              title="Mastery over time"
               series={[
                 { id: node.id, label: node.title, color: "var(--viz-series-1)", points: curve },
               ]}
               xFormat={(day) => formatShortDate(dayToDate(day))}
               threshold={{
                 value: derived.config.mastery.reminder_threshold,
-                label: "Seuil de rappel",
+                label: "Reminder threshold",
               }}
               height={200}
             />
           )}
           {events.length > 0 && (
             <details>
-              <summary className="small">Historique des évaluations</summary>
+              <summary className="small">Evaluation history</summary>
               <table className="chart-table">
                 <thead>
                   <tr>
@@ -238,7 +241,7 @@ function FlashcardBody({ node, body }: { node: WikiNode; body: string }) {
                     <tr key={`${e.at}-${i}`}>
                       <td>
                         {formatDateTime(e.at)}{" "}
-                        {e.self ? <span className="muted">(auto-évaluation)</span> : null}
+                        {e.self ? <span className="muted">(self-assessment)</span> : null}
                       </td>
                       <td>{formatPercent(e.score)}</td>
                     </tr>
@@ -257,7 +260,7 @@ function openFile(path: string): void {
   openAttachment(path).catch((error: unknown) => toast(String(error), "error"));
 }
 
-/** Carte d'un enfant : catégorie ou connaissance, avec description et maîtrise. */
+/** Card of a child: category or knowledge item, with description and mastery. */
 function ChildCard({ child, mastery }: { child: WikiNode; mastery: BranchMastery | undefined }) {
   const derived = useDerived();
   const owner = useIsOwner();
@@ -279,7 +282,7 @@ function ChildCard({ child, mastery }: { child: WikiNode; mastery: BranchMastery
           <span className="muted small">{plural(cards, "flashcard")}</span>
         ) : (
           child.childIds.length > 0 && (
-            <span className="muted small">{plural(child.childIds.length, "élément")}</span>
+            <span className="muted small">{plural(child.childIds.length, "item")}</span>
           )
         )}
       </span>
@@ -287,9 +290,10 @@ function ChildCard({ child, mastery }: { child: WikiNode; mastery: BranchMastery
   );
 }
 
-/** Sources citées par une connaissance : sources de la bibliothèque ou références libres. */
+/** Sources cited by a knowledge item: library sources or free references. */
 function KnowledgeSources({ node, sources }: { node: WikiNode; sources: SourceRef[] }) {
   const derived = useDerived();
+  const owner = useIsOwner();
   const editable = useCanEdit();
   return (
     <section className="section">
@@ -300,17 +304,16 @@ function KnowledgeSources({ node, sources }: { node: WikiNode; sources: SourceRe
             className="oe-button oe-button--ghost oe-button--sm"
             href={href({ name: "edit", id: node.id })}
           >
-            <Plus aria-hidden="true" />{" "}
-            {sources.length > 0 ? "Modifier les sources" : "Ajouter une source"}
+            <Plus aria-hidden="true" /> {sources.length > 0 ? "Edit the sources" : "Add a source"}
           </a>
         )}
       </div>
       {sources.length === 0 ? (
         <div className="oe-alert oe-alert--warning">
-          <strong className="oe-alert__title">À sourcer</strong>
-          Aucune source n'appuie encore cette connaissance. Rattachez-la à une source de votre{" "}
-          <a href={href({ name: "library" })}>bibliothèque</a> (livre, article, site…), ou ajoutez-y
-          d'abord la source qui la confirme.
+          <strong className="oe-alert__title">Needs a source</strong>
+          No source backs this knowledge item yet. Attach it to a source of your{" "}
+          <a href={href({ name: "library" })}>library</a> (book, article, website…), or first add
+          the source that confirms it.
         </div>
       ) : (
         <ul className="link-list">
@@ -325,12 +328,13 @@ function KnowledgeSources({ node, sources }: { node: WikiNode; sources: SourceRe
                     {target.authors.length > 0 && (
                       <span className="muted small">{target.authors.join(", ")}</span>
                     )}
+                    {!owner && !target.isPublic && <RecordBadge compact />}
                   </>
                 ) : source.ref ? (
                   <>
                     <Link2 aria-hidden="true" />
                     <span className="muted">
-                      {source.description || "Source indisponible (privée ou supprimée)"}
+                      {source.description || "Source not available (deleted)"}
                     </span>
                   </>
                 ) : (
@@ -343,8 +347,8 @@ function KnowledgeSources({ node, sources }: { node: WikiNode; sources: SourceRe
                     ) : (
                       <span>{sourceRefLabel(source)}</span>
                     )}
-                    <span className="oe-badge" title="Référence libre, hors bibliothèque">
-                      Hors bibliothèque
+                    <span className="oe-badge" title="Free reference, outside the library">
+                      Outside the library
                     </span>
                   </>
                 )}
@@ -358,7 +362,7 @@ function KnowledgeSources({ node, sources }: { node: WikiNode; sources: SourceRe
   );
 }
 
-/** Flashcards d'une connaissance : question, maîtrise, réponse à révéler. */
+/** Flashcards of a knowledge item: question, mastery, answer to reveal. */
 function KnowledgeFlashcards({ node }: { node: WikiNode }) {
   const derived = useDerived();
   const owner = useIsOwner();
@@ -379,14 +383,13 @@ function KnowledgeFlashcards({ node }: { node: WikiNode }) {
             className="oe-button oe-button--ghost oe-button--sm"
             href={href({ name: "new", parentId: node.id, type: "flashcard" })}
           >
-            <Plus aria-hidden="true" /> Ajouter une flashcard
+            <Plus aria-hidden="true" /> Add a flashcard
           </a>
         )}
       </div>
       {cards.length === 0 ? (
         <p className="muted small">
-          Aucune flashcard : cette connaissance ne sera pas proposée en quiz tant qu'aucune question
-          ne la teste.
+          No flashcard: this knowledge item will not appear in quizzes until a question tests it.
         </p>
       ) : (
         <ul className="flashcard-list">
@@ -402,7 +405,7 @@ function KnowledgeFlashcards({ node }: { node: WikiNode }) {
                     <MasteryMeter value={currentMastery(state, today)} threshold={threshold} />
                   )}
                   {owner && state && (
-                    <span className="muted small">{plural(state.evaluations, "évaluation")}</span>
+                    <span className="muted small">{plural(state.evaluations, "evaluation")}</span>
                   )}
                 </span>
               </li>
@@ -419,16 +422,16 @@ function KnowledgeFlashcards({ node }: { node: WikiNode }) {
   );
 }
 
-/** Notice d'une source : nature, auteurs, date, adresse, fichier personnel. */
-function SourceNotice({ node, file }: { node: WikiNode; file?: string }) {
+/** Bibliographic record of a source: kind, authors, date, URL, personal file. */
+function SourceRecord({ node, file }: { node: WikiNode; file?: string }) {
   const owner = useIsOwner();
   const rows: { label: string; value: ReactNode }[] = [];
-  if (node.sourceKind) rows.push({ label: "Nature", value: SOURCE_KIND_LABELS[node.sourceKind] });
-  if (node.authors.length > 0) rows.push({ label: "Auteurs", value: node.authors.join(", ") });
-  if (node.published) rows.push({ label: "Publication", value: node.published });
+  if (node.sourceKind) rows.push({ label: "Kind", value: SOURCE_KIND_LABELS[node.sourceKind] });
+  if (node.authors.length > 0) rows.push({ label: "Authors", value: node.authors.join(", ") });
+  if (node.published) rows.push({ label: "Published", value: node.published });
   if (node.url)
     rows.push({
-      label: "Adresse",
+      label: "URL",
       value: (
         <a href={node.url} target="_blank" rel="noopener noreferrer">
           {node.url} <ExternalLink aria-hidden="true" className="inline-icon" />
@@ -437,13 +440,13 @@ function SourceNotice({ node, file }: { node: WikiNode; file?: string }) {
     });
   if (file && owner)
     rows.push({
-      label: "Fichier",
+      label: "File",
       value: (
         <button
           type="button"
           className="oe-button oe-button--ghost oe-button--sm"
           onClick={() => openFile(`${node.path}/${file}`)}
-          title="Fichier personnel (jamais publié)"
+          title="Personal file (never published)"
         >
           <Paperclip aria-hidden="true" /> {file}
         </button>
@@ -512,7 +515,9 @@ export function NodeView({ id }: { id: string }) {
   if (!node) {
     return (
       <div className="page">
-        <ErrorBox title="Page introuvable">Cette page n'existe pas ou plus dans ce wiki.</ErrorBox>
+        <ErrorBox title="Page not found">
+          This page does not exist in this wiki, or no longer does.
+        </ErrorBox>
       </div>
     );
   }
@@ -521,6 +526,8 @@ export function NodeView({ id }: { id: string }) {
   const cards = flashcardsUnder(derived.tree, node.id);
   const isRoot = node.id === derived.tree.rootId;
   const isSource = node.type === "source";
+  // Private source in the public part: only its bibliographic record is published.
+  const isRecord = isSource && !owner && !node.isPublic && !node.virtual;
   const threshold = derived.config.mastery.reminder_threshold;
   const reminderGroups = isRoot && owner ? reminders(derived.tree, derived.mastery, threshold) : [];
   const discussions = derived.discussionsByNode.get(node.id) ?? [];
@@ -533,7 +540,7 @@ export function NodeView({ id }: { id: string }) {
   const personalFile = doc?.fields.file;
   const subcategories = children.filter((c) => c.type === "category");
   const knowledge = children.filter((c) => c.type === "knowledge");
-  // Enfants contraires à la structure (signalés par `validate`) : rendus accessibles.
+  // Children that break the structure (reported by `validate`): made reachable.
   const others =
     node.type === "knowledge"
       ? children.filter((c) => c.type !== "flashcard")
@@ -553,6 +560,7 @@ export function NodeView({ id }: { id: string }) {
               <TypeIcon node={node} /> {typeLabel(node)}
             </span>
             {owner && <VisibilityBadge visibility={node.isPublic ? "public" : "private"} />}
+            {isRecord && <RecordBadge />}
             {node.type === "knowledge" && !node.sourced && <UnsourcedBadge />}
             {node.tags.map((tag) => (
               <a key={tag} className="oe-badge" href={href({ name: "search", q: `#${tag}` })}>
@@ -563,12 +571,12 @@ export function NodeView({ id }: { id: string }) {
               <MasteryMeter
                 value={mastery.value}
                 threshold={threshold}
-                label={`Maîtrise moyenne (${plural(mastery.count, "flashcard")})`}
+                label={`Average mastery (${plural(mastery.count, "flashcard")})`}
               />
             )}
-            {node.updated && <span>Modifiée le {formatDate(node.updated)}</span>}
+            {node.updated && <span>Updated on {formatDate(node.updated)}</span>}
             {derived.pendingNodes.has(node.id) && (
-              <span className="oe-badge oe-badge--warning">Non enregistrée</span>
+              <span className="oe-badge oe-badge--warning">Not saved</span>
             )}
           </div>
         </div>
@@ -580,7 +588,7 @@ export function NodeView({ id }: { id: string }) {
             className="oe-button oe-button--secondary oe-button--sm"
             href={href({ name: "edit", id: node.id })}
           >
-            <Pencil aria-hidden="true" /> Modifier
+            <Pencil aria-hidden="true" /> Edit
           </a>
         )}
         {editable && node.type === "category" && (
@@ -589,13 +597,13 @@ export function NodeView({ id }: { id: string }) {
               className="oe-button oe-button--ghost oe-button--sm"
               href={href({ name: "new", parentId: node.id, type: "knowledge" })}
             >
-              <Lightbulb aria-hidden="true" /> Connaissance
+              <Lightbulb aria-hidden="true" /> Knowledge
             </a>
             <a
               className="oe-button oe-button--ghost oe-button--sm"
               href={href({ name: "new", parentId: node.id, type: "category" })}
             >
-              <Folder aria-hidden="true" /> Sous-catégorie
+              <Folder aria-hidden="true" /> Subcategory
             </a>
           </>
         )}
@@ -612,7 +620,7 @@ export function NodeView({ id }: { id: string }) {
             className="oe-button oe-button--ghost oe-button--sm"
             href={href({ name: "extract", id: node.id })}
           >
-            <Highlighter aria-hidden="true" /> Extraire des connaissances
+            <Highlighter aria-hidden="true" /> Extract knowledge
           </a>
         )}
         {owner && cards.length > 0 && (
@@ -628,7 +636,7 @@ export function NodeView({ id }: { id: string }) {
             className="oe-button oe-button--ghost oe-button--sm"
             href={href({ name: "discussion", about: node.id })}
           >
-            <MessageSquare aria-hidden="true" /> Discuter
+            <MessageSquare aria-hidden="true" /> Discuss
           </a>
         )}
         {node.type === "category" && (node.childIds.length > 0 || isRoot) && (
@@ -646,7 +654,7 @@ export function NodeView({ id }: { id: string }) {
               className="oe-button oe-button--ghost oe-button--sm"
               onClick={() => setDialog("visibility")}
             >
-              <Shield aria-hidden="true" /> {node.isPublic ? "Rendre privé" : "Rendre public"}
+              <Shield aria-hidden="true" /> {node.isPublic ? "Make private" : "Make public"}
             </button>
             {movable && (
               <button
@@ -654,7 +662,7 @@ export function NodeView({ id }: { id: string }) {
                 className="oe-button oe-button--ghost oe-button--sm"
                 onClick={() => setDialog("move")}
               >
-                <MoveRight aria-hidden="true" /> Déplacer
+                <MoveRight aria-hidden="true" /> Move
               </button>
             )}
             {!isRoot && (
@@ -663,7 +671,7 @@ export function NodeView({ id }: { id: string }) {
                 className="oe-button oe-button--ghost oe-button--sm"
                 onClick={() => setDialog("delete")}
               >
-                <Trash2 aria-hidden="true" /> Supprimer
+                <Trash2 aria-hidden="true" /> Delete
               </button>
             )}
           </>
@@ -672,20 +680,19 @@ export function NodeView({ id }: { id: string }) {
 
       {reminderGroups.length > 0 && (
         <div className="oe-alert oe-alert--warning" style={{ marginTop: "1.5rem" }}>
-          <strong className="oe-alert__title">À réviser</strong>
+          <strong className="oe-alert__title">To review</strong>
           <ul className="link-list">
             {reminderGroups.slice(0, 5).map((group) => (
               <li key={group.category.id}>
                 <span>
-                  {plural(group.cards.length, "flashcard")} de <em>{group.category.title}</em>{" "}
-                  {group.cards.length > 1 ? "risquent" : "risque"} d'être oubliée
-                  {group.cards.length > 1 ? "s" : ""}.
+                  {plural(group.cards.length, "flashcard")} in <em>{group.category.title}</em> may
+                  be forgotten.
                 </span>
                 <a
                   className="oe-button oe-button--ghost oe-button--sm"
                   href={href({ name: "quiz", id: group.category.id })}
                 >
-                  <Brain aria-hidden="true" /> Réviser
+                  <Brain aria-hidden="true" /> Review
                 </a>
               </li>
             ))}
@@ -697,7 +704,7 @@ export function NodeView({ id }: { id: string }) {
 
       {origin && (
         <p className="muted small" style={{ marginTop: "1rem" }}>
-          Extraite {"meta" in origin ? "de la discussion " : "de "}
+          Extracted from {"meta" in origin ? "the discussion " : ""}
           {"meta" in origin ? (
             <a href={href({ name: "discussion", path: origin.path })}>
               <StickyNote aria-hidden="true" className="inline-icon" /> {origin.meta.title}
@@ -708,11 +715,23 @@ export function NodeView({ id }: { id: string }) {
         </p>
       )}
 
-      {isSource && <SourceNotice node={node} {...(personalFile ? { file: personalFile } : {})} />}
+      {isSource && <SourceRecord node={node} {...(personalFile ? { file: personalFile } : {})} />}
+      {isRecord && (
+        <InfoBox title="Private source">
+          The content of this source is private: only its bibliographic record (title, kind,
+          authors, date, URL) is published, so that the knowledge of this wiki can cite it.
+        </InfoBox>
+      )}
+      {owner && isSource && !node.isPublic && (
+        <p className="muted small">
+          Private source: its content and personal file stay private; only its bibliographic record
+          (title, kind, authors, date, URL) is published in the public part of the wiki.
+        </p>
+      )}
 
       <section className="section">
-        {content.loading && <p className="muted">Chargement du contenu…</p>}
-        {content.error && <ErrorBox title="Contenu indisponible">{content.error}</ErrorBox>}
+        {content.loading && <p className="muted">Loading the content…</p>}
+        {content.error && <ErrorBox title="Content unavailable">{content.error}</ErrorBox>}
         {doc && node.type === "flashcard" && <FlashcardBody node={node} body={doc.body} />}
         {doc && node.type === "knowledge" && (
           <KnowledgeBody body={doc.body} path={node.indexPath} />
@@ -721,10 +740,10 @@ export function NodeView({ id }: { id: string }) {
           <Markdown text={doc.body} path={node.indexPath} />
         )}
         {doc && node.type === "category" && doc.body.trim() === "" && children.length === 0 && (
-          <EmptyState title="Catégorie vide">
+          <EmptyState title="Empty category">
             {editable
-              ? "Ajoutez-y des connaissances atomiques, des sous-catégories, ou extrayez des connaissances d'une source de votre bibliothèque."
-              : "Cette catégorie ne contient encore rien."}
+              ? "Add atomic knowledge or subcategories to it, or extract knowledge from a source of your library."
+              : "This category does not contain anything yet."}
           </EmptyState>
         )}
       </section>
@@ -737,8 +756,10 @@ export function NodeView({ id }: { id: string }) {
       {subcategories.length > 0 && (
         <section className="section">
           <div className="section__head">
-            <h2>Sous-catégories</h2>
-            <span className="muted small">{plural(subcategories.length, "catégorie")}</span>
+            <h2>Subcategories</h2>
+            <span className="muted small">
+              {plural(subcategories.length, "category", "categories")}
+            </span>
           </div>
           <div className="children-grid">
             {subcategories.map((child) => (
@@ -751,8 +772,8 @@ export function NodeView({ id }: { id: string }) {
       {knowledge.length > 0 && (
         <section className="section">
           <div className="section__head">
-            <h2>Connaissances</h2>
-            <span className="muted small">{plural(knowledge.length, "connaissance")}</span>
+            <h2>Knowledge</h2>
+            <span className="muted small">{plural(knowledge.length, "knowledge item")}</span>
           </div>
           <div className="children-grid">
             {knowledge.map((child) => (
@@ -764,10 +785,10 @@ export function NodeView({ id }: { id: string }) {
 
       {others.length > 0 && (
         <section className="section">
-          <h2>Pages mal rangées</h2>
+          <h2>Misplaced pages</h2>
           <p className="muted small">
-            Ces pages ne devraient pas se trouver ici : déplacez-les sous une connaissance (une
-            flashcard) ou dans la bibliothèque (une source).
+            These pages should not be here: move them under a knowledge item (a flashcard) or to the
+            library (a source).
           </p>
           <ul className="link-list">
             {others.map((child) => (
@@ -789,18 +810,18 @@ export function NodeView({ id }: { id: string }) {
       {isSource && (
         <section className="section">
           <div className="section__head">
-            <h2>Connaissances tirées de cette source</h2>
+            <h2>Knowledge drawn from this source</h2>
             {editable && (
               <a
                 className="oe-button oe-button--ghost oe-button--sm"
                 href={href({ name: "extract", id: node.id })}
               >
-                <Highlighter aria-hidden="true" /> Extraire
+                <Highlighter aria-hidden="true" /> Extract
               </a>
             )}
           </div>
           {usedBy.length === 0 ? (
-            <p className="muted small">Aucune connaissance ne cite encore cette source.</p>
+            <p className="muted small">No knowledge item cites this source yet.</p>
           ) : (
             <ul className="link-list">
               {usedBy.map((k) => (
@@ -816,7 +837,7 @@ export function NodeView({ id }: { id: string }) {
 
       {node.attachments.length > 0 && (
         <section className="section">
-          <h2>Fichiers joints</h2>
+          <h2>Attached files</h2>
           <ul className="link-list">
             {node.attachments.map((file) => {
               const relative = file.path.slice(node.path.length + 1);
@@ -832,7 +853,7 @@ export function NodeView({ id }: { id: string }) {
                   >
                     {relative}
                   </a>
-                  {personalFile === relative && <span className="oe-badge">Fichier personnel</span>}
+                  {personalFile === relative && <span className="oe-badge">Personal file</span>}
                 </li>
               );
             })}
@@ -842,7 +863,7 @@ export function NodeView({ id }: { id: string }) {
 
       {backlinks.length > 0 && (
         <section className="section">
-          <h2>Rétroliens</h2>
+          <h2>Backlinks</h2>
           <ul className="link-list">
             {backlinks.map((b) => (
               <li key={b.id}>
@@ -862,12 +883,12 @@ export function NodeView({ id }: { id: string }) {
                 className="oe-button oe-button--ghost oe-button--sm"
                 href={href({ name: "discussion", about: node.id })}
               >
-                <MessageSquare aria-hidden="true" /> Nouvelle discussion
+                <MessageSquare aria-hidden="true" /> New discussion
               </a>
             )}
           </div>
           {discussions.length === 0 ? (
-            <p className="muted small">Aucune discussion sur cette page.</p>
+            <p className="muted small">No discussion about this page.</p>
           ) : (
             <DiscussionList entries={discussions} />
           )}
@@ -881,7 +902,7 @@ export function NodeView({ id }: { id: string }) {
       {dialog === "move" && (
         <NodePicker
           open
-          title={`Déplacer « ${node.title} » sous…`}
+          title={`Move "${node.title}" under…`}
           tree={derived.tree}
           filter={(n) =>
             n.id !== node.id &&
@@ -900,16 +921,16 @@ export function NodeView({ id }: { id: string }) {
   );
 }
 
-/** Énoncé d'une connaissance (sa cible en gras), puis ses notes éventuelles. */
+/** Statement of a knowledge item (its target in bold), then its notes if any. */
 function KnowledgeBody({ body, path }: { body: string; path: string }) {
   const { statement, notes } = parseKnowledgeBody(body);
   return (
     <>
       <div className="card-face__block oe-card">
-        <span className="card-face__label">Connaissance</span>
+        <span className="card-face__label">Knowledge</span>
         <Markdown
           className="prose knowledge"
-          text={statement || "_(énoncé manquant)_"}
+          text={statement || "_(missing statement)_"}
           path={path}
         />
       </div>

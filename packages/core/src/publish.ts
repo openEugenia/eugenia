@@ -1,8 +1,9 @@
 /**
- * Publication : construction de l'arborescence du dépôt public à partir du dépôt privé
- * (§6). Seuls les nœuds publics (wiki et bibliothèque) et les discussions publiques sont
- * publiés ; les liens et références vers ce qui n'est pas publié disparaissent ; les
- * fichiers personnels des sources et les quiz ne sont jamais publiés.
+ * Publication: builds the tree of the public repository from the private repository (§6).
+ * Only public nodes (wiki and library) and public discussions are published. A private
+ * source is published as its bibliographic record only (title, kind, authors, date, URL),
+ * so that public knowledge can still cite it. Links and references to anything else that is
+ * not published disappear; the personal files of sources and quizzes are never published.
  */
 import { CONFIG_PATH, INDEX_JSON_PATH, serializePublicConfig } from "./config.ts";
 import {
@@ -20,6 +21,7 @@ import {
   serializePage,
   shortDescription,
   type PageDocument,
+  type PageFields,
 } from "./pages.ts";
 import { joinPath, normalizePath } from "./paths.ts";
 import { gitBlobSha } from "./sha.ts";
@@ -38,11 +40,11 @@ export type PublishedFile =
   { path: string; content: string } | { path: string; copyFrom: string; sha: string };
 
 export interface PublishOptions {
-  /** Dépôt privé à déclarer dans la configuration publique (`owner/name`). */
+  /** Private repository to declare in the public configuration (`owner/name`). */
   privateRepo?: string;
-  /** Dépôt public cible, pour le README généré. */
+  /** Target public repository, for the generated README. */
   publicRepo?: string;
-  /** Adresse de l'application. */
+  /** URL of the application. */
   appUrl?: string;
   now?: Date;
 }
@@ -52,6 +54,8 @@ export interface PublicationStats {
   knowledge: number;
   flashcards: number;
   sources: number;
+  /** Private sources published as their bibliographic record only. */
+  records: number;
   attachments: number;
   summaries: number;
   discussions: number;
@@ -61,7 +65,7 @@ export interface Publication {
   files: PublishedFile[];
   index: WikiIndex;
   problems: Problem[];
-  /** Faux si une erreur bloque la publication. */
+  /** False if an error blocks the publication. */
   ok: boolean;
   stats: PublicationStats;
 }
@@ -73,13 +77,32 @@ function publicReadme(title: string, publicRepo: string | undefined, appUrl: str
   return [
     `# ${title}`,
     "",
-    "Ce dépôt contient la partie **publique** d'un wiki personnel de connaissances [Eugenia](https://github.com/openEugenia/eugenia).",
+    "This repository holds the **public** part of an [Eugenia](https://github.com/openEugenia/eugenia) personal knowledge wiki.",
     "",
-    `Pour le parcourir : <${link}>`,
+    `Browse it here: <${link}>`,
     "",
-    "Il est généré automatiquement à chaque publication : ne le modifiez pas à la main, vos changements seraient écrasés.",
+    "It is generated automatically on every publication: do not edit it by hand, your changes would be overwritten.",
     "",
   ].join("\n");
+}
+
+/**
+ * Bibliographic record of a private source: the only fields of a private source that are
+ * published. Its content, personal file, tags and any other key stay private.
+ */
+export function sourceRecord(doc: PageDocument): PageDocument {
+  const f = doc.fields;
+  const fields: PageFields = { id: f.id, type: "source", title: f.title, visibility: "private" };
+  if (f.kind) fields.kind = f.kind;
+  if (f.authors?.length) fields.authors = f.authors;
+  if (f.published) fields.published = f.published;
+  if (f.url) fields.url = f.url;
+  return { fields, extra: {}, body: "" };
+}
+
+/** True if a node is a private library source, published as its bibliographic record. */
+export function isSourceRecord(tree: WikiTree, node: WikiNode): boolean {
+  return node.type === "source" && !node.virtual && !node.isPublic && node.id !== tree.libraryId;
 }
 
 export async function buildPublication(
@@ -93,12 +116,13 @@ export async function buildPublication(
     knowledge: 0,
     flashcards: 0,
     sources: 0,
+    records: 0,
     attachments: 0,
     summaries: 0,
     discussions: 0,
   };
 
-  // Règle 3 et cohérence de l'arbre.
+  // Rule 3 and tree consistency.
   for (const problem of tree.problems) {
     if (problem.code === "public-under-private" || problem.code === "duplicate-id") {
       problems.push({ ...problem, level: "error" });
@@ -108,23 +132,24 @@ export async function buildPublication(
         problems.push({
           ...problem,
           level: "error",
-          message: `${problem.message} Visibilité incertaine : publication refusée.`,
+          message: `${problem.message} Uncertain visibility: publication refused.`,
         });
       }
     }
   }
 
-  // La racine de la bibliothèque est un conteneur : sa page n'est publiée que si elle est publique.
+  // The library root is a container: its page is only published if it is public.
   const publicNodes = [...tree.nodes.values()].filter(
     (n) => n.isPublic && (n.id !== tree.libraryId || n.visibility === "public"),
   );
   const published = new Set<string>();
   const personal = new Map<string, Set<string>>();
   const pageDocs = new Map<string, PageDocument>();
+  const records = new Map<string, PageDocument>();
   const publicSummaries = new Map<string, SummaryDocument>();
   const publicDiscussions = new Map<string, DiscussionDocument>();
 
-  // 1. Ce qui sera publié (nécessaire pour filtrer les liens).
+  // 1. What will be published (needed to filter links).
   for (const node of publicNodes) {
     const personalFiles = new Set<string>();
     if (!node.virtual) {
@@ -149,13 +174,30 @@ export async function buildPublication(
       problems.push({
         level: "warning",
         code: "missing-public-summary",
-        message: `« ${node.title} » n'a pas de description publique (_summary.public.md).`,
+        message: `"${node.title}" has no public description (_summary.public.md).`,
         nodeId: node.id,
         path: node.path,
       });
     }
   }
-  // Discussions : privées par défaut, les quiz ne sont jamais publiés.
+  // Private sources: their bibliographic record only, without content or attached files.
+  for (const node of tree.nodes.values()) {
+    if (!isSourceRecord(tree, node)) continue;
+    const doc = parsePage(await source.readText(node.indexPath));
+    if (doc.error || !doc.fields.id) {
+      problems.push({
+        level: "warning",
+        code: "unreadable-source-record",
+        message: `The private source "${node.title}" cannot be read: its bibliographic record is not published.`,
+        nodeId: node.id,
+        path: node.indexPath,
+      });
+      continue;
+    }
+    records.set(node.id, sourceRecord(doc));
+    published.add(node.indexPath);
+  }
+  // Discussions: private by default, quizzes are never published.
   for (const file of tree.discussions) {
     const doc = parseDiscussion(await source.readText(file.path));
     if (doc.fields.visibility === "public" && doc.fields.kind !== "quiz") {
@@ -169,10 +211,11 @@ export async function buildPublication(
     published.has(target) || published.has(joinPath(target, "index.md"));
   const keepPublicLinks = (content: string, path: string): string =>
     unlinkTargets(content, path, (target) => !isPublished(target));
-  const isPublicId = (id: string | undefined): boolean =>
-    id !== undefined && tree.nodes.get(id)?.isPublic === true;
+  /** A published page: public, or a private source published as its record. */
+  const isPublishedId = (id: string | undefined): boolean =>
+    id !== undefined && (tree.nodes.get(id)?.isPublic === true || records.has(id));
 
-  // 2. Contenus transformés.
+  // 2. Transformed contents.
   const files: PublishedFile[] = [];
   const indexEntries = new Map<
     string,
@@ -187,17 +230,17 @@ export async function buildPublication(
   for (const node of publicNodes) {
     const doc = pageDocs.get(node.id);
     if (doc) {
-      // Fichier personnel d'une source : jamais publié, pas même son nom.
+      // Personal file of a source: never published, not even its name.
       delete doc.fields.file;
       if (doc.fields.sources) {
-        // Une référence à une source privée disparaît ; les références libres restent.
+        // A reference to an unpublished source disappears; free references stay.
         doc.fields.sources = doc.fields.sources.filter((s) =>
-          s.ref ? isPublicId(s.ref) : Boolean(s.description || s.url),
+          s.ref ? isPublishedId(s.ref) : Boolean(s.description || s.url),
         );
         if (doc.fields.sources.length === 0) delete doc.fields.sources;
       }
       const from = doc.fields.extracted_from;
-      if (from && !isPublicId(from) && !publicDiscussionIds.has(from)) {
+      if (from && !isPublishedId(from) && !publicDiscussionIds.has(from)) {
         delete doc.fields.extracted_from;
       }
       doc.body = keepPublicLinks(doc.body, node.indexPath);
@@ -238,10 +281,18 @@ export async function buildPublication(
       if (description && entry) entry.description = description;
     }
   }
+  for (const [id, record] of records) {
+    const node = tree.nodes.get(id)!;
+    files.push({ path: node.indexPath, content: serializePage(record) });
+    indexEntries.set(id, { id });
+    stats.records++;
+  }
   const indexDiscussions: { path: string; meta: ReturnType<typeof discussionMeta> }[] = [];
   for (const [path, doc] of publicDiscussions) {
-    if (doc.fields.about && !isPublicId(doc.fields.about)) delete doc.fields.about;
-    if (doc.fields.scope_node && !isPublicId(doc.fields.scope_node)) delete doc.fields.scope_node;
+    if (doc.fields.about && !isPublishedId(doc.fields.about)) delete doc.fields.about;
+    if (doc.fields.scope_node && !isPublishedId(doc.fields.scope_node)) {
+      delete doc.fields.scope_node;
+    }
     for (const message of doc.messages) message.content = keepPublicLinks(message.content, path);
     const content = serializeDiscussion(doc);
     files.push({ path, content });
@@ -249,7 +300,7 @@ export async function buildPublication(
     stats.discussions++;
   }
 
-  // 3. Configuration publique, README, index.
+  // 3. Public configuration, README, index.
   const publicConfigOptions = options.privateRepo ?? config.private_repo;
   files.push({ path: CONFIG_PATH, content: serializePublicConfig(config, publicConfigOptions) });
   if (config.root !== "" && !files.some((f) => f.path === "README.md")) {
@@ -287,10 +338,9 @@ export async function buildPublication(
 }
 
 /**
- * Une description publique ne doit dépendre que de nœuds publics (§6.3). Une source
- * privée est une fuite (erreur bloquante) ; une source inconnue (nœud supprimé) fait
- * écarter la description, sans bloquer la publication. Sans problème, la description
- * peut être publiée.
+ * A public description must only depend on public nodes (§6.3). A private source is a
+ * leak (blocking error); an unknown source (deleted node) sets the description aside without
+ * blocking the publication. Without any problem, the description can be published.
  */
 export function publicSummaryProblems(
   tree: WikiTree,
@@ -308,7 +358,7 @@ export function publicSummaryProblems(
       {
         level: "error",
         code: "summary-scope",
-        message: `La description publique de « ${node.title} » n'a pas la portée « public ».`,
+        message: `The public description of "${node.title}" does not have the "public" scope.`,
         nodeId: node.id,
         path,
       },
@@ -321,7 +371,7 @@ export function publicSummaryProblems(
       problems.push({
         level: "error",
         code: "summary-leak",
-        message: `La description publique de « ${node.title} » a été générée à partir du nœud privé « ${sourceNode.title} » : elle ne sera pas publiée tant qu'elle n'est pas régénérée.`,
+        message: `The public description of "${node.title}" was generated from the private node "${sourceNode.title}": it will not be published until it is regenerated.`,
         nodeId: node.id,
         path,
       });
@@ -329,7 +379,7 @@ export function publicSummaryProblems(
       problems.push({
         level: "warning",
         code: "summary-unknown-source",
-        message: `La description publique de « ${node.title} » cite un nœud qui n'existe plus : elle est écartée de la publication, régénérez-la.`,
+        message: `The public description of "${node.title}" cites a node that no longer exists: it is left out of the publication, regenerate it.`,
         nodeId: node.id,
         path,
       });

@@ -1,6 +1,6 @@
 /**
- * Routage par ancre (`#/…`), compatible avec GitHub Pages ; le dépôt ouvert est porté
- * par le paramètre `?repo=owner/name` (§9.1).
+ * Hash routing (`#/…`), compatible with GitHub Pages; the open repository is carried by the
+ * `?repo=owner/name` parameter (§9.1).
  */
 import { useSyncExternalStore } from "react";
 import {
@@ -18,12 +18,12 @@ export type Route =
   | { name: "node"; id: string }
   | { name: "edit"; id: string }
   | { name: "new"; parentId: string; type: PageType }
-  /** Extraction depuis une page (source, catégorie…), une discussion, ou un texte nouveau. */
+  /** Extraction from a page (source, category…), a discussion, or a new text. */
   | { name: "extract"; id?: string; discussion?: string }
   | { name: "quiz"; id: string }
   /**
-   * Discussion : existante (`path`), ou nouvelle, à partir d'une page (`about`) ou non ;
-   * `kind: "note"` pour une note rapide.
+   * Discussion: existing (`path`), or new, from a page (`about`) or not; `kind: "note"` for a
+   * quick note.
    */
   | { name: "discussion"; path?: string; about?: string; kind?: "note" }
   | { name: "discussions"; kind?: DiscussionKind; q?: string }
@@ -216,7 +216,7 @@ export function useRepoParam(): RepoRef | null {
   return parseRepo(new URLSearchParams(search).get("repo"));
 }
 
-/** Adresse de l'application pour un dépôt. */
+/** App URL for a repository. */
 export function repoUrl(ref: RepoRef | null, hash = "#/"): string {
   const base = `${location.pathname}`;
   return ref ? `${base}?repo=${repoLabel(ref)}${hash}` : `${base}${hash}`;

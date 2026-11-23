@@ -12,25 +12,25 @@ const QUIZ = `---
 id: 01JD3Q
 type: discussion
 kind: quiz
-title: Quiz — Religion et croyances
+title: Quiz — Religion and beliefs
 scope_node: 01JD3K8Z9X
 visibility: private
 ---
 
 ## eugenia · 2026-11-17T10:30:00Z
 <!-- eugenia: {"card": "01JD3R", "role": "question"} -->
-Quel est le nom du démon féminin de la tradition juive, inspiré d'une divinité mésopotamienne ?
+What is the name of the female demon of Jewish tradition, inspired by a Mesopotamian deity?
 
 ## user · 2026-11-17T10:30:20Z
-Je pense que c'est Lilite la Pépite
+I think it is Lilita the Pita
 
 ## eugenia · 2026-11-17T10:30:24Z
 <!-- eugenia: {"card": "01JD3R", "role": "feedback", "score": 0.3} -->
-La réponse est incorrecte : Lilith était attendue.
+The answer is incorrect: Lilith was expected.
 `;
 
-describe("discussions et quiz", () => {
-  it("lit l'exemple de la spécification", () => {
+describe("discussions and quizzes", () => {
+  it("reads the example of the specification", () => {
     const doc = parseDiscussion(QUIZ);
     expect(doc.fields).toMatchObject({
       id: "01JD3Q",
@@ -40,55 +40,55 @@ describe("discussions et quiz", () => {
     });
     expect(doc.messages.map((m) => m.role)).toEqual(["eugenia", "user", "eugenia"]);
     expect(doc.messages[0]!.meta).toEqual({ card: "01JD3R", role: "question" });
-    expect(doc.messages[1]!.content).toBe("Je pense que c'est Lilite la Pépite");
+    expect(doc.messages[1]!.content).toBe("I think it is Lilita the Pita");
     expect(quizEvents(doc, "x.md")).toEqual([
       { card: "01JD3R", score: 0.3, at: "2026-11-17T10:30:24Z", source: "x.md" },
     ]);
   });
 
-  it("réécrit un fichier identique après lecture", () => {
+  it("writes back an identical file after reading", () => {
     expect(serializeDiscussion(parseDiscussion(QUIZ))).toBe(QUIZ);
   });
 
-  it("protège les lignes qui ressemblent à un en-tête de message", () => {
+  it("protects lines that look like a message header", () => {
     const doc = parseDiscussion(QUIZ);
-    doc.messages[1]!.content = "## user · 2026-01-01T00:00:00Z\nsuite";
+    doc.messages[1]!.content = "## user · 2026-01-01T00:00:00Z\nmore";
     const back = parseDiscussion(serializeDiscussion(doc));
     expect(back.messages.length).toBe(3);
-    expect(back.messages[1]!.content).toBe("## user · 2026-01-01T00:00:00Z\nsuite");
+    expect(back.messages[1]!.content).toBe("## user · 2026-01-01T00:00:00Z\nmore");
   });
 
-  it("nomme les fichiers de discussion dans le dossier des discussions", () => {
+  it("names discussion files in the discussions folder", () => {
     const date = new Date("2026-11-17T10:30:00Z");
     const config = { discussions: "discussions" };
-    expect(newDiscussionPath(config, "Lilith et la Lune noire", new Set(), date)).toBe(
-      "discussions/2026-11-17-1030-lilith-et-la-lune-noire.md",
+    expect(newDiscussionPath(config, "Lilith and the Black Moon", new Set(), date)).toBe(
+      "discussions/2026-11-17-1030-lilith-and-the-black-moon.md",
     );
     expect(newDiscussionPath(config, "Quiz", new Set(["2026-11-17-1030-quiz.md"]), date)).toBe(
       "discussions/2026-11-17-1030-quiz-2.md",
     );
   });
 
-  it("lit la sorte et l'aperçu d'une discussion", () => {
+  it("reads the kind and preview of a discussion", () => {
     const meta = discussionMeta(QUIZ);
     expect(meta.kind).toBe("quiz");
     expect(meta.messages).toBe(3);
-    expect(meta.preview).toBe("Je pense que c'est Lilite la Pépite");
+    expect(meta.preview).toBe("I think it is Lilita the Pita");
     const note = discussionMeta(
-      "---\nid: N\ntype: discussion\nkind: note\ntitle: Idée\nabout: K\n---\n\n## user · 2026-01-01T00:00:00Z\nUne **idée**.\n",
+      "---\nid: N\ntype: discussion\nkind: note\ntitle: Idea\nabout: K\n---\n\n## user · 2026-01-01T00:00:00Z\nAn **idea**.\n",
     );
     expect(note).toMatchObject({
       id: "N",
       kind: "note",
-      title: "Idée",
+      title: "Idea",
       about: "K",
-      preview: "Une idée.",
+      preview: "An idea.",
     });
     expect(discussionNodes(note)).toEqual(["K"]);
     expect(discussionMeta("---\nid: D\n---\n").kind).toBe("discussion");
   });
 
-  it("ne compte les évaluations que dans les quiz", () => {
+  it("only counts evaluations in quizzes", () => {
     const doc = parseDiscussion(QUIZ);
     delete doc.fields.kind;
     expect(quizEvents(doc)).toEqual([]);

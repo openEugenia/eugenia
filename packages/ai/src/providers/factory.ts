@@ -1,4 +1,4 @@
-/** Création d'un fournisseur à partir de sa configuration, et règle « IA locale pour le privé ». */
+/** Creates a provider from its configuration, and the "local AI for private content" rule. */
 import { AIError } from "../errors.ts";
 import type { AIProvider, ProviderConfig } from "../types.ts";
 import { AnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./anthropic.ts";
@@ -45,7 +45,7 @@ export function createProvider(
       });
     }
     default:
-      throw new AIError("config", "Fournisseur d'IA inconnu.");
+      throw new AIError("config", "Unknown AI provider.");
   }
 }
 
@@ -58,24 +58,24 @@ function isMistralUrl(url: string): boolean {
 }
 
 export interface ProviderSelection {
-  /** Fournisseur principal (souvent distant). */
+  /** Main provider (often remote). */
   main?: AIProvider | undefined;
-  /** Fournisseur local (Ollama…). */
+  /** Local provider (Ollama…). */
   local?: AIProvider | undefined;
-  /** L'utilisateur réserve les nœuds privés à une IA locale (§11.1). */
+  /** The user keeps private nodes for a local AI (§11.1). */
   localOnlyForPrivate: boolean;
 }
 
 export interface SelectedProvider {
   provider: AIProvider;
-  /** Du contenu privé part vers un fournisseur distant : prévenir l'utilisateur la première fois. */
+  /** Private content goes to a remote provider: warn the user the first time. */
   sendsPrivateToRemote: boolean;
 }
 
 /**
- * Choisit le fournisseur d'une tâche. Si la tâche implique un nœud privé et que
- * l'utilisateur a réservé le privé à l'IA locale, seul le fournisseur local est
- * permis : à défaut, l'action est bloquée avec une explication.
+ * Picks the provider of a task. If the task involves a private node and the user keeps
+ * private content for a local AI, only the local provider is allowed: otherwise, the action
+ * is blocked with an explanation.
  */
 export function selectProvider(
   selection: ProviderSelection,
@@ -86,17 +86,14 @@ export function selectProvider(
     if (!local) {
       throw new AIError(
         "privacy",
-        "Ce traitement porte sur des connaissances privées, que vous avez choisi de réserver à une IA locale. Configurez un fournisseur local (par exemple Ollama) dans les paramètres.",
+        "This task involves private knowledge, which you chose to keep for a local AI. Set up a local provider (for example Ollama) in the settings.",
       );
     }
     return { provider: local, sendsPrivateToRemote: false };
   }
   const provider = selection.main ?? selection.local;
   if (!provider) {
-    throw new AIError(
-      "config",
-      "Aucun fournisseur d'IA n'est configuré : ajoutez-en un dans les paramètres.",
-    );
+    throw new AIError("config", "No AI provider is configured: add one in the settings.");
   }
   return { provider, sendsPrivateToRemote: involvesPrivate && !provider.info.local };
 }

@@ -1,14 +1,14 @@
 /**
- * Tests en conditions réelles contre l'API de Mistral (compatible OpenAI).
+ * Real-world tests against Mistral's API (OpenAI-compatible).
  *
- * Exclus de `pnpm test` : lancez `pnpm test:live`, avec MISTRAL_API_KEY dans le fichier
- * `.env` à la racine du dépôt (ignoré par git) ou dans l'environnement. Sans clé, ces tests
- * sont ignorés.
+ * Excluded from `pnpm test`: run `pnpm test:live`, with MISTRAL_API_KEY in the `.env` file at
+ * the repository root (ignored by git) or in the environment. Without a key, these tests are
+ * skipped.
  *
- * L'offre gratuite limite chaque modèle à 2 requêtes par minute : les tests se répartissent
- * sur plusieurs modèles et les requêtes refusées pour cette raison (429) sont rejouées après
- * une pause. Les réponses d'un modèle varient d'une exécution à l'autre : un échec isolé des
- * tests d'évaluation est à relancer avant d'être interprété.
+ * The free tier limits each model to 2 requests per minute: the tests are spread over several
+ * models, and requests refused for that reason (429) are replayed after a pause. A model's
+ * answers vary from one run to the next: rerun an isolated failure of the evaluation tests
+ * before interpreting it.
  */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -35,7 +35,7 @@ const MAX_RETRIES = 4;
 
 interface LiveProvider {
   provider: AIProvider;
-  /** `response_format` de chaque requête acceptée (hors 429), dans l'ordre. */
+  /** `response_format` of each accepted request (except 429), in order. */
   formats: () => string[];
 }
 
@@ -48,7 +48,7 @@ function mistral(model: string, apiKey = KEY): LiveProvider {
         const body = JSON.parse(String(init?.body ?? "{}")) as {
           response_format?: { type?: string };
         };
-        formats.push(body.response_format?.type ?? "texte");
+        formats.push(body.response_format?.type ?? "text");
         return response;
       }
       await response.body?.cancel();
@@ -62,24 +62,24 @@ function mistral(model: string, apiKey = KEY): LiveProvider {
   return { provider, formats: () => [...formats] };
 }
 
-describe.skipIf(!KEY)("Mistral, API réelle", () => {
-  describe("fournisseur compatible OpenAI", () => {
-    it("répond à une requête simple", async () => {
+describe.skipIf(!KEY)("Mistral, real API", () => {
+  describe("OpenAI-compatible provider", () => {
+    it("answers a simple request", async () => {
       const { provider } = mistral("ministral-3b-latest");
       const text = await provider.complete({
-        system: "Réponds en un seul mot, sans ponctuation.",
-        messages: [{ role: "user", content: "Quelle est la capitale de la France ?" }],
+        system: "Answer in a single word, without punctuation.",
+        messages: [{ role: "user", content: "What is the capital of France?" }],
         maxTokens: 20,
       });
       expect(text.toLowerCase()).toContain("paris");
     });
 
-    it("diffuse la réponse en plusieurs fragments", async () => {
+    it("streams the answer in several fragments", async () => {
       const { provider } = mistral("ministral-3b-latest");
       const chunks: string[] = [];
       for await (const chunk of provider.stream({
-        system: "Tu réponds uniquement par des nombres en chiffres, séparés par des espaces.",
-        messages: [{ role: "user", content: "Compte de 1 à 20." }],
+        system: "You answer only with numbers in digits, separated by spaces.",
+        messages: [{ role: "user", content: "Count from 1 to 20." }],
         maxTokens: 100,
       }))
         chunks.push(chunk);
@@ -87,103 +87,102 @@ describe.skipIf(!KEY)("Mistral, API réelle", () => {
       expect(chunks.join("")).toMatch(/1\D+2\D+3\D+4/);
     });
 
-    it("obtient une sortie JSON stricte dès le premier format essayé", async () => {
+    it("gets a strict JSON output with the first format tried", async () => {
       const { provider, formats } = mistral("ministral-8b-latest");
       const result = await provider.json({
-        system: "Tu extrais des informations factuelles du texte fourni.",
+        system: "You extract factual information from the text provided.",
         messages: [
-          { role: "user", content: "Lyon, en France, compte environ 0,5 million d'habitants." },
+          { role: "user", content: "Lyon, in France, has about 0.5 million inhabitants." },
         ],
         schema: z.object({
           city: z.string(),
           country: z.string(),
           population_millions: z.number(),
         }),
-        name: "ville",
+        name: "city",
         maxTokens: 200,
       });
       expect(result.city).toMatch(/lyon/i);
       expect(result.country).toMatch(/france/i);
       expect(result.population_millions).toBeCloseTo(0.5, 0);
-      // Sans repli vers `json_object` ou le texte libre : une seule requête.
+      // No fallback to `json_object` or free text: a single request.
       expect(formats()).toEqual(["json_schema"]);
     });
 
-    it("signale une clé refusée comme une erreur d'authentification", async () => {
-      const { provider } = mistral("ministral-3b-latest", "cle-invalide");
+    it("reports a refused key as an authentication error", async () => {
+      const { provider } = mistral("ministral-3b-latest", "invalid-key");
       await expect(
-        provider.complete({ system: "", messages: [{ role: "user", content: "Bonjour" }] }),
+        provider.complete({ system: "", messages: [{ role: "user", content: "Hello" }] }),
       ).rejects.toMatchObject({ name: "AIError", kind: "auth", status: 401 });
     });
   });
 
-  describe("évaluation d'une réponse de quiz", () => {
+  describe("evaluation of a quiz answer", () => {
     const { provider } = mistral("ministral-14b-latest");
     const card = {
       knowledge:
-        "En programmation par contraintes, une **variable** prend sa valeur dans un **domaine fini** de valeurs possibles : des booléens, des entiers ou des ensembles.",
+        "In constraint programming, a **variable** takes its value in a **finite domain** of possible values: booleans, integers or sets.",
       question:
-        "En programmation par contraintes, dans quoi une variable prend-elle sa valeur, et de quels types peuvent être ces valeurs ?",
-      expected: "Dans un domaine fini de valeurs possibles : booléens, entiers ou ensembles.",
+        "In constraint programming, where does a variable take its value, and what types can these values have?",
+      expected: "In a finite domain of possible values: booleans, integers or sets.",
     };
 
-    it("ne tient pas compte de l'ordre d'une énumération", async () => {
+    it("ignores the order of a list", async () => {
       const result = await evaluateAnswer(
         { provider },
         {
           ...card,
-          answer: "Dans un domaine fini de valeurs : des ensembles, des entiers ou des booléens.",
+          answer: "In a finite domain of values: sets, integers or booleans.",
         },
       );
       expect(result.score, result.feedback).toBeGreaterThanOrEqual(0.9);
       expect(result.missing).toEqual([]);
-      expect(result.feedback).not.toMatch(/\bordre\b/i);
+      expect(result.feedback).not.toMatch(/\border\b/i);
     });
 
-    it("sanctionne une réponse fausse", async () => {
+    it("penalizes a wrong answer", async () => {
       const result = await evaluateAnswer(
         { provider },
-        { ...card, answer: "Dans un intervalle continu de nombres réels." },
+        { ...card, answer: "In a continuous interval of real numbers." },
       );
       expect(result.score, result.feedback).toBeLessThan(0.5);
     });
   });
 
-  describe("description d'un sous-wiki", () => {
+  describe("description of a sub-wiki", () => {
     const { provider } = mistral("ministral-8b-latest");
-    const firstPerson = /\b(je|j'|j’|mon|ma|mes|m'|m’)/i;
-    const thirdPerson =
-      /\b(l['’]utilisateur|l['’]auteur|ce (sous-)?wiki (explore|rassemble|contient))/i;
+    const firstPerson = /\b(I|I'm|I've|my|me)\b/;
+    const thirdPerson = /\b(the user|the author|this (sub-)?wiki (explores|gathers|contains))/i;
     const children = [
       {
-        title: "Apogée",
+        title: "Apogee",
         type: "flashcard",
         description:
-          "L'**apogée** est le point de l'orbite d'un corps autour de la Terre où il en est le plus éloigné.",
+          "The **apogee** is the point of the orbit of a body around the Earth where it is farthest from it.",
         isSubwiki: false,
       },
       {
-        title: "Exoplanètes",
+        title: "Exoplanets",
         type: "flashcard",
         description:
-          "**51 Pegasi b** est la première exoplanète découverte autour d'une étoile semblable au Soleil, en 1995.",
+          "**51 Pegasi b** is the first exoplanet discovered around a Sun-like star, in 1995.",
         isSubwiki: false,
       },
     ];
 
-    it("présente la racine à la première personne : « Voici mon wiki… »", async () => {
+    it('presents the root in the first person: "This is my wiki…"', async () => {
       const text = await summarizeNode(
-        { provider, variables: { wiki_title: "Mes connaissances" } },
-        { title: "Mes connaissances", path: [], children },
+        { provider, variables: { wiki_title: "My knowledge" } },
+        { title: "My knowledge", path: [], children },
       );
-      expect(text).toMatch(/^Voici mon wiki/i);
+      expect(text).toMatch(/^This is my wiki/i);
       expect(text).not.toMatch(thirdPerson);
     });
 
-    it("décrit une branche à la première personne", async () => {
+    it("describes a branch in the first person", async () => {
       const text = await summarizeNode(
-        { provider, variables: { wiki_title: "Mes connaissances" } },
-        { title: "Astronomie", path: ["Mes connaissances", "Science"], children },
+        { provider, variables: { wiki_title: "My knowledge" } },
+        { title: "Astronomy", path: ["My knowledge", "Science"], children },
       );
       expect(text).toMatch(firstPerson);
       expect(text).not.toMatch(thirdPerson);
@@ -194,20 +193,20 @@ describe.skipIf(!KEY)("Mistral, API réelle", () => {
     const { provider } = mistral(DEFAULT_EMBEDDING_MODEL);
     const pages: Record<string, string> = {
       apogee:
-        "Apogée\n\nL'apogée est le point de l'orbite d'un corps autour de la Terre où il en est le plus éloigné.",
+        "Apogee\n\nThe apogee is the point of the orbit of a body around the Earth where it is farthest from it.",
       lilith:
-        "Lilith\n\nLilith est un démon féminin de la tradition juive, inspiré d'une divinité d'origine mésopotamienne.",
+        "Lilith\n\nLilith is a female demon of Jewish tradition, inspired by a deity of Mesopotamian origin.",
       cogito:
-        "Cogito\n\nJe pense, donc je suis : Descartes fonde la certitude sur la conscience de sa propre pensée.",
-      exoplanetes:
-        "Exoplanètes\n\n51 Pegasi b est la première exoplanète découverte autour d'une étoile semblable au Soleil, en 1995.",
+        "Cogito\n\nI think, therefore I am: Descartes grounds certainty on the awareness of his own thinking.",
+      exoplanets:
+        "Exoplanets\n\n51 Pegasi b is the first exoplanet discovered around a Sun-like star, in 1995.",
     };
 
-    it("retrouve la page qui répond à une question, sans mot en commun", async () => {
+    it("finds the page that answers a question, with no word in common", async () => {
       const ids = Object.keys(pages);
       const vectors = await embedTexts(provider, Object.values(pages));
       expect(vectors.map((v) => v.length)).toEqual([1024, 1024, 1024, 1024]);
-      // Les vecteurs passent par le format enregistré (quantifié sur 8 bits).
+      // The vectors go through the stored format (8-bit quantized).
       const items = ids.map((id, i) => ({
         id,
         vector: parseEmbedding(
@@ -218,11 +217,11 @@ describe.skipIf(!KEY)("Mistral, API réelle", () => {
       }));
       const best = async (query: string): Promise<string | undefined> =>
         rankBySimilarity(await embedQuery(provider, query), items)[0]?.id;
-      expect(await best("Jusqu'où un satellite peut-il s'écarter de notre planète ?")).toBe(
-        "apogee",
+      expect(await best("How far can a satellite move away from our planet?")).toBe("apogee");
+      expect(await best("demonic figure of Hebrew legends")).toBe("lilith");
+      expect(await best("philosopher who doubts everything except his own existence")).toBe(
+        "cogito",
       );
-      expect(await best("figure démoniaque des légendes hébraïques")).toBe("lilith");
-      expect(await best("philosophe qui doute de tout sauf de sa propre existence")).toBe("cogito");
     });
   });
 });

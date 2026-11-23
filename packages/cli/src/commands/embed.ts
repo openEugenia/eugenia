@@ -1,6 +1,6 @@
 /**
- * `eugenia embed` : calcule les embeddings manquants ou périmés des pages, pour la recherche
- * sémantique de l'application (`_embedding.json` à côté de chaque `index.md`, jamais publié).
+ * `eugenia embed`: computes the missing or stale page embeddings, for the app's semantic search
+ * (`_embedding.json` next to each `index.md`, never published).
  */
 import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -27,20 +27,20 @@ import { findBranch } from "./summarize.ts";
 
 export interface EmbedOptions {
   dir: string;
-  /** Identifiant ou dossier du nœud dont on traite la branche (racine par défaut). */
+  /** Identifier or folder of the node whose branch is processed (root by default). */
   node?: string;
-  /** Recalcule aussi les embeddings à jour. */
+  /** Also recomputes current embeddings. */
   force: boolean;
   dryRun: boolean;
   model?: string;
   baseUrl?: string;
-  /** Refuse d'envoyer du contenu privé à un fournisseur distant. */
+  /** Refuses to send private content to a remote provider. */
   localOnlyPrivate: boolean;
-  /** Fournisseur injecté (tests). */
+  /** Injected provider (tests). */
   providerInstance?: AIProvider;
 }
 
-/** Mistral par défaut ; tout serveur compatible OpenAI (dont Ollama) avec --base-url. */
+/** Mistral by default; any OpenAI-compatible server (including Ollama) with --base-url. */
 export function embeddingProviderFromEnvironment(
   options: Pick<EmbedOptions, "model" | "baseUrl">,
 ): ProviderConfig {
@@ -49,7 +49,7 @@ export function embeddingProviderFromEnvironment(
   const apiKey = env.EUGENIA_EMBED_API_KEY ?? env.MISTRAL_API_KEY;
   if (!apiKey && !isLocalUrl(baseUrl)) {
     throw new CliError(
-      "Clé d'API manquante : définissez MISTRAL_API_KEY (ou EUGENIA_EMBED_API_KEY pour un autre fournisseur).",
+      "Missing API key: set MISTRAL_API_KEY (or EUGENIA_EMBED_API_KEY for another provider).",
     );
   }
   return {
@@ -65,7 +65,7 @@ export async function embedCommand(options: EmbedOptions, log: Logger): Promise<
   const provider =
     options.providerInstance ?? createProvider(embeddingProviderFromEnvironment(options));
   const { label, model, local } = provider.info;
-  // Sans --node : tout le wiki et toute la bibliothèque.
+  // Without --node: the whole wiki and the whole library.
   const roots = options.node
     ? [findBranch(wiki, options.node)]
     : [wiki.tree.rootId, wiki.tree.libraryId].map((id) => wiki.tree.nodes.get(id)!);
@@ -80,26 +80,24 @@ export async function embedCommand(options: EmbedOptions, log: Logger): Promise<
     if (options.localOnlyPrivate) {
       plan = plan.filter((e) => e.node.isPublic);
       log.warn(
-        yellow(
-          `${privateCount} page(s) privée(s) ignorée(s) : fournisseur distant (--local-only-private).`,
-        ),
+        yellow(`${privateCount} private page(s) skipped: remote provider (--local-only-private).`),
       );
     } else {
       log.warn(
         yellow(
-          `Le contenu de ${privateCount} page(s) privée(s) va être envoyé à ${label} (${model}).`,
+          `The content of ${privateCount} private page(s) is going to be sent to ${label} (${model}).`,
         ),
       );
     }
   }
   const current = entries.filter((e) => e.status === "current").length;
   log.info(
-    bold(`${plan.length} embedding(s) à calculer avec ${label} (${model}), ${current} à jour.`),
+    bold(`${plan.length} embedding(s) to compute with ${label} (${model}), ${current} current.`),
   );
   if (plan.length === 0) return 0;
   if (options.dryRun) {
     for (const e of plan)
-      log.info(`  ${e.status === "missing" ? "nouveau" : "à refaire"} ${embeddingPath(e.node)}`);
+      log.info(`  ${e.status === "missing" ? "new" : "redo"} ${embeddingPath(e.node)}`);
     return 0;
   }
 
@@ -118,9 +116,9 @@ export async function embedCommand(options: EmbedOptions, log: Logger): Promise<
     const path = embeddingPath(entry.node);
     const doc = newEmbeddingDocument({ model, textSha: entry.textSha, vector: vectors[i]! });
     await writeFile(join(wiki.dir, path), serializeEmbedding(doc));
-    log.info(`  ${green("écrit")} ${path}`);
+    log.info(`  ${green("written")} ${path}`);
   }
-  log.info(bold(`${plan.length} embedding(s) écrit(s).`));
-  log.info(dim("Commitez-les : la recherche sémantique de l'application les utilise."));
+  log.info(bold(`${plan.length} embedding(s) written.`));
+  log.info(dim("Commit them: the app's semantic search uses them."));
   return 0;
 }

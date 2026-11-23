@@ -1,8 +1,8 @@
 /**
- * Éditeur d'une page (§9.2, vue 10), selon son type : catégorie (texte d'introduction),
- * connaissance atomique (énoncé, notes, sources ; première flashcard à la création), flashcard
- * (question et réponse), source de la bibliothèque (notice, fichier personnel, contenu). Les
- * métadonnées sont un formulaire, jamais du frontmatter brut.
+ * Page editor (§9.2, view 10), according to its type: category (introduction text), atomic
+ * knowledge (statement, notes, sources; first flashcard on creation), flashcard (question and
+ * answer), library source (bibliographic record, personal file, content). Metadata is a form,
+ * never raw frontmatter.
  */
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Bold, Eye, Heading2, Italic, Link2, Paperclip, Save } from "lucide-react";
@@ -59,10 +59,10 @@ interface Upload {
 }
 
 const NEW_TITLES: Record<PageType, string> = {
-  category: "Nouvelle catégorie",
-  knowledge: "Nouvelle connaissance atomique",
-  flashcard: "Nouvelle flashcard",
-  source: "Nouvelle source",
+  category: "New category",
+  knowledge: "New atomic knowledge item",
+  flashcard: "New flashcard",
+  source: "New source",
 };
 
 function Field({
@@ -103,12 +103,12 @@ function Toolbar({
   preview?: boolean;
 }) {
   return (
-    <div className="editor-toolbar" role="toolbar" aria-label="Mise en forme">
+    <div className="editor-toolbar" role="toolbar" aria-label="Formatting">
       <button
         type="button"
         className="oe-button oe-button--ghost oe-button--sm icon-only"
-        title="Gras (cible d'apprentissage)"
-        aria-label="Gras"
+        title="Bold (learning target)"
+        aria-label="Bold"
         onClick={() => editor.current?.wrap("**")}
       >
         <Bold />
@@ -116,8 +116,8 @@ function Toolbar({
       <button
         type="button"
         className="oe-button oe-button--ghost oe-button--sm icon-only"
-        title="Italique"
-        aria-label="Italique"
+        title="Italic"
+        aria-label="Italic"
         onClick={() => editor.current?.wrap("*")}
       >
         <Italic />
@@ -125,8 +125,8 @@ function Toolbar({
       <button
         type="button"
         className="oe-button oe-button--ghost oe-button--sm icon-only"
-        title="Intertitre"
-        aria-label="Intertitre"
+        title="Heading"
+        aria-label="Heading"
         onClick={() => editor.current?.insert("\n## ")}
       >
         <Heading2 />
@@ -134,10 +134,10 @@ function Toolbar({
       <button
         type="button"
         className="oe-button oe-button--ghost oe-button--sm"
-        title="Lien vers une page (ou tapez [[)"
+        title="Link to a page (or type [[)"
         onClick={onLink}
       >
-        <Link2 aria-hidden="true" /> Lien vers une page
+        <Link2 aria-hidden="true" /> Link to a page
       </button>
       {onPreview && (
         <button
@@ -147,7 +147,7 @@ function Toolbar({
           onClick={onPreview}
           style={{ marginLeft: "auto" }}
         >
-          <Eye aria-hidden="true" /> {preview ? "Éditer" : "Aperçu"}
+          <Eye aria-hidden="true" /> {preview ? "Edit" : "Preview"}
         </button>
       )}
     </div>
@@ -172,18 +172,18 @@ export function EditorView(props: EditorProps) {
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [order, setOrder] = useState("");
-  // Catégorie et source : corps Markdown ; connaissance : énoncé et notes.
+  // Category and source: Markdown body; knowledge: statement and notes.
   const [body, setBody] = useState("");
   const [statement, setStatement] = useState("");
   const [notes, setNotes] = useState("");
-  // Flashcard (ou première flashcard d'une nouvelle connaissance).
+  // Flashcard (or first flashcard of a new knowledge item).
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [legacyKnowledge, setLegacyKnowledge] = useState<string | undefined>(undefined);
-  // Connaissance : sources citées et sources à créer.
+  // Knowledge: cited sources and sources to create.
   const [sources, setSources] = useState<SourceRef[]>([]);
   const [drafts, setDrafts] = useState<NewSourceDraft[]>([]);
-  // Source : notice et fichier personnel.
+  // Source: bibliographic record and personal file.
   const [kind, setKind] = useState<SourceKind>("web");
   const [authors, setAuthors] = useState("");
   const [url, setUrl] = useState("");
@@ -231,7 +231,7 @@ export function EditorView(props: EditorProps) {
     setLoaded(true);
   }, [props.mode, loaded, node, content.data]);
 
-  // Fichier depuis lequel les liens relatifs sont calculés.
+  // File the relative links are computed from.
   const filePath = node
     ? node.indexPath
     : parent
@@ -247,12 +247,12 @@ export function EditorView(props: EditorProps) {
           label: n.title,
           detail:
             n.type === "knowledge"
-              ? "connaissance"
+              ? "knowledge"
               : n.type === "source"
                 ? "source"
                 : n.type === "flashcard"
                   ? "flashcard"
-                  : "catégorie",
+                  : "category",
           apply: `[${n.title.replace(/([[\]])/g, "\\$1")}](${encodeLinkPath(relativePath(dirname(filePath), n.indexPath))})`,
         }));
     };
@@ -261,16 +261,16 @@ export function EditorView(props: EditorProps) {
   if (props.mode === "edit" && !node)
     return (
       <div className="page">
-        <ErrorBox title="Page introuvable">Cette page n'existe pas.</ErrorBox>
+        <ErrorBox title="Page not found">This page does not exist.</ErrorBox>
       </div>
     );
   if (props.mode === "new" && !parent)
     return (
       <div className="page">
-        <ErrorBox title="Parent introuvable">La page parente n'existe pas.</ErrorBox>
+        <ErrorBox title="Parent not found">The parent page does not exist.</ErrorBox>
       </div>
     );
-  if (!loaded) return <Loading message="Chargement de la page…" />;
+  if (!loaded) return <Loading message="Loading the page…" />;
 
   const insertLink = (target: WikiNode): void => {
     const link = `[${target.title}](${encodeLinkPath(relativePath(dirname(filePath), target.indexPath))})`;
@@ -307,11 +307,11 @@ export function EditorView(props: EditorProps) {
     e.preventDefault();
     if (!workspace) return;
     const finalTitle = title.trim() || (type === "flashcard" ? flashcardTitle(question) : "");
-    if (!finalTitle) return void toast("Le titre est obligatoire.", "error");
+    if (!finalTitle) return void toast("The title is required.", "error");
     if (type === "knowledge" && !statement.trim())
-      return void toast("Une connaissance atomique doit avoir un énoncé.", "error");
+      return void toast("An atomic knowledge item must have a statement.", "error");
     if (type === "flashcard" && (!question.trim() || !answer.trim()))
-      return void toast("Une flashcard a une question et une réponse attendue.", "error");
+      return void toast("A flashcard has a question and an expected answer.", "error");
     setSaving(true);
     try {
       const tagList = splitList(tags);
@@ -365,7 +365,7 @@ export function EditorView(props: EditorProps) {
         changes.push(created.change);
         targetId = created.id;
         pageDir = created.path;
-        // Première flashcard d'une nouvelle connaissance, dans le même commit.
+        // First flashcard of a new knowledge item, in the same commit.
         if (type === "knowledge" && question.trim() && answer.trim()) {
           const card = createFlashcard(
             workspace,
@@ -375,7 +375,7 @@ export function EditorView(props: EditorProps) {
           );
           changes.push(card.change);
         }
-        message = `Créer « ${finalTitle} »`;
+        message = `Create "${finalTitle}"`;
       } else {
         targetId = node!.id;
         pageDir = node!.path;
@@ -392,8 +392,8 @@ export function EditorView(props: EditorProps) {
         );
         message =
           finalTitle !== node!.title
-            ? `Renommer « ${node!.title} » en « ${finalTitle} »`
-            : `Modifier « ${finalTitle} »`;
+            ? `Rename "${node!.title}" to "${finalTitle}"`
+            : `Edit "${finalTitle}"`;
       }
       if (props.mode === "new") {
         changes.push(
@@ -414,11 +414,11 @@ export function EditorView(props: EditorProps) {
               path: joinPath(moved.path, u.name),
               base64: u.base64,
             })),
-            `Joindre ${uploads.length} fichier(s) à « ${moved.title} »`,
+            `Attach ${uploads.length} file(s) to "${moved.title}"`,
           );
         }
       }
-      toast("Modifications en attente : pensez à les enregistrer dans le dépôt.", "success");
+      toast("Changes pending: remember to save them to the repository.", "success");
       navigate({ name: "node", id: targetId });
     } catch (error) {
       toast(errorMessage(error), "error");
@@ -462,17 +462,17 @@ export function EditorView(props: EditorProps) {
 
   const flashcardFields = (required: boolean) => (
     <>
-      <Field id="question" label={required ? "Question" : "Question (facultatif)"}>
+      <Field id="question" label={required ? "Question" : "Question (optional)"}>
         <textarea
           id="question"
           className="oe-textarea"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Quel est le nom du démon féminin… ?"
+          placeholder="What is the name of the female demon…?"
           required={required}
         />
       </Field>
-      <Field id="answer" label={required ? "Réponse attendue" : "Réponse attendue (facultatif)"}>
+      <Field id="answer" label={required ? "Expected answer" : "Expected answer (optional)"}>
         <textarea
           id="answer"
           className="oe-textarea"
@@ -489,25 +489,27 @@ export function EditorView(props: EditorProps) {
   return (
     <form className="page" onSubmit={(e) => void save(e)}>
       <Breadcrumb tree={derived.tree} node={context} />
-      <h1>{props.mode === "new" ? NEW_TITLES[type] : `Modifier « ${node!.title} »`}</h1>
+      <h1>{props.mode === "new" ? NEW_TITLES[type] : `Edit "${node!.title}"`}</h1>
       {props.mode === "new" && (
         <p className="muted">
           {type === "source"
-            ? "Dans la bibliothèque."
+            ? "In the library."
             : type === "flashcard"
-              ? `Pour la connaissance « ${parent!.title} ».`
-              : `Dans « ${parent!.title} ».`}{" "}
-          Une nouvelle page est privée par défaut ; vous pourrez la rendre publique ensuite.
+              ? `For the knowledge item "${parent!.title}".`
+              : `In "${parent!.title}".`}{" "}
+          A new page is private by default; you can make it public afterwards.
+          {type === "source" &&
+            " The bibliographic record of a private source (title, kind, authors, date, URL) is still published, so that public knowledge can cite it."}
         </p>
       )}
 
       <div className="form-grid section">
         <Field
           id="title"
-          label={type === "flashcard" ? "Titre (facultatif : tiré de la question)" : "Titre"}
+          label={type === "flashcard" ? "Title (optional: taken from the question)" : "Title"}
           {...(props.mode === "edit" && title.trim() !== node!.title
             ? {
-                help: "Le dossier de la page sera renommé et les liens qui pointent vers elle seront réécrits.",
+                help: "The page's folder will be renamed and the links that point to it will be rewritten.",
               }
             : {})}
         >
@@ -522,17 +524,17 @@ export function EditorView(props: EditorProps) {
         </Field>
         {type !== "flashcard" && (
           <div className="form-row">
-            <Field id="tags" label="Étiquettes">
+            <Field id="tags" label="Tags">
               <input
                 id="tags"
                 className="oe-input"
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
-                placeholder="astronomie, lune"
+                placeholder="astronomy, moon"
               />
             </Field>
             {type !== "source" && (
-              <Field id="order" label="Ordre (facultatif)">
+              <Field id="order" label="Order (optional)">
                 <input
                   id="order"
                   className="oe-input"
@@ -546,24 +548,27 @@ export function EditorView(props: EditorProps) {
         )}
         {node && (
           <p className="small muted">
-            Visibilité : <VisibilityBadge visibility={node.isPublic ? "public" : "private"} /> —
-            modifiable depuis la page, selon les règles de publication.
+            Visibility: <VisibilityBadge visibility={node.isPublic ? "public" : "private"} /> — can
+            be changed from the page, following the publication rules.
+            {type === "source" &&
+              !node.isPublic &&
+              " Only the bibliographic record (title, kind, authors, date, URL) of a private source is published."}
           </p>
         )}
       </div>
 
       {type === "category" &&
         markdownBody(
-          "Introduction (facultatif)",
-          "Présentez cette catégorie. Tapez [[ pour lier une autre page.",
+          "Introduction (optional)",
+          "Introduce this category. Type [[ to link another page.",
         )}
 
       {type === "knowledge" && (
         <>
           <div className="form-grid section">
             <Field
-              label="Énoncé"
-              help="Un énoncé simple, précis, compréhensible sans contexte ; mettez en gras la cible d'apprentissage."
+              label="Statement"
+              help="A simple, precise statement, understandable without context; put the learning target in bold."
             >
               <div>
                 <Toolbar editor={statementEditor} onLink={() => setPicker("statement")} />
@@ -572,27 +577,26 @@ export function EditorView(props: EditorProps) {
                   value={statement}
                   onChange={setStatement}
                   small
-                  ariaLabel="Énoncé"
+                  ariaLabel="Statement"
                   linkCompletions={linkCompletions}
-                  placeholder="**Lilith** est un démon féminin de la tradition juive…"
+                  placeholder="**Lilith** is a female demon of Jewish tradition…"
                 />
               </div>
               {statement && !/\*\*[^*]+\*\*/.test(statement) && (
                 <InfoBox kind="warning">
-                  Aucune partie en gras : sélectionnez la cible d'apprentissage et cliquez sur «
-                  Gras ».
+                  No bold part: select the learning target and click "Bold".
                 </InfoBox>
               )}
             </Field>
             <details>
-              <summary className="small">Notes (renvois, précisions)</summary>
+              <summary className="small">Notes (cross-references, details)</summary>
               <MarkdownEditor
                 value={notes}
                 onChange={setNotes}
                 small
                 ariaLabel="Notes"
                 linkCompletions={linkCompletions}
-                placeholder="## Notes\nVoir aussi…"
+                placeholder="## Notes\nSee also…"
               />
             </details>
           </div>
@@ -611,11 +615,10 @@ export function EditorView(props: EditorProps) {
           {props.mode === "new" && (
             <section className="section form-grid">
               <div className="section__head">
-                <h2>Première flashcard</h2>
+                <h2>First flashcard</h2>
               </div>
               <p className="muted small">
-                Une question pour réviser cette connaissance. Vous pourrez en ajouter d'autres
-                depuis sa page.
+                A question to review this knowledge item. You can add others from its page.
               </p>
               {flashcardFields(false)}
             </section>
@@ -627,12 +630,12 @@ export function EditorView(props: EditorProps) {
         <div className="form-grid section">
           {flashcardFields(true)}
           <details>
-            <summary className="small">Notes complémentaires</summary>
+            <summary className="small">Additional notes</summary>
             <MarkdownEditor
               value={notes}
               onChange={setNotes}
               small
-              ariaLabel="Notes complémentaires"
+              ariaLabel="Additional notes"
               linkCompletions={linkCompletions}
             />
           </details>
@@ -643,7 +646,7 @@ export function EditorView(props: EditorProps) {
         <>
           <div className="form-grid section">
             <div className="form-row">
-              <Field id="kind" label="Nature">
+              <Field id="kind" label="Kind">
                 <select
                   id="kind"
                   className="oe-select"
@@ -657,7 +660,7 @@ export function EditorView(props: EditorProps) {
                   ))}
                 </select>
               </Field>
-              <Field id="authors" label="Auteurs">
+              <Field id="authors" label="Authors">
                 <input
                   id="authors"
                   className="oe-input"
@@ -666,7 +669,7 @@ export function EditorView(props: EditorProps) {
                   placeholder="René Descartes"
                 />
               </Field>
-              <Field id="published" label="Publication">
+              <Field id="published" label="Published">
                 <input
                   id="published"
                   className="oe-input"
@@ -676,7 +679,7 @@ export function EditorView(props: EditorProps) {
                 />
               </Field>
             </div>
-            <Field id="url" label="Adresse">
+            <Field id="url" label="URL">
               <input
                 id="url"
                 className="oe-input"
@@ -687,8 +690,8 @@ export function EditorView(props: EditorProps) {
               />
             </Field>
             <Field
-              label="Fichier personnel"
-              help="Le document lui-même (PDF…) : il reste dans votre dépôt privé et n'est jamais publié."
+              label="Personal file"
+              help="The document itself (PDF…): it stays in your private repository and is never published."
             >
               <div className="actions actions--start">
                 {file && (
@@ -697,7 +700,7 @@ export function EditorView(props: EditorProps) {
                   </span>
                 )}
                 <label className="oe-button oe-button--ghost oe-button--sm">
-                  <Paperclip aria-hidden="true" /> {file ? "Remplacer" : "Joindre un fichier"}
+                  <Paperclip aria-hidden="true" /> {file ? "Replace" : "Attach a file"}
                   <input
                     type="file"
                     hidden
@@ -710,15 +713,15 @@ export function EditorView(props: EditorProps) {
                     className="oe-button oe-button--ghost oe-button--sm"
                     onClick={() => setFile("")}
                   >
-                    Détacher
+                    Detach
                   </button>
                 )}
               </div>
             </Field>
           </div>
           {markdownBody(
-            "Contenu (résumé, extraits, notes de lecture)",
-            "Collez un extrait ou résumez la source : vous pourrez en extraire des connaissances.",
+            "Content (summary, excerpts, reading notes)",
+            "Paste an excerpt or summarize the source: you can then extract knowledge from it.",
           )}
         </>
       )}
@@ -726,7 +729,7 @@ export function EditorView(props: EditorProps) {
       {type !== "flashcard" && (
         <section className="section">
           <label className="oe-button oe-button--ghost oe-button--sm">
-            <Paperclip aria-hidden="true" /> Joindre un fichier à la page (image, PDF…)
+            <Paperclip aria-hidden="true" /> Attach a file to the page (image, PDF…)
             <input
               type="file"
               hidden
@@ -734,29 +737,29 @@ export function EditorView(props: EditorProps) {
             />
           </label>
           {uploads.length > 0 && (
-            <p className="small muted">À joindre : {uploads.map((u) => u.name).join(", ")}</p>
+            <p className="small muted">To attach: {uploads.map((u) => u.name).join(", ")}</p>
           )}
         </section>
       )}
 
       <div className="actions section">
         <a className="oe-button oe-button--ghost" href={cancelHref}>
-          Annuler
+          Cancel
         </a>
         <button type="submit" className="oe-button" disabled={saving}>
-          <Save aria-hidden="true" /> {saving ? "Enregistrement…" : "Enregistrer"}
+          <Save aria-hidden="true" /> {saving ? "Saving…" : "Save"}
         </button>
       </div>
 
       {picker && (
         <NodePicker
           open
-          title="Lier une page"
+          title="Link a page"
           tree={derived.tree}
           filter={(n) => !n.virtual}
           onClose={() => setPicker(null)}
           onSelect={insertLink}
-          hint="Le lien relatif est calculé automatiquement et réécrit si la page cible est déplacée."
+          hint="The relative link is computed automatically and rewritten if the target page moves."
         />
       )}
     </form>

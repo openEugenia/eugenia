@@ -1,4 +1,4 @@
-/** Point d'entrée de la CLI `eugenia`. */
+/** Entry point of the `eugenia` CLI. */
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import type { SummaryScope } from "@openeugenia/core";
 import type { ProviderKind } from "@openeugenia/ai";
@@ -12,62 +12,62 @@ import { CliError, consoleLogger, red, type Logger } from "./output.ts";
 declare const __EUGENIA_VERSION__: string | undefined;
 const VERSION = typeof __EUGENIA_VERSION__ === "string" ? __EUGENIA_VERSION__ : "dev";
 
-const HELP = `eugenia ${VERSION} — wiki personnel de connaissances, sur git
+const HELP = `eugenia ${VERSION} — a personal knowledge wiki, on git
 
-Usage : eugenia <commande> [dossier] [options]
+Usage: eugenia <command> [folder] [options]
 
-Commandes :
-  init [dossier]        Crée un wiki : configuration, racine et catégories par défaut.
-      --title <titre>          Titre du wiki (défaut : « Mon wiki »)
-      --root <dossier>         Dossier racine des pages (défaut : wiki)
-      --no-categories          Ne crée pas les catégories par défaut
-      --github                 Crée aussi les dépôts privé et public, la clé de déploiement
-                               et le secret de publication (nécessite gh et ssh-keygen)
-      --private-repo <o/n>     Dépôt privé (défaut avec --github : <compte>/eugenia-wiki)
-      --public-repo <o/n>      Dépôt public (défaut : <dépôt privé>-public)
-      --action <ref>           Action de publication (défaut : openEugenia/eugenia@v1)
-      --force                  Écrase les fichiers existants
-      --dry-run                Affiche ce qui serait fait
+Commands:
+  init [folder]         Creates a wiki: configuration, root and default categories.
+      --title <title>          Title of the wiki (default: "My wiki")
+      --root <folder>          Root folder of the pages (default: wiki)
+      --no-categories          Does not create the default categories
+      --github                 Also creates the private and public repositories, the deploy
+                               key and the publication secret (requires gh and ssh-keygen)
+      --private-repo <o/n>     Private repository (default with --github: <account>/eugenia-wiki)
+      --public-repo <o/n>      Public repository (default: <private repository>-public)
+      --action <ref>           Publication action (default: openEugenia/eugenia@v1)
+      --force                  Overwrites existing files
+      --dry-run                Shows what would be done
 
-  validate [dossier]    Vérifie le format (frontmatter, identifiants, visibilité, liens…).
-      --json                   Résultat au format JSON
-      --no-links               Ne vérifie pas les liens internes
+  validate [folder]     Checks the format (frontmatter, identifiers, visibility, links…).
+      --json                   Result in JSON format
+      --no-links               Does not check internal links
 
-  publish [dossier]     Publie les nœuds publics dans le dépôt public (un seul commit).
-      --target <o/n>           Dépôt public cible
-      --out <dossier>          Écrit aussi l'arborescence publique dans ce dossier vide
-      --branch <nom>           Branche cible (défaut : main)
-      --private-repo <o/n>     Dépôt privé à déclarer dans la configuration publique
-      --token-env <VAR>        Variable contenant un jeton d'écriture (défaut :
-                               EUGENIA_PUBLISH_TOKEN ; sinon SSH / clé de déploiement)
-      --remote <url>           Adresse git explicite du dépôt cible
-      --dry-run                Construit et vérifie sans pousser
+  publish [folder]      Publishes the public nodes to the public repository (a single commit).
+      --target <o/n>           Target public repository
+      --out <folder>           Also writes the public tree to this empty folder
+      --branch <name>          Target branch (default: main)
+      --private-repo <o/n>     Private repository to declare in the public configuration
+      --token-env <VAR>        Variable holding a write token (default:
+                               EUGENIA_PUBLISH_TOKEN; otherwise SSH / deploy key)
+      --remote <url>           Explicit git URL of the target repository
+      --dry-run                Builds and checks without pushing
 
-  summarize [dossier]   Génère les descriptions de sous-wikis périmées ou manquantes.
-      --stale                  Descriptions périmées ou manquantes (par défaut)
-      --force                  Régénère aussi les descriptions à jour (sauf verrouillées)
-      --node <id|dossier>      Limite à une branche
-      --scope <private|public|both>   Portée (défaut : both)
-      --provider <anthropic|openai|ollama>   Fournisseur (défaut : anthropic, ou variables
+  summarize [folder]    Generates the stale or missing sub-wiki descriptions.
+      --stale                  Stale or missing descriptions (default)
+      --force                  Also regenerates fresh descriptions (except locked ones)
+      --node <id|folder>       Limits to one branch
+      --scope <private|public|both>   Scope (default: both)
+      --provider <anthropic|openai|ollama>   Provider (default: anthropic, or the variables
                                EUGENIA_AI_PROVIDER, ANTHROPIC_API_KEY, OPENAI_API_KEY)
-      --model <modèle>         Modèle (défaut Anthropic : claude-opus-5-5)
-      --base-url <url>         Adresse du serveur (OpenAI compatible, Ollama)
-      --local-only-private     N'envoie jamais de contenu privé à un fournisseur distant
-      --dry-run                Affiche les descriptions sans les écrire
+      --model <model>          Model (Anthropic default: claude-opus-5-5)
+      --base-url <url>         Server URL (OpenAI-compatible, Ollama)
+      --local-only-private     Never sends private content to a remote provider
+      --dry-run                Shows the descriptions without writing them
 
-  embed [dossier]       Calcule les embeddings des pages (recherche sémantique) manquants
-                        ou périmés : un _embedding.json par page, jamais publié.
-      --force                  Recalcule aussi les embeddings à jour
-      --node <id|dossier>      Limite à une branche
-      --model <modèle>         Modèle (défaut : mistral-embed, ou EUGENIA_EMBED_MODEL)
-      --base-url <url>         Serveur compatible OpenAI (défaut : Mistral, ou
-                               EUGENIA_EMBED_BASE_URL) ; clé MISTRAL_API_KEY ou
+  embed [folder]        Computes the missing or stale page embeddings (semantic search):
+                        one _embedding.json per page, never published.
+      --force                  Also recomputes current embeddings
+      --node <id|folder>       Limits to one branch
+      --model <model>          Model (default: mistral-embed, or EUGENIA_EMBED_MODEL)
+      --base-url <url>         OpenAI-compatible server (default: Mistral, or
+                               EUGENIA_EMBED_BASE_URL); key MISTRAL_API_KEY or
                                EUGENIA_EMBED_API_KEY
-      --local-only-private     N'envoie jamais de contenu privé à un fournisseur distant
-      --dry-run                Affiche les pages concernées sans appeler le modèle
+      --local-only-private     Never sends private content to a remote provider
+      --dry-run                Shows the pages concerned without calling the model
 
-  help                  Affiche cette aide.
-  version               Affiche la version.
+  help                  Shows this help.
+  version               Shows the version.
 `;
 
 type Options = NonNullable<ParseArgsConfig["options"]>;
@@ -83,7 +83,7 @@ function parse(
       allowPositionals: true,
       allowNegative: true,
     });
-    if (positionals.length > 1) throw new CliError(`Argument inattendu : ${positionals[1]}`);
+    if (positionals.length > 1) throw new CliError(`Unexpected argument: ${positionals[1]}`);
     return {
       values: values as Record<string, string | boolean | undefined>,
       dir: positionals[0] ?? ".",
@@ -201,10 +201,10 @@ export async function main(argv: string[], log: Logger = consoleLogger): Promise
       });
       const scope = str(values.scope) ?? "both";
       if (!["private", "public", "both"].includes(scope))
-        throw new CliError("--scope : private, public ou both.", 2);
+        throw new CliError("--scope: private, public or both.", 2);
       const provider = str(values.provider);
       if (provider && !["anthropic", "openai", "ollama"].includes(provider)) {
-        throw new CliError("--provider : anthropic, openai ou ollama.", 2);
+        throw new CliError("--provider: anthropic, openai or ollama.", 2);
       }
       const node = str(values.node);
       const model = str(values.model);
@@ -250,7 +250,7 @@ export async function main(argv: string[], log: Logger = consoleLogger): Promise
       );
     }
     default:
-      throw new CliError(`Commande inconnue : ${command}. Voir « eugenia help ».`, 2);
+      throw new CliError(`Unknown command: ${command}. See "eugenia help".`, 2);
   }
 }
 

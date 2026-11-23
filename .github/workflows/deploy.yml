@@ -1,6 +1,6 @@
-# Déploie l'application sur https://openeugenia.github.io/eugenia/ à chaque tag de version (§13).
-# Réglage préalable du dépôt : Settings → Pages → Source : GitHub Actions.
-name: Déploiement de l'application
+# Deploys the app to https://openeugenia.github.io/eugenia/ on every version tag (§13).
+# Repository prerequisite: Settings → Pages → Source: GitHub Actions.
+name: Deploy the app
 
 on:
   push:

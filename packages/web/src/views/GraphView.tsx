@@ -1,4 +1,4 @@
-/** Graphe de l'arbre (§9.2, vue 7) : arbre radial, zoom, focus sur une branche, liens entre pages. */
+/** Graph of the tree (§9.2, view 7): radial tree, zoom, focus on a branch, links between pages. */
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { hierarchy, tree as d3tree, type HierarchyPointNode } from "d3-hierarchy";
 import { ArrowUpLeft, Minus, Plus, Scan } from "lucide-react";
@@ -67,7 +67,7 @@ export function GraphView({ id }: { id?: string }) {
     return { nodes: all, links: laid.links(), radius: r, bounds, truncated: count > MAX_NODES };
   }, [focus, derived.tree]);
 
-  /** Cadre l'arbre entier (étiquettes comprises) dans la zone visible. */
+  /** Fits the whole tree (labels included) in the visible area. */
   const fit = (): void => {
     const svg = svgRef.current?.getBoundingClientRect();
     if (!svg) return;
@@ -105,7 +105,7 @@ export function GraphView({ id }: { id?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, showLinks, workspace, derived.tree, version]);
 
-  // Cadre la vue à chaque changement de focus.
+  // Fits the view on each change of focus.
   useEffect(() => {
     fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,14 +142,14 @@ export function GraphView({ id }: { id?: string }) {
     <div className="page page--wide">
       <Breadcrumb tree={derived.tree} node={focus} />
       <div className="section__head">
-        <h1 style={{ fontSize: "var(--oe-font-size-2xl)", margin: 0 }}>Graphe — {focus.title}</h1>
+        <h1 style={{ fontSize: "var(--oe-font-size-2xl)", margin: 0 }}>Graph — {focus.title}</h1>
         <div className="toolbar">
           {parent && (
             <a
               className="oe-button oe-button--ghost oe-button--sm"
               href={href({ name: "graph", id: parent.id })}
             >
-              <ArrowUpLeft aria-hidden="true" /> Remonter à « {parent.title} »
+              <ArrowUpLeft aria-hidden="true" /> Up to "{parent.title}"
             </a>
           )}
           <label className="check">
@@ -158,7 +158,7 @@ export function GraphView({ id }: { id?: string }) {
               checked={showLinks}
               onChange={(e) => setShowLinks(e.target.checked)}
             />{" "}
-            Liens entre pages
+            Links between pages
           </label>
         </div>
       </div>
@@ -167,13 +167,13 @@ export function GraphView({ id }: { id?: string }) {
           <svg width="10" height="10" aria-hidden="true">
             <circle cx="5" cy="5" r="5" fill={TYPE_COLORS.category} />
           </svg>{" "}
-          Catégorie
+          Category
         </span>
         <span className="legend__item">
           <svg width="10" height="10" aria-hidden="true">
             <circle cx="5" cy="5" r="5" fill={TYPE_COLORS.knowledge} />
           </svg>{" "}
-          Connaissance atomique
+          Atomic knowledge
         </span>
         <span className="legend__item">
           <svg width="10" height="10" aria-hidden="true">
@@ -183,17 +183,17 @@ export function GraphView({ id }: { id?: string }) {
         </span>
         {showLinks && (
           <span className="legend__item">
-            <span className="line-key" style={{ background: "var(--viz-series-4)" }} /> Lien entre
+            <span className="line-key" style={{ background: "var(--viz-series-4)" }} /> Link between
             pages
           </span>
         )}
-        <span className="muted">Clic : centrer sur la branche · double-clic : ouvrir la page</span>
+        <span className="muted">Click: center on the branch · double-click: open the page</span>
       </div>
       <div className="graph">
         <svg
           ref={svgRef}
           role="img"
-          aria-label={`Graphe de la branche ${focus.title}`}
+          aria-label={`Graph of the branch ${focus.title}`}
           onWheel={onWheel}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -223,7 +223,7 @@ export function GraphView({ id }: { id?: string }) {
             {crossLinks.map(([a, b], i) => {
               const [ax, ay] = point(a);
               const [bx, by] = point(b);
-              // Courbe tirée vers le centre, sans le traverser.
+              // Curve pulled toward the center, without crossing it.
               const cx = ((ax + bx) / 2) * 0.55;
               const cy = ((ay + by) / 2) * 0.55;
               return (
@@ -244,7 +244,7 @@ export function GraphView({ id }: { id?: string }) {
                 nodes.length <= 80 || n.depth <= 2 || view.k > 1.6 || hover === n.data.id;
               const angle = (n.x * 180) / Math.PI - 90;
               const flip = n.x > Math.PI;
-              // Feuilles : étiquette dans le prolongement du rayon ; nœuds internes : horizontale, au-dessus.
+              // Leaves: label along the radius; inner nodes: horizontal, above.
               const leaf = !n.children || n.children.length === 0;
               return (
                 <g
@@ -253,7 +253,7 @@ export function GraphView({ id }: { id?: string }) {
                   transform={`translate(${x},${y})`}
                   tabIndex={0}
                   role="link"
-                  aria-label={`${n.data.title}${owner && m?.value !== undefined ? `, maîtrise ${formatPercent(m.value)}` : ""}`}
+                  aria-label={`${n.data.title}${owner && m?.value !== undefined ? `, mastery ${formatPercent(m.value)}` : ""}`}
                   onPointerEnter={() => setHover(n.data.id)}
                   onPointerLeave={() => setHover((h) => (h === n.data.id ? null : h))}
                   onFocus={() => setHover(n.data.id)}
@@ -290,7 +290,7 @@ export function GraphView({ id }: { id?: string }) {
           <button
             type="button"
             className="oe-button oe-button--secondary oe-button--sm icon-only"
-            aria-label="Zoomer"
+            aria-label="Zoom in"
             onClick={() => zoom(1.3)}
           >
             <Plus />
@@ -298,7 +298,7 @@ export function GraphView({ id }: { id?: string }) {
           <button
             type="button"
             className="oe-button oe-button--secondary oe-button--sm icon-only"
-            aria-label="Dézoomer"
+            aria-label="Zoom out"
             onClick={() => zoom(1 / 1.3)}
           >
             <Minus />
@@ -306,7 +306,7 @@ export function GraphView({ id }: { id?: string }) {
           <button
             type="button"
             className="oe-button oe-button--secondary oe-button--sm icon-only"
-            aria-label="Recentrer"
+            aria-label="Recenter"
             onClick={fit}
           >
             <Scan />
@@ -315,10 +315,10 @@ export function GraphView({ id }: { id?: string }) {
       </div>
       <p className="muted small" style={{ marginTop: "0.5rem", minHeight: "1.5em" }}>
         {hovered
-          ? `${[...ancestors(derived.tree, hovered.id).map((a) => a.title), hovered.title].join(" › ")}${owner && branch.get(hovered.id)?.value !== undefined ? ` · maîtrise ${formatPercent(branch.get(hovered.id)!.value)}` : ""}`
+          ? `${[...ancestors(derived.tree, hovered.id).map((a) => a.title), hovered.title].join(" › ")}${owner && branch.get(hovered.id)?.value !== undefined ? ` · mastery ${formatPercent(branch.get(hovered.id)!.value)}` : ""}`
           : truncated
-            ? `Branche volumineuse : seuls les ${MAX_NODES} premiers nœuds sont affichés. Centrez-vous sur une sous-branche.`
-            : `${nodes.length} nœud(s) affiché(s).`}
+            ? `Large branch: only the first ${MAX_NODES} nodes are shown. Center on a sub-branch.`
+            : `${nodes.length} node(s) shown.`}
       </p>
     </div>
   );

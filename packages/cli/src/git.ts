@@ -1,4 +1,4 @@
-/** Publication par git : un seul commit, historique du dépôt public réécrit (§6.4). */
+/** Publication through git: a single commit, history of the public repository rewritten (§6.4). */
 import type { Logger } from "./output.ts";
 import { run } from "./process.ts";
 
@@ -18,7 +18,7 @@ export interface PushOptions {
   secret?: string;
 }
 
-/** Initialise un dépôt neuf dans `dir`, commite tout et force la branche distante. */
+/** Initializes a fresh repository in `dir`, commits everything and force-pushes the branch. */
 export async function pushSnapshot(options: PushOptions): Promise<void> {
   const { dir, log } = options;
   const common = {

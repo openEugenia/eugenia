@@ -1,6 +1,6 @@
 /**
- * Stockage local (IndexedDB) : copie hors ligne des wikis consultés, modifications en
- * attente, paramètres. Rien de tout cela ne quitte l'appareil.
+ * Local storage (IndexedDB): offline copy of the wikis viewed, pending changes, settings.
+ * None of this leaves the device.
  */
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { DiscussionMeta, PageMeta, RepoFile } from "@openeugenia/core";
@@ -8,21 +8,21 @@ import type { PendingState } from "./pending.ts";
 import type { Settings } from "./settings.ts";
 
 export interface Snapshot {
-  /** Dépôt réellement lu (le dépôt privé en mode propriétaire). */
+  /** Repository actually read (the private repository in owner mode). */
   repo: string;
   mode: "owner" | "anonymous";
   branch: string;
-  /** Commit lu (mode propriétaire). */
+  /** Commit read (owner mode). */
   headSha?: string;
   treeSha?: string;
-  /** Le dépôt est privé (mode propriétaire) : écriture autorisée. */
+  /** The repository is private (owner mode): writing allowed. */
   isPrivate?: boolean;
   files: RepoFile[];
-  /** Métadonnées issues de `index.json` (mode anonyme). */
+  /** Metadata from `index.json` (anonymous mode). */
   metas?: Record<string, PageMeta>;
-  /** Discussions publiées, d'après `index.json` (mode anonyme). */
+  /** Published discussions, from `index.json` (anonymous mode). */
   discussions?: Record<string, DiscussionMeta>;
-  /** Dépôt public associé, si connu. */
+  /** Associated public repository, if known. */
   publicRepo?: string;
   fetchedAt: string;
 }
@@ -129,7 +129,7 @@ export async function putRecent(recent: RecentWiki): Promise<void> {
   await (await db()).put("recents", recent);
 }
 
-/** Oublie un wiki sur cet appareil : copie locale, modifications en attente, historique. */
+/** Forgets a wiki on this device: local copy, pending changes, history. */
 export async function forgetRepo(repo: string): Promise<void> {
   const database = await db();
   const tx = database.transaction(["blobs", "snapshots", "pending", "recents"], "readwrite");
@@ -143,7 +143,7 @@ export async function forgetRepo(repo: string): Promise<void> {
   await tx.done;
 }
 
-/** Taille approximative de la copie locale d'un wiki (octets). */
+/** Approximate size of the local copy of a wiki (bytes). */
 export async function localSize(repo: string): Promise<number> {
   const entries = await (await db()).getAllFromIndex("blobs", "repo", repo);
   return entries.reduce((n, e) => n + e.content.length * 2, 0);

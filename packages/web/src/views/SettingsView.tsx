@@ -1,4 +1,4 @@
-/** Paramètres : jeton GitHub, fournisseurs d'IA, IA locale pour le privé, données hors ligne (§9.2, vue 11). */
+/** Settings: GitHub token, AI providers, local AI for private content, offline data (§9.2, view 11). */
 import { useEffect, useState } from "react";
 import { CheckCircle2, KeyRound, Trash2 } from "lucide-react";
 import type { ProviderConfig, ProviderKind } from "@openeugenia/ai";
@@ -41,12 +41,12 @@ function ProviderEditor({
       const { createProvider } = await import("@openeugenia/ai");
       const provider = createProvider(value);
       const text = await provider.complete({
-        system: "Tu es un test de connexion.",
-        messages: [{ role: "user", content: "Réponds seulement : OK" }],
+        system: "You are a connection test.",
+        messages: [{ role: "user", content: "Only answer: OK" }],
         effort: "low",
       });
       toast(
-        `${provider.info.label} répond (${provider.info.model}) : « ${text.slice(0, 40)} »`,
+        `${provider.info.label} answers (${provider.info.model}): "${text.slice(0, 40)}"`,
         "success",
       );
     } catch (error) {
@@ -60,7 +60,7 @@ function ProviderEditor({
       <div className="form-row">
         <div className="oe-field">
           <label className="oe-label" htmlFor={`${id}-kind`}>
-            Fournisseur
+            Provider
           </label>
           <select
             id={`${id}-kind`}
@@ -75,16 +75,16 @@ function ProviderEditor({
               else onChange({ kind: k });
             }}
           >
-            <option value="">Aucun</option>
+            <option value="">None</option>
             {!allowLocalOnly && <option value="anthropic">Claude (Anthropic)</option>}
-            {!allowLocalOnly && <option value="openai">Compatible OpenAI</option>}
-            <option value="ollama">Ollama / serveur local</option>
+            {!allowLocalOnly && <option value="openai">OpenAI-compatible</option>}
+            <option value="ollama">Ollama / local server</option>
           </select>
         </div>
         {value && (
           <div className="oe-field">
             <label className="oe-label" htmlFor={`${id}-model`}>
-              Modèle
+              Model
             </label>
             <input
               id={`${id}-model`}
@@ -96,7 +96,7 @@ function ProviderEditor({
                   ? DEFAULT_ANTHROPIC_MODEL
                   : value.kind === "ollama"
                     ? DEFAULT_OLLAMA_MODEL
-                    : "nom du modèle"
+                    : "model name"
               }
               onChange={(e) => set({ model: e.target.value })}
             />
@@ -106,7 +106,7 @@ function ProviderEditor({
       {value && value.kind !== "anthropic" && (
         <div className="oe-field">
           <label className="oe-label" htmlFor={`${id}-url`}>
-            Adresse du serveur
+            Server URL
           </label>
           <input
             id={`${id}-url`}
@@ -117,7 +117,7 @@ function ProviderEditor({
           />
           {value.kind === "ollama" && (
             <span className="oe-help">
-              Ollama doit autoriser l'origine de l'application : lancez-le avec{" "}
+              Ollama must allow the app's origin: start it with{" "}
               <code>OLLAMA_ORIGINS={location.origin}</code>.
             </span>
           )}
@@ -126,7 +126,7 @@ function ProviderEditor({
       {value && value.kind !== "ollama" && (
         <div className="oe-field">
           <label className="oe-label" htmlFor={`${id}-key`}>
-            Clé API
+            API key
           </label>
           <input
             id={`${id}-key`}
@@ -135,11 +135,9 @@ function ProviderEditor({
             autoComplete="off"
             value={value.apiKey ?? ""}
             onChange={(e) => set({ apiKey: e.target.value })}
-            placeholder={value.kind === "anthropic" ? "sk-ant-…" : "clé du fournisseur"}
+            placeholder={value.kind === "anthropic" ? "sk-ant-…" : "provider key"}
           />
-          <span className="oe-help">
-            Conservée dans ce navigateur seulement, envoyée uniquement au fournisseur.
-          </span>
+          <span className="oe-help">Kept in this browser only, sent only to the provider.</span>
         </div>
       )}
       {value && (
@@ -150,7 +148,7 @@ function ProviderEditor({
             disabled={testing}
             onClick={() => void test()}
           >
-            {testing ? "Test en cours…" : "Tester"}
+            {testing ? "Testing…" : "Test"}
           </button>
         </div>
       )}
@@ -159,8 +157,8 @@ function ProviderEditor({
 }
 
 /**
- * Fournisseur d'embeddings de la recherche sémantique : Mistral par défaut, ou tout serveur
- * compatible OpenAI (dont Ollama, sans clé).
+ * Embedding provider of the semantic search: Mistral by default, or any OpenAI-compatible
+ * server (including Ollama, without a key).
  */
 function EmbeddingEditor({
   value,
@@ -180,7 +178,7 @@ function EmbeddingEditor({
     setFields(next);
     const baseUrl = next.baseUrl.trim() || DEFAULT_MISTRAL_URL;
     const apiKey = next.apiKey.trim();
-    // Sans clé, seul un autre serveur (local, par exemple) a un sens.
+    // Without a key, only another server (a local one, for example) makes sense.
     onChange(
       apiKey || baseUrl !== DEFAULT_MISTRAL_URL
         ? {
@@ -198,9 +196,9 @@ function EmbeddingEditor({
     try {
       const { createProvider, embedTexts } = await import("@openeugenia/ai");
       const provider = createProvider(value);
-      const [vector] = await embedTexts(provider, ["Test de connexion"]);
+      const [vector] = await embedTexts(provider, ["Connection test"]);
       toast(
-        `${provider.info.label} répond (${provider.info.model}) : vecteurs de ${vector!.length} dimensions.`,
+        `${provider.info.label} answers (${provider.info.model}): vectors of ${vector!.length} dimensions.`,
         "success",
       );
     } catch (error) {
@@ -213,7 +211,7 @@ function EmbeddingEditor({
     <div className="form-grid">
       <div className="oe-field">
         <label className="oe-label" htmlFor="embeddings-key">
-          Clé API Mistral
+          Mistral API key
         </label>
         <input
           id="embeddings-key"
@@ -222,20 +220,20 @@ function EmbeddingEditor({
           autoComplete="off"
           value={fields.apiKey}
           onChange={(e) => set({ apiKey: e.target.value })}
-          placeholder="clé de console.mistral.ai"
+          placeholder="key from console.mistral.ai"
         />
         <span className="oe-help">
-          Mistral propose un accès gratuit, limité en débit : créez une clé sur{" "}
+          Mistral offers free, rate-limited access: create a key on{" "}
           <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer">
             console.mistral.ai
           </a>
-          . Conservée dans ce navigateur seulement.
+          . Kept in this browser only.
         </span>
       </div>
       <div className="form-row">
         <div className="oe-field">
           <label className="oe-label" htmlFor="embeddings-model">
-            Modèle d'embeddings
+            Embedding model
           </label>
           <input
             id="embeddings-model"
@@ -247,7 +245,7 @@ function EmbeddingEditor({
         </div>
         <div className="oe-field">
           <label className="oe-label" htmlFor="embeddings-url">
-            Adresse du serveur
+            Server URL
           </label>
           <input
             id="embeddings-url"
@@ -266,7 +264,7 @@ function EmbeddingEditor({
             disabled={testing}
             onClick={() => void test()}
           >
-            {testing ? "Test en cours…" : "Tester"}
+            {testing ? "Testing…" : "Test"}
           </button>
         </div>
       )}
@@ -296,19 +294,19 @@ export function SettingsView() {
 
   const save = async (): Promise<void> => {
     await update(() => draft);
-    // Première configuration d'une IA : on demande aussitôt le traitement des nœuds privés (§11.1).
+    // First AI configuration: ask right away how private nodes should be processed (§11.1).
     if ((draft.ai.main || draft.ai.local) && draft.ai.localOnlyForPrivate === null) {
       const { ensurePrivacyChoice } = await import("../lib/ai.ts");
       await ensurePrivacyChoice();
     }
-    toast("Paramètres enregistrés.", "success");
+    toast("Settings saved.", "success");
   };
 
   const testToken = async (): Promise<void> => {
     try {
       const user = await new GitHubClient(draft.githubToken).getUser();
       setLogin(user.login);
-      toast(`Jeton valide : connecté en tant que ${user.login}.`, "success");
+      toast(`Valid token: signed in as ${user.login}.`, "success");
     } catch (error) {
       setLogin(null);
       toast(errorMessage(error), "error");
@@ -317,34 +315,34 @@ export function SettingsView() {
 
   const forget = async (wiki: RecentWiki): Promise<void> => {
     const ok = await confirmDialog({
-      title: "Oublier ce wiki sur cet appareil",
-      body: `La copie locale de ${wiki.repo} et ses modifications non enregistrées seront effacées de ce navigateur. Le dépôt GitHub n'est pas modifié.`,
-      confirmLabel: "Oublier",
+      title: "Forget this wiki on this device",
+      body: `The local copy of ${wiki.repo} and its unsaved changes will be erased from this browser. The GitHub repository is not modified.`,
+      confirmLabel: "Forget",
       danger: true,
     });
     if (!ok) return;
     if (wiki.key === currentKey) await forgetCurrent();
     else await forgetRepo(wiki.key);
     setRecents((list) => list.filter((r) => r.key !== wiki.key));
-    toast("Copie locale effacée.", "success");
+    toast("Local copy erased.", "success");
   };
 
   const ai = draft.ai;
   return (
     <div className="page">
-      <h1>Paramètres</h1>
+      <h1>Settings</h1>
       <p className="muted">
-        Ces réglages restent dans ce navigateur : ils ne sont jamais écrits dans vos dépôts.
+        These settings stay in this browser: they are never written to your repositories.
       </p>
 
       <section className="section oe-card">
         <h2 className="oe-card__title">
           <KeyRound aria-hidden="true" style={{ display: "inline", verticalAlign: "-0.15em" }} />{" "}
-          Accès GitHub
+          GitHub access
         </h2>
         <div className="oe-field">
           <label className="oe-label" htmlFor="token">
-            Jeton d'accès personnel (fine-grained)
+            Personal access token (fine-grained)
           </label>
           <input
             id="token"
@@ -364,7 +362,7 @@ export function SettingsView() {
             placeholder="github_pat_…"
           />
           <span className="oe-help">
-            Créez-le sur{" "}
+            Create it on{" "}
             <a
               href="https://github.com/settings/personal-access-tokens/new"
               target="_blank"
@@ -372,9 +370,9 @@ export function SettingsView() {
             >
               github.com/settings/personal-access-tokens
             </a>{" "}
-            : accès au <strong>seul dépôt privé</strong> de votre wiki, permissions « Contents :
-            lecture et écriture » (et « Workflows » pour créer la publication automatique depuis
-            l'application).
+            : access to the <strong>private repository</strong> of your wiki only, with the
+            "Contents: read and write" permission (and "Workflows" to set up automatic publication
+            from the app).
           </span>
         </div>
         <div className="actions actions--start">
@@ -384,7 +382,7 @@ export function SettingsView() {
             disabled={!draft.githubToken}
             onClick={() => void testToken()}
           >
-            Vérifier le jeton
+            Check the token
           </button>
           {login && (
             <span
@@ -399,17 +397,17 @@ export function SettingsView() {
       </section>
 
       <section className="section oe-card">
-        <h2 className="oe-card__title">Eugenia (IA)</h2>
+        <h2 className="oe-card__title">Eugenia (AI)</h2>
         <p className="muted small">
-          Les appels partent directement de votre navigateur vers le fournisseur choisi, avec votre
-          clé. Par défaut, Claude utilise le modèle {DEFAULT_ANTHROPIC_MODEL}.
+          Calls go directly from your browser to the chosen provider, with your key. By default,
+          Claude uses the model {DEFAULT_ANTHROPIC_MODEL}.
         </p>
         <datalist id="claude-models">
           {MODELS.map((m) => (
             <option key={m} value={m} />
           ))}
         </datalist>
-        <h3 style={{ fontSize: "var(--oe-font-size-md)" }}>Fournisseur principal</h3>
+        <h3 style={{ fontSize: "var(--oe-font-size-md)" }}>Main provider</h3>
         <ProviderEditor
           id="main"
           value={ai.main}
@@ -418,7 +416,7 @@ export function SettingsView() {
             setDraft((d) => ({ ...d, ai: { ...d.ai, ...(main ? { main } : { main: undefined }) } }))
           }
         />
-        <h3 style={{ fontSize: "var(--oe-font-size-md)" }}>IA locale</h3>
+        <h3 style={{ fontSize: "var(--oe-font-size-md)" }}>Local AI</h3>
         <ProviderEditor
           id="local"
           value={ai.local}
@@ -439,26 +437,24 @@ export function SettingsView() {
             }
           />
           <span>
-            <strong>Réserver mes connaissances privées à l'IA locale.</strong> Tout traitement qui
-            implique un nœud privé (description, extraction, quiz, discussion, question) passe
-            obligatoirement par l'IA locale ; à défaut, l'action est bloquée.
+            <strong>Keep my private knowledge for the local AI.</strong> Any task involving a
+            private node (description, extraction, quiz, discussion, question) must go through the
+            local AI; otherwise, the action is blocked.
           </span>
         </label>
         {ai.localOnlyForPrivate === null && (
-          <p className="muted small">
-            Cette question vous sera posée avant la première utilisation d'Eugenia.
-          </p>
+          <p className="muted small">You will be asked this before Eugenia is first used.</p>
         )}
       </section>
 
       <section className="section oe-card">
-        <h2 className="oe-card__title">Recherche sémantique</h2>
+        <h2 className="oe-card__title">Semantic search</h2>
         <p className="muted small">
-          La recherche « par le sens » retrouve vos pages à partir d'une question ou d'une idée,
-          même sans mot en commun. Chaque page reçoit un embedding (un vecteur qui résume son sens),
-          calculé par le fournisseur ci-dessous et enregistré à côté de la page dans votre dépôt
-          privé ; il n'est jamais publié. Le contenu des pages lui est envoyé : les pages privées
-          suivent la règle « IA locale pour le privé » ci-dessus.
+          Search "by meaning" finds your pages from a question or an idea, even with no word in
+          common. Each page gets an embedding (a vector that sums up its meaning), computed by the
+          provider below and saved next to the page in your private repository; it is never
+          published. The content of the pages is sent to it: private pages follow the "local AI for
+          private content" rule above.
         </p>
         <EmbeddingEditor
           value={ai.embeddings}
@@ -472,10 +468,10 @@ export function SettingsView() {
       </section>
 
       <section className="section oe-card">
-        <h2 className="oe-card__title">Apparence</h2>
+        <h2 className="oe-card__title">Appearance</h2>
         <div className="oe-field" style={{ maxWidth: "16rem" }}>
           <label className="oe-label" htmlFor="theme">
-            Thème
+            Theme
           </label>
           <select
             id="theme"
@@ -483,27 +479,27 @@ export function SettingsView() {
             value={draft.theme}
             onChange={(e) => setDraft((d) => ({ ...d, theme: e.target.value as Theme }))}
           >
-            <option value="auto">Selon le système</option>
-            <option value="light">Clair</option>
-            <option value="dark">Sombre</option>
+            <option value="auto">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
           </select>
         </div>
       </section>
 
       <div className="actions" style={{ marginTop: "1.5rem" }}>
         <button type="button" className="oe-button" onClick={() => void save()}>
-          Enregistrer les paramètres
+          Save the settings
         </button>
       </div>
 
       <section className="section oe-card">
-        <h2 className="oe-card__title">Données hors ligne</h2>
+        <h2 className="oe-card__title">Offline data</h2>
         <p className="muted small">
-          Chaque wiki consulté est copié dans ce navigateur pour fonctionner sans réseau. Vous
-          pouvez effacer cette copie (« oublier ce wiki sur cet appareil »).
+          Each wiki you view is copied into this browser to work without a network. You can erase
+          this copy ("forget this wiki on this device").
         </p>
         {recents.length === 0 ? (
-          <p className="muted">Aucune copie locale.</p>
+          <p className="muted">No local copy.</p>
         ) : (
           <ul className="link-list">
             {recents.map((r) => (
@@ -519,7 +515,7 @@ export function SettingsView() {
                   className="oe-button oe-button--ghost oe-button--sm"
                   onClick={() => void forget(r)}
                 >
-                  <Trash2 aria-hidden="true" /> Oublier
+                  <Trash2 aria-hidden="true" /> Forget
                 </button>
               </li>
             ))}

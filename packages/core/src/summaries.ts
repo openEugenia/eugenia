@@ -1,4 +1,4 @@
-/** Descriptions des sous-wikis : format, empreintes des sources et détection des périmés (§5.5, §11.2). */
+/** Sub-wiki descriptions: format, source fingerprints and staleness detection (§5.5, §11.2). */
 import { asString, parseDocument, serializeDocument } from "./frontmatter.ts";
 import { joinPath } from "./paths.ts";
 import { shaMatches, shortSha } from "./sha.ts";
@@ -19,7 +19,7 @@ export interface SummaryFields {
   model?: string;
   generated?: string;
   locked: boolean;
-  /** Empreinte des sources : id de nœud → SHA (abrégé) du blob utilisé. */
+  /** Source fingerprint: node id → (short) SHA of the blob used. */
   sources: Record<string, string>;
 }
 
@@ -83,7 +83,7 @@ export function serializeSummary(doc: SummaryDocument): string {
   return serializeDocument(data, doc.body);
 }
 
-/** Enfants pris en compte pour une portée : tous (privée), ou les seuls enfants publics. */
+/** Children taken into account for a scope: all of them (private), or only public ones. */
 export function scopedChildren(tree: WikiTree, node: WikiNode, scope: SummaryScope): WikiNode[] {
   const out: WikiNode[] = [];
   for (const id of node.childIds) {
@@ -94,8 +94,8 @@ export function scopedChildren(tree: WikiTree, node: WikiNode, scope: SummarySco
 }
 
 /**
- * Une catégorie du wiki a besoin d'une description si elle a des enfants (publics, pour la
- * portée publique). Une connaissance et ses flashcards ne forment pas un sous-wiki.
+ * A wiki category needs a description if it has children (public ones, for the public
+ * scope). A knowledge item and its flashcards do not form a sub-wiki.
  */
 export function needsSummary(tree: WikiTree, node: WikiNode, scope: SummaryScope): boolean {
   if (!isCategory(node)) return false;
@@ -104,8 +104,8 @@ export function needsSummary(tree: WikiTree, node: WikiNode, scope: SummaryScope
 }
 
 /**
- * Empreinte des sources d'une description : le contenu du nœud lui-même, puis pour
- * chaque enfant sa description (s'il a des enfants et une description) ou son contenu.
+ * Source fingerprint of a description: the content of the node itself, then for each
+ * child its description (if it has children and a description) or its content.
  */
 export function summarySources(
   tree: WikiTree,
@@ -124,9 +124,9 @@ export function summarySources(
 }
 
 /**
- * Une description de portée privée dépend de toute la branche, via les descriptions
- * des enfants : elle implique du contenu privé dès qu'un descendant est privé. Une
- * description publique ne porte que sur des nœuds publics.
+ * A private-scope description depends on the whole branch, through the children's
+ * descriptions: it involves private content as soon as a descendant is private. A public
+ * description only covers public nodes.
  */
 export function summaryInvolvesPrivate(
   tree: WikiTree,
@@ -157,14 +157,14 @@ export type SummaryStatus = "fresh" | "stale" | "missing" | "locked" | "none";
 
 export interface SummaryState {
   status: SummaryStatus;
-  /** Les sources directes ont changé (sinon, la péremption vient d'un descendant). */
+  /** The direct sources changed (otherwise, the staleness comes from a descendant). */
   direct: boolean;
 }
 
 /**
- * État des descriptions d'une portée pour tout l'arbre. Une description périmée rend
- * périmées celles de ses ancêtres ; une description verrouillée n'est jamais proposée
- * à la régénération et ne propage pas sa péremption.
+ * State of the descriptions of a scope for the whole tree. A stale description makes its
+ * ancestors' descriptions stale; a locked description is never offered for regeneration
+ * and does not propagate its staleness.
  */
 export function summaryStates(
   tree: WikiTree,
@@ -185,7 +185,7 @@ export function summaryStates(
       if (!file) {
         state = { status: "missing", direct: true };
       } else if (!doc) {
-        state = { status: "fresh", direct: false }; // contenu non chargé : état inconnu
+        state = { status: "fresh", direct: false }; // content not loaded: state unknown
       } else if (doc.fields.locked) {
         state = { status: "locked", direct: false };
       } else {
@@ -202,7 +202,7 @@ export function summaryStates(
   return states;
 }
 
-/** Nœuds à (re)générer dans une branche, des plus profonds vers la racine. */
+/** Nodes to (re)generate in a branch, from the deepest to the root. */
 export function regenerationOrder(
   tree: WikiTree,
   states: ReadonlyMap<string, SummaryState>,

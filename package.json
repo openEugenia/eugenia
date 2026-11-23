@@ -2,7 +2,7 @@
   "name": "eugenia-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Eugenia — wiki personnel de connaissances, sur git",
+  "description": "Eugenia — a personal knowledge wiki, on git",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.34.9",

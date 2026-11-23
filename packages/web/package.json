@@ -2,7 +2,7 @@
   "name": "@openeugenia/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Application web Eugenia (PWA) : wiki personnel de connaissances sur git.",
+  "description": "Eugenia web app (PWA): a personal knowledge wiki on git.",
   "license": "MIT",
   "type": "module",
   "scripts": {

@@ -1,4 +1,4 @@
-/** Sources citées par une connaissance : création à la volée de nouvelles sources de la bibliothèque. */
+/** Sources cited by a knowledge item: on-the-fly creation of new library sources. */
 import {
   createPage,
   type FileChange,
@@ -7,9 +7,9 @@ import {
   type WikiView,
 } from "@openeugenia/core";
 
-/** Source à créer dans la bibliothèque au moment de l'enregistrement. */
+/** Source to create in the library when saving. */
 export interface NewSourceDraft {
-  /** Référence provisoire utilisée dans la liste des sources (`new:…`). */
+  /** Temporary reference used in the list of sources (`new:…`). */
   key: string;
   title: string;
   kind: SourceKind;
@@ -32,7 +32,7 @@ export function splitList(text: string): string[] {
     .filter(Boolean);
 }
 
-/** Nettoie une liste de références (champs vides retirés, références vides écartées). */
+/** Cleans a list of references (empty fields removed, empty references dropped). */
 export function cleanSourceRefs(sources: readonly SourceRef[]): SourceRef[] {
   return sources
     .map(
@@ -45,8 +45,8 @@ export function cleanSourceRefs(sources: readonly SourceRef[]): SourceRef[] {
 }
 
 /**
- * Crée les nouvelles sources référencées et remplace leurs références provisoires par leur
- * identifiant. `reserved` reçoit les chemins créés (collisions de noms dans un même lot).
+ * Creates the new referenced sources and replaces their temporary references with their
+ * identifier. `reserved` receives the created paths (name collisions within a batch).
  */
 export function materializeSources(
   view: Pick<WikiView, "config" | "files" | "tree">,

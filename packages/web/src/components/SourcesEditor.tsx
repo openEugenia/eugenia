@@ -1,6 +1,6 @@
 /**
- * Sources d'une connaissance : de préférence des sources de la bibliothèque (choisies ou
- * créées à la volée), avec une localisation (page, chapitre…), sinon une référence libre.
+ * Sources of a knowledge item: preferably library sources (picked or created on the fly), with
+ * a location (page, chapter…), otherwise a free reference.
  */
 import { useState } from "react";
 import { Library, Link2, Plus, Trash2 } from "lucide-react";
@@ -42,8 +42,8 @@ export function SourcesEditor({
     <div className="form-grid">
       {sources.length === 0 && (
         <p className="muted small">
-          Aucune source : la connaissance sera marquée « à sourcer ». Choisissez une source de votre
-          bibliothèque, ou créez-la ici.
+          No source: the knowledge item will be marked "needs a source". Pick a source from your
+          library, or create it here.
         </p>
       )}
       {sources.map((source, i) => {
@@ -54,22 +54,21 @@ export function SourcesEditor({
             {draft ? (
               <div className="form-grid">
                 <span className="small muted">
-                  <Plus aria-hidden="true" className="inline-icon" /> Nouvelle source de la
-                  bibliothèque
+                  <Plus aria-hidden="true" className="inline-icon" /> New library source
                 </span>
                 <div className="form-row">
                   <input
                     className="oe-input"
-                    placeholder="Titre (ex. Discours de la méthode)"
+                    placeholder="Title (e.g. Discourse on the Method)"
                     value={draft.title}
                     onChange={(e) => updateDraft(draft.key, { title: e.target.value })}
-                    aria-label="Titre de la nouvelle source"
+                    aria-label="Title of the new source"
                   />
                   <select
                     className="oe-select"
                     value={draft.kind}
                     onChange={(e) => updateDraft(draft.key, { kind: e.target.value as SourceKind })}
-                    aria-label="Nature de la source"
+                    aria-label="Kind of source"
                   >
                     {SOURCE_KINDS.map((k) => (
                       <option key={k} value={k}>
@@ -81,17 +80,17 @@ export function SourcesEditor({
                 <div className="form-row">
                   <input
                     className="oe-input"
-                    placeholder="Auteurs (séparés par des virgules)"
+                    placeholder="Authors (comma-separated)"
                     value={draft.authors}
                     onChange={(e) => updateDraft(draft.key, { authors: e.target.value })}
-                    aria-label="Auteurs de la nouvelle source"
+                    aria-label="Authors of the new source"
                   />
                   <input
                     className="oe-input"
                     placeholder="https://…"
                     value={draft.url}
                     onChange={(e) => updateDraft(draft.key, { url: e.target.value })}
-                    aria-label="Adresse de la nouvelle source"
+                    aria-label="URL of the new source"
                   />
                 </div>
               </div>
@@ -102,39 +101,39 @@ export function SourcesEditor({
                 ) : (
                   <Library aria-hidden="true" />
                 )}{" "}
-                {target?.title ?? source.description ?? "Source introuvable"}
+                {target?.title ?? source.description ?? "Source not found"}
               </span>
             ) : (
               <div className="form-row">
                 <input
                   className="oe-input"
-                  placeholder="Référence libre (ex. Conférence au Collège de France)"
+                  placeholder="Free reference (e.g. Lecture at the Royal Institution)"
                   value={source.description ?? ""}
                   onChange={(e) => update(i, { description: e.target.value })}
-                  aria-label="Description de la référence"
+                  aria-label="Description of the reference"
                 />
                 <input
                   className="oe-input"
                   placeholder="https://…"
                   value={source.url ?? ""}
                   onChange={(e) => update(i, { url: e.target.value })}
-                  aria-label="Adresse de la référence"
+                  aria-label="URL of the reference"
                 />
               </div>
             )}
             <div className="form-row" style={{ alignItems: "center", marginTop: "0.5rem" }}>
               <input
                 className="oe-input"
-                placeholder="Localisation : page, chapitre, minutage… (facultatif)"
+                placeholder="Location: page, chapter, timestamp… (optional)"
                 value={source.locator ?? ""}
                 onChange={(e) => update(i, { locator: e.target.value })}
-                aria-label="Localisation dans la source"
+                aria-label="Location in the source"
               />
               <button
                 type="button"
                 className="oe-button oe-button--ghost oe-button--sm"
                 onClick={() => remove(i)}
-                aria-label="Retirer la source"
+                aria-label="Remove the source"
               >
                 <Trash2 aria-hidden="true" /> Retirer
               </button>
@@ -148,30 +147,30 @@ export function SourcesEditor({
           className="oe-button oe-button--secondary oe-button--sm"
           onClick={() => setPicker(true)}
         >
-          <Library aria-hidden="true" /> Choisir dans la bibliothèque
+          <Library aria-hidden="true" /> Pick from the library
         </button>
         <button
           type="button"
           className="oe-button oe-button--ghost oe-button--sm"
           onClick={addDraft}
         >
-          <Plus aria-hidden="true" /> Nouvelle source
+          <Plus aria-hidden="true" /> New source
         </button>
         <button
           type="button"
           className="oe-button oe-button--ghost oe-button--sm"
           onClick={() => onChange([...sources, { description: "" }])}
         >
-          <Link2 aria-hidden="true" /> Référence libre
+          <Link2 aria-hidden="true" /> Free reference
         </button>
       </div>
       {picker && (
         <NodePicker
           open
-          title="Choisir une source"
+          title="Pick a source"
           tree={tree}
           filter={(n) => n.type === "source" && !sources.some((s) => s.ref === n.id)}
-          hint="Les sources de votre bibliothèque. Une source privée citée par une connaissance publique n'est pas publiée : la référence disparaît de la partie publique."
+          hint="The sources of your library. A private source cited by public knowledge only has its bibliographic record (title, kind, authors, date, URL) published: its content and personal file stay private."
           onClose={() => setPicker(false)}
           onSelect={(node) => {
             setPicker(false);

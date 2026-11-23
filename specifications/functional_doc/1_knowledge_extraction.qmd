@@ -47,6 +47,8 @@ A source is the origin or medium from which information or knowledge is derived.
 
 We further explain the importance for users to provide sources for their atomic knowledge, making their content public and shareable with the {{< var eugenia >}} network. For each source, in addition to a description visible to all, the user can attach a *personal file* for easy access to their information source.
 
+Even when a source is private (for instance a book or an article whose content the user cannot share), its *bibliographic record* — title, kind, authors, publication date and link — remains visible to all, so that public knowledge can still cite it. Only its content and its personal file stay private.
+
 ## Categorization
 
 ::: {#def-line}
@@ -77,6 +79,8 @@ Should this list be expanded, reduced, or modified?
 :::
 
 These are provided as examples at the highest level of the user's profile hierarchy. Users can also propose their own (sub)categories. Users are free to create their own global categories as well as subcategories. {{< var eugenia >}} will also be able to suggest the user's personal categories directly.
+
+When several pieces of knowledge are extracted from the same document, {{< var eugenia >}} categorizes them together, the way Wikipedia files its articles: it first looks at the user's existing categories and reuses one when it names exactly the topic of a piece of knowledge; otherwise, it proposes one or more new categories — possibly nested, under the most specific existing category — that best group the pieces of knowledge of the document sharing a topic. New categories are named like Wikipedia categories (a short topic, a plural noun for a set of things, a proper name for a subject) and never duplicate an existing one. The user reviews, renames, moves or removes these proposals before the knowledge is added.
 
 ::: {.callout-warning}
 

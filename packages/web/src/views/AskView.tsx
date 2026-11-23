@@ -1,6 +1,6 @@
 /**
- * Questions sur l'arbre (§8.5) : Eugenia lit les descriptions du premier niveau, descend
- * dans les branches pertinentes jusqu'aux contenus, puis répond en citant les pages.
+ * Questions about the tree (§8.5): Eugenia reads the top-level descriptions, goes down the
+ * relevant branches to the contents, then answers citing the pages.
  */
 import { useRef, useState, type FormEvent } from "react";
 import { BookOpen, FolderSearch, Save, Send, Square } from "lucide-react";
@@ -98,32 +98,32 @@ export function AskView({ id }: { id?: string }) {
     ];
     await stage([writeDiscussion(path, doc)], `Question — ${title}`);
     await commit(`Question — ${title}`, [path]);
-    toast("Question enregistrée dans vos discussions.", "success");
+    toast("Question saved in your discussions.", "success");
     navigate({ name: "discussion", path });
   };
 
   return (
     <div className="page">
       <Breadcrumb tree={derived.tree} node={scope} />
-      <h1>Questions sur le wiki</h1>
+      <h1>Questions about the wiki</h1>
       <p className="muted">
-        Périmètre : <strong>{scope.title}</strong>{" "}
+        Scope: <strong>{scope.title}</strong>{" "}
         <button
           type="button"
           className="oe-button oe-button--ghost oe-button--sm"
           onClick={() => setPicker(true)}
         >
-          Changer
+          Change
         </button>
       </p>
-      {!owner && <InfoBox>Seule la partie publique de ce wiki est consultée.</InfoBox>}
+      {!owner && <InfoBox>Only the public part of this wiki is consulted.</InfoBox>}
       <form className="composer" style={{ position: "static" }} onSubmit={(e) => void run(e)}>
         <textarea
           className="oe-textarea"
-          placeholder="Que dit mon wiki sur… ?"
+          placeholder="What does my wiki say about…?"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          aria-label="Votre question"
+          aria-label="Your question"
         />
         <div className="actions">
           {running ? (
@@ -132,11 +132,11 @@ export function AskView({ id }: { id?: string }) {
               className="oe-button oe-button--secondary"
               onClick={() => abort.current?.abort()}
             >
-              <Square aria-hidden="true" /> Arrêter
+              <Square aria-hidden="true" /> Stop
             </button>
           ) : (
             <button type="submit" className="oe-button" disabled={!question.trim()}>
-              <Send aria-hidden="true" /> Demander à Eugenia
+              <Send aria-hidden="true" /> Ask Eugenia
             </button>
           )}
         </div>
@@ -146,7 +146,7 @@ export function AskView({ id }: { id?: string }) {
           <h2>Exploration</h2>
           <ul className="steps-log">
             <li>
-              <BookOpen aria-hidden="true" /> Lecture des descriptions de « {scope.title} »
+              <BookOpen aria-hidden="true" /> Reading the descriptions of "{scope.title}"
             </li>
             {steps.map((s, i) => (
               <li key={i}>
@@ -155,13 +155,13 @@ export function AskView({ id }: { id?: string }) {
                 ) : (
                   <BookOpen aria-hidden="true" />
                 )}
-                {s.kind === "explore" ? "Descend dans" : "Lit"}{" "}
-                {s.titles.map((t) => `« ${t} »`).join(", ")}
+                {s.kind === "explore" ? "Goes down into" : "Reads"}{" "}
+                {s.titles.map((t) => `"${t}"`).join(", ")}
               </li>
             ))}
             {running && !answer && (
               <li>
-                <Spinner small /> Eugenia réfléchit…
+                <Spinner small /> Eugenia is thinking…
               </li>
             )}
           </ul>
@@ -170,7 +170,7 @@ export function AskView({ id }: { id?: string }) {
       {answer && (
         <section ref={response.ref} className="section oe-card">
           <span className="oe-eyebrow" style={{ fontSize: "var(--oe-font-size-xs)" }}>
-            Réponse
+            Answer
           </span>
           <Markdown text={answer} path={scope.indexPath} />
           {done && editable && (
@@ -180,7 +180,7 @@ export function AskView({ id }: { id?: string }) {
                 className="oe-button oe-button--secondary oe-button--sm"
                 onClick={() => void save()}
               >
-                <Save aria-hidden="true" /> Enregistrer comme discussion
+                <Save aria-hidden="true" /> Save as a discussion
               </button>
             </div>
           )}
@@ -189,7 +189,7 @@ export function AskView({ id }: { id?: string }) {
       {picker && (
         <NodePicker
           open
-          title="Périmètre de la question"
+          title="Scope of the question"
           tree={derived.tree}
           filter={(n) => n.childIds.length > 0 || n.id === derived.tree.rootId}
           onClose={() => setPicker(false)}

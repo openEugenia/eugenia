@@ -1,6 +1,6 @@
 /**
- * Rendu Markdown assaini (aucun HTML brut, §12) : liens internes résolus vers les pages
- * du wiki, liens `eugenia:ID` produits par Eugenia, images et fichiers joints du dépôt.
+ * Sanitized Markdown rendering (no raw HTML, §12): internal links resolved to the pages of the
+ * wiki, `eugenia:ID` links produced by Eugenia, images and attached files of the repository.
  */
 import { memo, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
@@ -14,7 +14,7 @@ import { toast } from "../store/ui.ts";
 
 interface MarkdownProps {
   text: string;
-  /** Fichier d'où vient le texte, pour résoudre les liens relatifs. */
+  /** File the text comes from, to resolve relative links. */
   path: string;
   className?: string;
 }
@@ -40,7 +40,7 @@ function WikiLink({ url, path, children }: { url: string; path: string; children
         {children}
       </a>
     ) : (
-      <span className="broken" title="Page introuvable">
+      <span className="broken" title="Page not found">
         {children}
       </span>
     );
@@ -70,7 +70,7 @@ function WikiLink({ url, path, children }: { url: string; path: string; children
     );
   }
   return (
-    <a className="broken" title="Lien cassé">
+    <a className="broken" title="Broken link">
       {children}
     </a>
   );

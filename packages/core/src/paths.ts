@@ -1,6 +1,6 @@
-/** Utilitaires de chemins POSIX, sans dépendance à Node (utilisables dans le navigateur). */
+/** POSIX path utilities with no Node dependency (usable in the browser). */
 
-/** Normalise un chemin : supprime `.`, résout `..`, retire les `/` superflus. */
+/** Normalizes a path: drops `.`, resolves `..`, removes extra `/`. */
 export function normalizePath(path: string): string {
   const out: string[] = [];
   for (const part of path.replace(/\\/g, "/").split("/")) {
@@ -35,7 +35,7 @@ export function joinPath(...parts: string[]): string {
   return normalizePath(parts.filter((p) => p !== "").join("/"));
 }
 
-/** Chemin relatif de `to` (fichier ou dossier) vu depuis le dossier `fromDir`. */
+/** Relative path of `to` (file or folder) as seen from the folder `fromDir`. */
 export function relativePath(fromDir: string, to: string): string {
   const a = fromDir === "" ? [] : fromDir.split("/");
   const b = to === "" ? [] : to.split("/");
@@ -45,27 +45,27 @@ export function relativePath(fromDir: string, to: string): string {
   return parts.length === 0 ? "." : parts.join("/");
 }
 
-/** Vrai si `path` est `dir` ou se trouve sous `dir`. La racine `""` contient tout. */
+/** True if `path` is `dir` or lies under `dir`. The root `""` contains everything. */
 export function isUnder(dir: string, path: string): boolean {
   if (dir === "") return true;
   return path === dir || path.startsWith(dir + "/");
 }
 
-/** Remplace le préfixe `fromDir` de `path` par `toDir`. */
+/** Replaces the `fromDir` prefix of `path` with `toDir`. */
 export function rebase(path: string, fromDir: string, toDir: string): string {
   if (!isUnder(fromDir, path)) return path;
   const rest = fromDir === "" ? path : path.slice(fromDir.length).replace(/^\//, "");
   return joinPath(toDir, rest);
 }
 
-/** Segments d'un chemin relatif à `root`. */
+/** Segments of a path relative to `root`. */
 export function segmentsUnder(root: string, path: string): string[] | null {
   if (!isUnder(root, path)) return null;
   const rest = root === "" ? path : path.slice(root.length).replace(/^\//, "");
   return rest === "" ? [] : rest.split("/");
 }
 
-/** Vrai si un nom de fichier ou de dossier est réservé à l'application (`_x`, `.x`). */
+/** True if a file or folder name is reserved for the application (`_x`, `.x`). */
 export function isReservedName(name: string): boolean {
   return name.startsWith("_") || name.startsWith(".");
 }

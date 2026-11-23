@@ -1,14 +1,16 @@
-/** Mise en forme (français). */
+/** Formatting (English). */
 
-const dateFormat = new Intl.DateTimeFormat("fr-FR", {
+const LOCALE = "en";
+
+const dateFormat = new Intl.DateTimeFormat(LOCALE, {
   day: "numeric",
   month: "short",
   year: "numeric",
 });
-const shortDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
-const dateTime = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
-const relative = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
-const integer = new Intl.NumberFormat("fr-FR");
+const shortDate = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "short" });
+const dateTime = new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium", timeStyle: "short" });
+const relative = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
+const integer = new Intl.NumberFormat(LOCALE);
 
 export function formatDate(value: string | number | Date | undefined): string {
   if (value === undefined) return "";
@@ -42,19 +44,20 @@ export function formatRelative(value: string | undefined): string {
 
 export function formatPercent(value: number | undefined, digits = 0): string {
   if (value === undefined || !Number.isFinite(value)) return "—";
-  return `${(value * 100).toFixed(digits).replace(".", ",")} %`;
+  return `${(value * 100).toFixed(digits)}%`;
 }
 
 export function formatInteger(value: number): string {
   return integer.format(value);
 }
 
+/** `1 source`, `0 sources`, `2 sources`; irregular plurals are given explicitly. */
 export function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
-  return `${formatInteger(count)} ${count > 1 ? pluralForm : singular}`;
+  return `${formatInteger(count)} ${count === 1 ? singular : pluralForm}`;
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
-  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

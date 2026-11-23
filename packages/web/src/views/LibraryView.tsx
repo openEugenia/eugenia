@@ -1,12 +1,13 @@
 /**
- * Bibliothèque : les sources d'où viennent les connaissances (livres, articles, sites, PDF…),
- * en liste plate avec filtres. Chaque source indique les connaissances qui la citent.
+ * Library: the sources the knowledge comes from (books, articles, websites, PDFs…), as a flat
+ * list with filters. Each source shows the knowledge items that cite it.
  */
 import { useMemo, useState } from "react";
 import { FileUp, Library, Plus, Search } from "lucide-react";
 import { librarySources, SOURCE_KINDS, type SourceKind, type WikiNode } from "@openeugenia/core";
 import {
   EmptyState,
+  RecordBadge,
   SOURCE_KIND_LABELS,
   SourceKindIcon,
   UnsourcedBadge,
@@ -71,9 +72,9 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
     const recent = (n: WikiNode): string => n.created ?? n.updated ?? "";
     return list.sort((a, b) =>
       sort === "title"
-        ? a.title.localeCompare(b.title, "fr")
+        ? a.title.localeCompare(b.title, "en")
         : sort === "used"
-          ? uses(b) - uses(a) || a.title.localeCompare(b.title, "fr")
+          ? uses(b) - uses(a) || a.title.localeCompare(b.title, "en")
           : recent(b).localeCompare(recent(a)),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,10 +90,12 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
     <div className="page page--wide">
       <header className="section__head">
         <div>
-          <h1>Bibliothèque</h1>
+          <h1>Library</h1>
           <p className="muted">
-            Les sources de vos connaissances : livres, articles, sites, vidéos, documents. Chaque
-            connaissance atomique du wiki y renvoie.
+            The sources of your knowledge: books, articles, websites, videos, documents. Each atomic
+            knowledge item of the wiki points to them.
+            {!owner &&
+              " Private sources only show their bibliographic record (title, kind, authors, date, URL)."}
           </p>
         </div>
         {editable && (
@@ -101,10 +104,10 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
               className="oe-button"
               href={href({ name: "new", parentId: derived.tree.libraryId, type: "source" })}
             >
-              <Plus aria-hidden="true" /> Ajouter une source
+              <Plus aria-hidden="true" /> Add a source
             </a>
             <a className="oe-button oe-button--secondary" href={href({ name: "extract" })}>
-              <FileUp aria-hidden="true" /> Importer un texte ou un PDF
+              <FileUp aria-hidden="true" /> Import a text or a PDF
             </a>
           </div>
         )}
@@ -113,7 +116,7 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
       {owner && unsourced.length > 0 && (
         <div className="oe-alert oe-alert--warning section">
           <strong className="oe-alert__title">
-            {plural(unsourced.length, "connaissance")} à sourcer
+            {plural(unsourced.length, "knowledge item")} needing a source
           </strong>
           <ul className="link-list">
             {unsourced.slice(0, 6).map((k) => (
@@ -132,20 +135,20 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
           <input
             className="oe-input"
             type="search"
-            placeholder="Titre, auteur, adresse, étiquette…"
+            placeholder="Title, author, URL, tag…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Rechercher dans la bibliothèque"
+            aria-label="Search the library"
           />
         </label>
-        <div className="chips" role="group" aria-label="Nature">
+        <div className="chips" role="group" aria-label="Kind">
           <button
             type="button"
             className={`chip${kind ? "" : " is-active"}`}
             aria-pressed={!kind}
             onClick={() => setKind(undefined)}
           >
-            Toutes <span className="chip__count">{counts.get("all") ?? 0}</span>
+            All <span className="chip__count">{counts.get("all") ?? 0}</span>
           </button>
           {SOURCE_KINDS.filter((k) => counts.get(k)).map((k) => (
             <button
@@ -166,9 +169,9 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
               className="oe-select"
               value={tag ?? ""}
               onChange={(e) => setTag(e.target.value || null)}
-              aria-label="Étiquette"
+              aria-label="Tag"
             >
-              <option value="">Toutes les étiquettes</option>
+              <option value="">All tags</option>
               {tags.map((t) => (
                 <option key={t} value={t}>
                   #{t}
@@ -180,22 +183,22 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
             className="oe-select"
             value={sort}
             onChange={(e) => setSort(e.target.value as Sort)}
-            aria-label="Tri"
+            aria-label="Sort"
           >
-            <option value="recent">Ajoutées récemment</option>
-            <option value="title">Par titre</option>
-            <option value="used">Les plus citées</option>
+            <option value="recent">Recently added</option>
+            <option value="title">By title</option>
+            <option value="used">Most cited</option>
           </select>
         </div>
       </div>
 
       {sources.length === 0 ? (
-        <EmptyState icon={<Library aria-hidden="true" />} title="Votre bibliothèque est vide">
-          Ajoutez les livres, articles et sites d'où viennent vos connaissances, ou importez un
-          texte ou un PDF pour en extraire directement.
+        <EmptyState icon={<Library aria-hidden="true" />} title="Your library is empty">
+          Add the books, articles and websites your knowledge comes from, or import a text or a PDF
+          to extract from it directly.
         </EmptyState>
       ) : visible.length === 0 ? (
-        <p className="muted">Aucune source ne correspond à ces filtres.</p>
+        <p className="muted">No source matches these filters.</p>
       ) : (
         <ul className="library-list">
           {visible.map((s) => {
@@ -223,11 +226,12 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
                   </span>
                   <span className="library-item__side">
                     <span className={count > 0 ? "" : "muted"}>
-                      {plural(count, "connaissance")}
+                      {plural(count, "knowledge item")}
                     </span>
                     {owner && (
                       <VisibilityBadge visibility={s.isPublic ? "public" : "private"} compact />
                     )}
+                    {!owner && !s.isPublic && <RecordBadge compact />}
                     {s.created && <span className="muted small">{formatDate(s.created)}</span>}
                   </span>
                 </a>

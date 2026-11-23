@@ -1,4 +1,4 @@
-/** Configuration du wiki : `.notes/config.yml` (§5.9). */
+/** Wiki configuration: `.notes/config.yml` (§5.9). */
 import { parse as parseYaml } from "yaml";
 import { asNumber, asString, stringifyYaml } from "./frontmatter.ts";
 import { isReservedName, isUnder, normalizePath } from "./paths.ts";
@@ -8,17 +8,17 @@ export const CONFIG_PATH = ".notes/config.yml";
 export const INDEX_JSON_PATH = ".notes/index.json";
 export const PROMPTS_DIR = ".notes/prompts";
 
-/** Paramètres de l'algorithme de maîtrise (§8.3). */
+/** Parameters of the mastery algorithm (§8.3). */
 export interface MasteryParams {
-  /** Maîtrise initiale d'une connaissance. */
+  /** Initial mastery of a flashcard. */
   initial: number;
-  /** Coefficient de la moyenne mobile exponentielle. */
+  /** Coefficient of the exponential moving average. */
   alpha: number;
-  /** Taux de déclin : β = 1 − decay_rate / (1 + t). */
+  /** Decay rate: β = 1 − decay_rate / (1 + t). */
   decay_rate: number;
-  /** Une évaluation est une réussite si le score est strictement supérieur à ce seuil. */
+  /** An evaluation is a success if the score is strictly greater than this threshold. */
   success_threshold: number;
-  /** Seuil sous lequel une connaissance « risque d'être oubliée » (rappels de révision). */
+  /** Threshold below which a knowledge item "may be forgotten" (review reminders). */
   reminder_threshold: number;
 }
 
@@ -32,23 +32,23 @@ export const DEFAULT_MASTERY: Readonly<MasteryParams> = Object.freeze({
 
 export interface WikiConfig {
   title: string;
-  /** Dossier racine du wiki, normalisé sans `/` final (`""` = racine du dépôt). */
+  /** Root folder of the wiki, normalized without a trailing `/` (`""` = repository root). */
   root: string;
-  /** Dossier de la bibliothèque des sources. */
+  /** Folder of the source library. */
   library: string;
-  /** Dossier des discussions (discussions, questions, quiz, notes rapides). */
+  /** Folder of the discussions (discussions, questions, quizzes, quick notes). */
   discussions: string;
-  /** Dépôt privé déclaré dans le dépôt public (`owner/name`), optionnel. */
+  /** Private repository declared in the public repository (`owner/name`), optional. */
   private_repo?: string;
   default_visibility: Visibility;
   folder_name_max_length: number;
   mastery: MasteryParams;
-  /** Clés non reconnues, conservées à l'écriture. */
+  /** Unrecognized keys, kept when writing. */
   extra: Record<string, unknown>;
 }
 
 export const DEFAULT_CONFIG: Readonly<WikiConfig> = Object.freeze({
-  title: "Mon wiki",
+  title: "My wiki",
   root: "wiki",
   library: "library",
   discussions: "discussions",
@@ -88,21 +88,21 @@ export function parseConfig(text: string | null | undefined): ConfigResult {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         raw = parsed as Record<string, unknown>;
       } else {
-        problems.push("La configuration doit être un dictionnaire YAML.");
+        problems.push("The configuration must be a YAML mapping.");
       }
     } catch (e) {
-      problems.push(`Configuration YAML invalide : ${e instanceof Error ? e.message : String(e)}`);
+      problems.push(`Invalid YAML configuration: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   const rootValue = asString(raw.root);
   const root = rootValue === undefined ? DEFAULT_CONFIG.root : normalizePath(rootValue);
-  if (root.startsWith("..")) problems.push("`root` ne peut pas sortir du dépôt.");
+  if (root.startsWith("..")) problems.push("`root` cannot point outside the repository.");
   const space = (key: "library" | "discussions"): string => {
     const value = asString(raw[key]);
     const dir = value === undefined ? DEFAULT_CONFIG[key] : normalizePath(value);
     if (dir === "" || dir.startsWith("..") || dir.split("/").some(isReservedName)) {
-      problems.push(`\`${key}\` doit désigner un dossier du dépôt, non réservé.`);
+      problems.push(`\`${key}\` must name a non-reserved folder of the repository.`);
       return DEFAULT_CONFIG[key];
     }
     return dir;
@@ -116,18 +116,18 @@ export function parseConfig(text: string | null | undefined): ConfigResult {
     [safeRoot, discussions],
   ] as const) {
     if (a !== "" && (isUnder(a, b) || isUnder(b, a))) {
-      problems.push(`Les dossiers « ${a} » et « ${b} » ne peuvent pas être imbriqués.`);
+      problems.push(`The folders "${a}" and "${b}" cannot be nested.`);
     }
   }
 
   const visibility = asString(raw.default_visibility);
   if (visibility !== undefined && visibility !== "public" && visibility !== "private") {
-    problems.push("`default_visibility` doit valoir `public` ou `private`.");
+    problems.push("`default_visibility` must be `public` or `private`.");
   }
 
   const maxLength = asNumber(raw.folder_name_max_length);
   if (maxLength !== undefined && (maxLength < 8 || maxLength > 128)) {
-    problems.push("`folder_name_max_length` doit être compris entre 8 et 128.");
+    problems.push("`folder_name_max_length` must be between 8 and 128.");
   }
 
   const m = (raw.mastery && typeof raw.mastery === "object" ? raw.mastery : {}) as Record<
@@ -160,7 +160,7 @@ export function parseConfig(text: string | null | undefined): ConfigResult {
     extra,
   };
   if (privateRepo && /^[\w.-]+\/[\w.-]+$/.test(privateRepo)) config.private_repo = privateRepo;
-  else if (privateRepo) problems.push("`private_repo` doit être de la forme `owner/name`.");
+  else if (privateRepo) problems.push("`private_repo` must have the form `owner/name`.");
   return { config, problems };
 }
 
@@ -184,8 +184,8 @@ export function serializeConfig(config: WikiConfig): string {
 }
 
 /**
- * Configuration recopiée dans le dépôt public (§6.4) : liste blanche des clés,
- * sans paramètres personnels (maîtrise, clés inconnues).
+ * Configuration copied to the public repository (§6.4): an allow-list of keys, without
+ * personal settings (mastery, unknown keys).
  */
 export function serializePublicConfig(config: WikiConfig, privateRepo?: string): string {
   const data: Record<string, unknown> = {

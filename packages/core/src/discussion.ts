@@ -1,6 +1,6 @@
 /**
- * Discussions : discussions libres, questions sur l'arbre, quiz et notes rapides. Un fichier
- * par discussion dans le dossier des discussions, une section par message (§5.6).
+ * Discussions: free discussions, questions about the tree, quizzes and quick notes. One file
+ * per discussion in the discussions folder, one section per message (§5.6).
  */
 import type { WikiConfig } from "./config.ts";
 import { asString, parseDocument, serializeDocument } from "./frontmatter.ts";
@@ -15,21 +15,21 @@ export type DiscussionRole = "user" | "eugenia";
 
 export interface DiscussionMessage {
   role: DiscussionRole;
-  /** Horodatage ISO 8601. */
+  /** ISO 8601 timestamp. */
   timestamp: string;
   content: string;
-  /** Métadonnées portées par un commentaire HTML (`<!-- eugenia: {...} -->`). */
+  /** Metadata carried by an HTML comment (`<!-- eugenia: {...} -->`). */
   meta?: Record<string, unknown>;
 }
 
 export interface DiscussionFields {
   id: string;
   title: string;
-  /** Sorte de discussion ; absente pour une discussion libre. */
+  /** Discussion kind; absent for a free discussion. */
   kind?: Exclude<DiscussionKind, "discussion">;
-  /** Page à l'origine de la discussion. */
+  /** Page the discussion started from. */
   about?: string;
-  /** Périmètre : catégorie interrogée (quiz) ou branche d'une question. */
+  /** Scope: category being quizzed (quiz) or branch of a question. */
   scope_node?: string;
   visibility?: Visibility;
   created?: string;
@@ -96,7 +96,7 @@ export function parseDiscussion(text: string): DiscussionDocument {
           lines.shift();
         }
       } catch {
-        // commentaire illisible : conservé dans le contenu
+        // unreadable comment: kept in the content
       }
     }
     const message: DiscussionMessage = {
@@ -159,29 +159,29 @@ export function serializeDiscussion(doc: DiscussionDocument): string {
   return serializeDocument(data, body);
 }
 
-/** JSON sur une ligne, espacé comme dans la spécification : `{"card": "…", "score": 0.3}`. */
+/** Single-line JSON, spaced as in the specification: `{"card": "…", "score": 0.3}`. */
 export function formatMeta(meta: Record<string, unknown>): string {
   const body = Object.entries(meta)
     .filter(([, v]) => v !== undefined)
     .map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`)
     .join(", ");
-  // `--` est interdit dans un commentaire HTML.
+  // `--` is not allowed in an HTML comment.
   return `{${body}}`.replace(/--/g, "\\u002d\\u002d");
 }
 
-/** Évaluation enregistrée dans un quiz : la trace de révision d'une flashcard. */
+/** Evaluation recorded in a quiz: the review trace of a flashcard. */
 export interface QuizEvent {
   card: string;
   score: number;
-  /** Horodatage ISO du message de retour. */
+  /** ISO timestamp of the feedback message. */
   at: string;
-  /** Fichier de quiz d'origine. */
+  /** Quiz file it comes from. */
   source?: string;
-  /** Auto-évaluation (mode hors ligne). */
+  /** Self-assessment (offline mode). */
   self?: boolean;
 }
 
-/** Évaluations d'un quiz (les autres sortes de discussions n'en portent pas). */
+/** Evaluations of a quiz (other discussion kinds carry none). */
 export function quizEvents(doc: DiscussionDocument, source?: string): QuizEvent[] {
   const events: QuizEvent[] = [];
   if (doc.fields.kind !== "quiz") return events;
@@ -203,7 +203,7 @@ export function quizEvents(doc: DiscussionDocument, source?: string): QuizEvent[
   return events;
 }
 
-/** Chemin d'une nouvelle discussion : `<discussions>/<date>-<heure>-<titre>.md` (UTC). */
+/** Path of a new discussion: `<discussions>/<date>-<time>-<title>.md` (UTC). */
 export function newDiscussionPath(
   config: Pick<WikiConfig, "discussions">,
   title: string,
@@ -217,7 +217,7 @@ export function newDiscussionPath(
 }
 
 // ---------------------------------------------------------------------------
-// Métadonnées (liste des discussions, rattachement aux pages)
+// Metadata (list of discussions, attachment to pages)
 // ---------------------------------------------------------------------------
 
 export interface DiscussionMeta {
@@ -229,9 +229,9 @@ export interface DiscussionMeta {
   visibility?: Visibility;
   created?: string;
   updated?: string;
-  /** Nombre de messages. */
+  /** Number of messages. */
   messages: number;
-  /** Début du premier message de l'utilisateur (ou du premier message). */
+  /** Start of the user's first message (or of the first message). */
   preview?: string;
   error?: string;
 }
@@ -259,7 +259,7 @@ export function discussionMeta(text: string): DiscussionMeta {
   return meta;
 }
 
-/** Pages auxquelles une discussion est rattachée (page d'origine, périmètre). */
+/** Pages a discussion is attached to (originating page, scope). */
 export function discussionNodes(meta: Pick<DiscussionMeta, "about" | "scope_node">): string[] {
   return [...new Set([meta.about, meta.scope_node].filter((id): id is string => Boolean(id)))];
 }
@@ -268,5 +268,5 @@ export const DISCUSSION_KIND_LABELS: Record<DiscussionKind, string> = {
   discussion: "Discussion",
   question: "Question",
   quiz: "Quiz",
-  note: "Note rapide",
+  note: "Quick note",
 };

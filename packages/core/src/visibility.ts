@@ -1,12 +1,12 @@
-/** Règles de visibilité public / privé (§6.2). */
+/** Public / private visibility rules (§6.2). */
 import { ancestors, descendants, getNode, type WikiNode, type WikiTree } from "./tree.ts";
 import type { Visibility } from "./types.ts";
 
 export interface MakePublicPlan {
   node: WikiNode;
-  /** Ancêtres privés (de la racine vers le parent) à rendre publics pour respecter la règle 3. */
+  /** Private ancestors (from the root to the parent) to make public to satisfy rule 3. */
   privateAncestors: WikiNode[];
-  /** Descendants, proposés à l'inclusion (cases à cocher, règle 4). */
+  /** Descendants, offered for inclusion (checkboxes, rule 4). */
   descendants: WikiNode[];
 }
 
@@ -21,7 +21,7 @@ export function planMakePublic(tree: WikiTree, nodeId: string): MakePublicPlan {
 
 export interface MakePrivatePlan {
   node: WikiNode;
-  /** Descendants actuellement publics, qui deviendront privés (règle 5). */
+  /** Currently public descendants, which will become private (rule 5). */
   publicDescendants: WikiNode[];
 }
 
@@ -33,8 +33,8 @@ export function planMakePrivate(tree: WikiTree, nodeId: string): MakePrivatePlan
 }
 
 /**
- * Visibilités à écrire pour obtenir les visibilités effectives `desired`, en ne
- * modifiant que les nœuds dont la valeur effective changerait sinon.
+ * Visibilities to write to obtain the effective visibilities `desired`, only changing the
+ * nodes whose effective value would otherwise differ.
  */
 function assignmentsFor(
   tree: WikiTree,
@@ -62,9 +62,9 @@ function assignmentsFor(
 }
 
 /**
- * Rend public un nœud. Si un ancêtre est privé, `includeAncestors` doit être vrai
- * (confirmation explicite de l'utilisateur) ; sinon rien ne change. Les descendants
- * non inclus deviennent (ou restent) explicitement privés.
+ * Makes a node public. If an ancestor is private, `includeAncestors` must be true (explicit
+ * confirmation by the user); otherwise nothing changes. Descendants that are not included
+ * become (or stay) explicitly private.
  */
 export function makePublicAssignments(
   tree: WikiTree,
@@ -78,14 +78,14 @@ export function makePublicAssignments(
   for (const ancestor of plan.privateAncestors) desired.set(ancestor.id, "public");
   desired.set(nodeId, "public");
   for (const d of plan.descendants) {
-    // Un descendant inclus dont le parent ne l'est pas resterait sous un nœud privé.
+    // An included descendant whose parent is not included would stay under a private node.
     const parentIncluded = d.parentId === nodeId || desired.get(d.parentId ?? "") === "public";
     desired.set(d.id, includedDescendants.has(d.id) && parentIncluded ? "public" : "private");
   }
   return assignmentsFor(tree, desired);
 }
 
-/** Rend privés un nœud et tous ses descendants (règle 5). */
+/** Makes a node and all its descendants private (rule 5). */
 export function makePrivateAssignments(
   tree: WikiTree,
   nodeId: string,
@@ -95,7 +95,7 @@ export function makePrivateAssignments(
   return assignmentsFor(tree, desired);
 }
 
-/** Visibilité d'un nouveau nœud : privé par défaut, et jamais public sous un parent privé. */
+/** Visibility of a new node: private by default, and never public under a private parent. */
 export function defaultVisibilityFor(
   parent: Pick<WikiNode, "isPublic"> | undefined,
   defaultVisibility: Visibility,

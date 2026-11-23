@@ -1,4 +1,4 @@
-/** Accueil sans dépôt : présentation, ouverture d'un wiki, wikis récents, création (§9.1). */
+/** Home without a repository: presentation, opening a wiki, recent wikis, creation (§9.1). */
 import { useEffect, useState, type FormEvent } from "react";
 import {
   BookOpenText,
@@ -27,7 +27,7 @@ export function HomeView() {
     e.preventDefault();
     const ref = parseRepo(value);
     if (!ref) {
-      setError("Indiquez un dépôt GitHub sous la forme propriétaire/nom, ou son adresse.");
+      setError("Give a GitHub repository as owner/name, or its URL.");
       return;
     }
     openRepo(ref);
@@ -46,13 +46,11 @@ export function HomeView() {
               </h1>
             </div>
           </div>
-          <p className="oe-tagline">
-            Extraire, structurer et mémoriser durablement vos connaissances.
-          </p>
+          <p className="oe-tagline">Extract, structure and durably remember your knowledge.</p>
           <p className="home__lead">
-            Votre wiki personnel vit dans vos propres dépôts git : un dépôt privé pour tout, un
-            dépôt public pour ce que vous choisissez de partager. Eugenia vous aide à en extraire
-            des connaissances, à décrire chaque sous-wiki et à réviser par des quiz.
+            Your personal wiki lives in your own git repositories: a private repository for
+            everything, a public one for what you choose to share. Eugenia helps you extract
+            knowledge, describe each sub-wiki and review with quizzes.
           </p>
         </div>
       </section>
@@ -65,16 +63,16 @@ export function HomeView() {
                 aria-hidden="true"
                 style={{ display: "inline", verticalAlign: "-0.15em" }}
               />{" "}
-              Ouvrir un wiki
+              Open a wiki
             </h2>
             <div className="oe-field">
               <label className="oe-label" htmlFor="repo">
-                Dépôt GitHub
+                GitHub repository
               </label>
               <input
                 id="repo"
                 className="oe-input"
-                placeholder="propriétaire/nom ou https://github.com/…"
+                placeholder="owner/name or https://github.com/…"
                 value={value}
                 onChange={(e) => {
                   setValue(e.target.value);
@@ -85,8 +83,8 @@ export function HomeView() {
                 spellCheck={false}
               />
               <span className="oe-help">
-                Un dépôt public se lit sans compte. Pour votre dépôt privé, ajoutez d'abord un jeton
-                GitHub dans les <a href={href({ name: "settings" })}>paramètres</a>.
+                A public repository can be read without an account. For your private repository,
+                first add a GitHub token in the <a href={href({ name: "settings" })}>settings</a>.
               </span>
               {error && (
                 <span className="oe-help" style={{ color: "var(--oe-color-danger)" }}>
@@ -96,17 +94,15 @@ export function HomeView() {
             </div>
             <div className="actions actions--start">
               <button type="submit" className="oe-button">
-                Ouvrir
+                Open
               </button>
             </div>
           </form>
 
           <div className="oe-card">
-            <h2 className="oe-card__title">Wikis récents</h2>
+            <h2 className="oe-card__title">Recent wikis</h2>
             {recents.length === 0 ? (
-              <p className="muted">
-                Les wikis que vous ouvrez apparaîtront ici, consultables même hors ligne.
-              </p>
+              <p className="muted">The wikis you open will appear here, available even offline.</p>
             ) : (
               <ul className="link-list">
                 {recents.slice(0, 8).map((r) => (
@@ -123,7 +119,7 @@ export function HomeView() {
                       {r.title}
                     </a>
                     <span className="muted small">
-                      {r.repo} · {r.mode === "owner" ? "propriétaire" : "public"} ·{" "}
+                      {r.repo} · {r.mode === "owner" ? "owner" : "public"} ·{" "}
                       {formatRelative(r.openedAt)}
                     </span>
                   </li>
@@ -133,22 +129,22 @@ export function HomeView() {
           </div>
 
           <div className="oe-card oe-card--featured">
-            <h2 className="oe-card__title">Créer votre wiki</h2>
+            <h2 className="oe-card__title">Create your wiki</h2>
             <p className="oe-card__body">
-              Créez un dépôt GitHub <strong>privé</strong> et vide, puis initialisez-y un wiki avec
-              les catégories par défaut. Un compte GitHub gratuit suffit.
+              Create an empty <strong>private</strong> GitHub repository, then initialize a wiki in
+              it with the default categories. A free GitHub account is enough.
             </p>
             <div className="actions actions--start">
               <a className="oe-button" href={href({ name: "new-wiki" })}>
-                <Plus aria-hidden="true" /> Nouveau wiki
+                <Plus aria-hidden="true" /> New wiki
               </a>
               <a className="oe-button oe-button--ghost" href={href({ name: "settings" })}>
-                <Settings aria-hidden="true" /> Paramètres
+                <Settings aria-hidden="true" /> Settings
               </a>
             </div>
             <p className="oe-help">
-              En ligne de commande : <code>eugenia init --github</code> crée aussi le dépôt public
-              et sa publication automatique.
+              On the command line: <code>eugenia init --github</code> also creates the public
+              repository and its automatic publication.
             </p>
           </div>
         </div>
@@ -163,28 +159,28 @@ export function HomeView() {
               Extraction
             </strong>
             <p className="oe-card__body">
-              Eugenia surligne les connaissances atomiques de vos notes, articles et PDF, et propose
-              questions et catégories.
+              Eugenia highlights the atomic knowledge of your notes, articles and PDFs, proposes
+              questions, and files it into categories.
             </p>
           </div>
           <div className="oe-card">
             <strong className="oe-card__title">
               <GitFork aria-hidden="true" style={{ display: "inline", verticalAlign: "-0.15em" }} />{" "}
-              Wiki personnel
+              Personal wiki
             </strong>
             <p className="oe-card__body">
-              Un arbre de sous-wikis, chacun décrit par Eugenia du plus fin au plus global, public
-              ou privé.
+              A tree of sub-wikis, each described by Eugenia from the most specific to the most
+              general, public or private.
             </p>
           </div>
           <div className="oe-card">
             <strong className="oe-card__title">
               <Brain aria-hidden="true" style={{ display: "inline", verticalAlign: "-0.15em" }} />{" "}
-              Révision
+              Review
             </strong>
             <p className="oe-card__body">
-              Des quiz conversationnels, une maîtrise qui décline avec le temps et des rappels pour
-              ne pas oublier.
+              Conversational quizzes, a mastery that decays over time, and reminders so as not to
+              forget.
             </p>
           </div>
           <div className="oe-card">
@@ -196,20 +192,20 @@ export function HomeView() {
               Discussions
             </strong>
             <p className="oe-card__body">
-              Approfondissez une page avec Eugenia, ou interrogez tout votre arbre de connaissances.
+              Explore a page further with Eugenia, or ask your whole knowledge tree.
             </p>
           </div>
         </div>
         <p className="muted small" style={{ paddingBottom: "2rem" }}>
-          Logiciel libre (licence MIT) ·{" "}
+          Free software (MIT license) ·{" "}
           <a
             href="https://github.com/openEugenia/eugenia"
             target="_blank"
             rel="noopener noreferrer"
           >
-            code source
+            source code
           </a>{" "}
-          · version {__APP_VERSION__} · vos données restent dans vos dépôts et dans ce navigateur.
+          · version {__APP_VERSION__} · your data stays in your repositories and in this browser.
         </p>
       </div>
     </div>

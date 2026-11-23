@@ -6,8 +6,8 @@ interface State {
 }
 
 /**
- * Affiche une erreur au lieu d'une page blanche, par exemple quand une vue ne peut pas
- * être chargée hors ligne avant que l'application soit mise en cache.
+ * Shows an error instead of a blank page, for example when a view cannot be loaded offline
+ * before the app is cached.
  */
 export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, State> {
   override state: State = { error: null };
@@ -34,10 +34,10 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
       );
     return (
       <div className="page">
-        <ErrorBox title={chunk ? "Vue indisponible" : "Une erreur est survenue"}>
+        <ErrorBox title={chunk ? "View unavailable" : "Something went wrong"}>
           <p>
             {chunk
-              ? "Cette partie de l'application n'a pas pu être chargée : vous êtes peut-être hors ligne et elle n'est pas encore en cache."
+              ? "This part of the app could not be loaded: you may be offline and it is not cached yet."
               : error.message}
           </p>
           <div className="actions actions--start" style={{ marginTop: "0.75rem" }}>
@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
               className="oe-button oe-button--sm"
               onClick={() => this.setState({ error: null })}
             >
-              Réessayer
+              Try again
             </button>
           </div>
         </ErrorBox>

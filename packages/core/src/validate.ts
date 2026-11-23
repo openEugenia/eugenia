@@ -1,4 +1,4 @@
-/** Validation du format d'un wiki (CLI `validate`, publication, édition hors application). */
+/** Format validation of a wiki (CLI `validate`, publication, editing outside the app). */
 import { parseDiscussion, quizEvents } from "./discussion.ts";
 import { internalLinks, linkedNode } from "./links.ts";
 import type { WikiView } from "./operations.ts";
@@ -9,7 +9,7 @@ import { parseSummary } from "./summaries.ts";
 import type { Problem } from "./types.ts";
 
 export interface ValidationOptions {
-  /** Vérifier les liens internes (par défaut : oui). */
+  /** Check internal links (default: yes). */
   links?: boolean;
 }
 
@@ -38,23 +38,23 @@ export async function validateWiki(
       const card = parseFlashcardBody(doc.body);
       const missing = [
         card.question ? null : "question",
-        card.answer ? null : "réponse attendue",
+        card.answer ? null : "expected answer",
       ].filter(Boolean);
       if (missing.length > 0) {
         warn(
           "flashcard-incomplete",
-          `Flashcard « ${node.title} » : section(s) manquante(s) : ${missing.join(", ")}.`,
+          `Flashcard "${node.title}": missing section(s): ${missing.join(", ")}.`,
         );
       }
     }
     if (node.type === "knowledge" && !knowledgeStatement(doc.body)) {
-      warn("knowledge-empty", `La connaissance « ${node.title} » n'a pas d'énoncé.`);
+      warn("knowledge-empty", `The knowledge item "${node.title}" has no statement.`);
     }
     if (node.type === "source" && doc.fields.file) {
       if (!files.has(normalizePath(joinPath(node.path, doc.fields.file)))) {
         warn(
           "missing-source-file",
-          `La source « ${node.title} » cite le fichier personnel « ${doc.fields.file} », introuvable.`,
+          `The source "${node.title}" refers to the personal file "${doc.fields.file}", which cannot be found.`,
         );
       }
     }
@@ -62,11 +62,11 @@ export async function validateWiki(
       if (!source.ref) continue;
       const target = tree.nodes.get(source.ref);
       if (!target) {
-        warn("unknown-source", `« ${node.title} » cite une source inconnue (${source.ref}).`);
+        warn("unknown-source", `"${node.title}" cites an unknown source (${source.ref}).`);
       } else if (target.type !== "source") {
         warn(
           "not-a-source",
-          `« ${node.title} » cite « ${target.title} », qui n'est pas une source de la bibliothèque.`,
+          `"${node.title}" cites "${target.title}", which is not a library source.`,
         );
       }
     }
@@ -76,7 +76,7 @@ export async function validateWiki(
         problems.push({
           level: "warning",
           code: "broken-link",
-          message: `« ${node.title} » contient un lien cassé vers « ${target.path} ».`,
+          message: `"${node.title}" contains a broken link to "${target.path}".`,
           path: node.indexPath,
           nodeId: node.id,
         });
@@ -102,7 +102,7 @@ export async function validateWiki(
         problems.push({
           level: "error",
           code: "summary-scope",
-          message: `« ${file.path} » devrait avoir la portée « ${scope} ».`,
+          message: `"${file.path}" should have the scope "${scope}".`,
           path: file.path,
           nodeId: node.id,
         });
@@ -127,7 +127,7 @@ export async function validateWiki(
       problems.push({
         level: "warning",
         code: "missing-id",
-        message: `La discussion « ${file.path} » n'a pas d'identifiant (id).`,
+        message: `The discussion "${file.path}" has no identifier (id).`,
         path: file.path,
       });
     }
@@ -136,7 +136,7 @@ export async function validateWiki(
         problems.push({
           level: "warning",
           code: "discussion-unknown-node",
-          message: `La discussion « ${file.path} » est rattachée à une page inconnue (${id}).`,
+          message: `The discussion "${file.path}" is attached to an unknown page (${id}).`,
           path: file.path,
         });
       }
@@ -149,7 +149,7 @@ export async function validateWiki(
         problems.push({
           level: "warning",
           code: "public-quiz-private-card",
-          message: `Le quiz « ${file.path} » est marqué public mais porte sur des flashcards privées : il ne sera jamais publié.`,
+          message: `The quiz "${file.path}" is marked public but covers private flashcards: it will never be published.`,
           path: file.path,
         });
       }

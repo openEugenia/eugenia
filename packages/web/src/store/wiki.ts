@@ -1,6 +1,6 @@
 /**
- * État du wiki ouvert : chargement (en ligne ou depuis la copie locale), modifications
- * en attente, commits et synchronisation (§10).
+ * State of the open wiki: loading (online or from the local copy), pending changes, commits
+ * and synchronization (§10).
  */
 import { create } from "zustand";
 import { gitBlobSha, type FileChange } from "@openeugenia/core";
@@ -51,7 +51,7 @@ interface WikiState {
   status: Status;
   message: string | null;
   error: string | null;
-  /** Affichage de la copie locale, faute de réseau. */
+  /** Showing the local copy, for lack of network. */
   offline: boolean;
   online: boolean;
   syncing: boolean;
@@ -69,7 +69,7 @@ interface WikiState {
 
 const QUIZ_PATH = /\/_quizzes\/[^/]+\.md$/;
 
-/** Le mode propriétaire hors ligne garde l'écriture locale (file d'attente). */
+/** Owner mode keeps local writing offline (queue). */
 export function canEdit(state: Pick<WikiState, "resolved" | "workspace">): boolean {
   return state.workspace?.mode === "owner" && (state.resolved?.canWrite ?? false);
 }
@@ -109,7 +109,7 @@ export const useWiki = create<WikiState>((set, get) => {
       set({
         requested: ref,
         status: "loading",
-        message: "Connexion au dépôt…",
+        message: "Connecting to the repository…",
         error: null,
         workspace: null,
         derived: null,
@@ -126,7 +126,7 @@ export const useWiki = create<WikiState>((set, get) => {
       }
       if (stale()) return;
 
-      // Hors ligne (ou GitHub injoignable) : copie locale si elle existe.
+      // Offline (or GitHub unreachable): local copy if there is one.
       let cached: Snapshot | undefined;
       if (!resolved) {
         cached = await getSnapshot(repoKey(ref)).catch(() => undefined);
@@ -136,7 +136,7 @@ export const useWiki = create<WikiState>((set, get) => {
             error:
               networkError instanceof GitHubError && networkError.code !== "network"
                 ? networkError.message
-                : `Impossible de joindre GitHub et aucune copie locale de ${repoLabel(ref)} n'existe sur cet appareil.`,
+                : `Cannot reach GitHub, and there is no local copy of ${repoLabel(ref)} on this device.`,
           });
           return;
         }
@@ -158,7 +158,7 @@ export const useWiki = create<WikiState>((set, get) => {
       const pending = (await getPending(key).catch(() => undefined)) ?? emptyPending();
       if (stale()) return;
 
-      // Affichage immédiat de la copie locale, puis mise à jour depuis le réseau.
+      // Show the local copy right away, then update it from the network.
       if (cached && cached.mode === resolved.mode) {
         const ws = new Workspace(key, cached, pending, backend);
         try {
@@ -175,7 +175,7 @@ export const useWiki = create<WikiState>((set, get) => {
             version: s.version + 1,
           }));
         } catch {
-          // copie locale incomplète : on attend le réseau
+          // incomplete local copy: wait for the network
         }
       }
       if (networkError !== null) {
@@ -184,7 +184,7 @@ export const useWiki = create<WikiState>((set, get) => {
       }
 
       try {
-        set({ message: "Lecture de l'arbre…" });
+        set({ message: "Reading the tree…" });
         const snapshot = await backend.fetchSnapshot(
           cached?.mode === resolved.mode ? cached : undefined,
         );
@@ -195,7 +195,7 @@ export const useWiki = create<WikiState>((set, get) => {
             ? get().workspace!
             : new Workspace(key, snapshot, pending, backend);
         ws.update(snapshot, ws.pending);
-        set({ message: "Chargement des pages…" });
+        set({ message: "Loading the pages…" });
         const derived = await ws.derive();
         if (stale()) return;
         set((s) => ({
@@ -215,16 +215,16 @@ export const useWiki = create<WikiState>((set, get) => {
           mode: resolved.mode,
           openedAt: new Date().toISOString(),
         }).catch(() => undefined);
-        // Quiz interrompus (fermeture de la page) : commit automatique.
+        // Interrupted quizzes (page closed): automatic commit.
         const orphanQuizzes = uncommittedPaths(ws.pending).filter((p) => QUIZ_PATH.test(p));
         if (orphanQuizzes.length > 0)
-          await get().commit("Quiz interrompu : enregistrement des réponses", orphanQuizzes);
+          await get().commit("Interrupted quiz: saving the answers", orphanQuizzes);
         else if (ws.pending.queue.length > 0) await get().flush();
       } catch (error) {
         if (stale()) return;
         if (get().status === "ready") {
           set({ offline: true });
-          toast(`Copie locale affichée : ${errorMessage(error)}`, "error");
+          toast(`Showing the local copy: ${errorMessage(error)}`, "error");
         } else {
           set({ status: "error", error: errorMessage(error), message: null });
         }
@@ -254,13 +254,13 @@ export const useWiki = create<WikiState>((set, get) => {
         await rederive();
         set({ offline: false });
       } catch (error) {
-        toast(`Actualisation impossible : ${errorMessage(error)}`, "error");
+        toast(`Cannot refresh: ${errorMessage(error)}`, "error");
       }
     },
 
     async stage(changes, description) {
       const ws = get().workspace;
-      if (!ws || !canEdit(get())) throw new Error("Ce wiki est en lecture seule.");
+      if (!ws || !canEdit(get())) throw new Error("This wiki is read-only.");
       const remote = new Map(ws.snapshot.files.map((f) => [f.path, f]));
       const pending = await stageChanges(ws.pending, changes, remote, description);
       await savePending(ws, pending);
@@ -276,7 +276,7 @@ export const useWiki = create<WikiState>((set, get) => {
       await savePending(ws, pending);
       set({ pending });
       if (get().online) await get().flush();
-      else toast("Hors ligne : le commit sera envoyé au retour du réseau.");
+      else toast("Offline: the commit will be sent when the network is back.");
     },
 
     async flush() {
@@ -303,10 +303,7 @@ export const useWiki = create<WikiState>((set, get) => {
             ws.update(outcome.snapshot, pending);
             await putSnapshot(outcome.snapshot);
             await putPending(ws.key, pending);
-            toast(
-              `${outcome.conflicts.length} conflit(s) à résoudre avant d'enregistrer.`,
-              "error",
-            );
+            toast(`${outcome.conflicts.length} conflict(s) to resolve before saving.`, "error");
             break;
           }
           await ws.remember(outcome.committed);
@@ -330,14 +327,14 @@ export const useWiki = create<WikiState>((set, get) => {
         if (committedCount > 0)
           toast(
             committedCount === 1
-              ? "Modifications enregistrées dans le dépôt."
-              : `${committedCount} commits enregistrés.`,
+              ? "Changes saved to the repository."
+              : `${committedCount} commits saved.`,
             "success",
           );
       } catch (error) {
         pending = { ...pending, lastError: errorMessage(error) };
         await savePending(ws, pending);
-        toast(`Synchronisation impossible : ${errorMessage(error)}`, "error");
+        toast(`Cannot synchronize: ${errorMessage(error)}`, "error");
       } finally {
         set({ syncing: false });
         await rederive();

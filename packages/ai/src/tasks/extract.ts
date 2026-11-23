@@ -1,4 +1,7 @@
-/** Extraction de connaissances atomiques : surlignage puis propositions (§8.1). */
+/**
+ * Extraction of atomic knowledge: highlighting, then proposals (§8.1). The categories of the
+ * proposals are chosen afterwards, for the whole document (see `categorize.ts`).
+ */
 import { z } from "zod";
 import { excerpt, splitText, systemPrompt, withSignal, type TaskContext } from "./context.ts";
 
@@ -14,11 +17,6 @@ export const ProposalsSchema = z.object({
       title: z.string(),
       question: z.string(),
       answer: z.string(),
-      category: z.object({
-        existing_id: z.string().nullable(),
-        new_title: z.string().nullable(),
-        new_parent_id: z.string().nullable(),
-      }),
     }),
   ),
 });
@@ -34,7 +32,7 @@ export interface Highlight {
 
 export interface CategoryOption {
   id: string;
-  /** Chemin lisible : « Science > Astronomie ». */
+  /** Readable path: "Science > Astronomy". */
   path: string;
   description?: string;
 }
@@ -45,7 +43,6 @@ export interface KnowledgeProposal {
   title: string;
   question: string;
   answer: string;
-  category: { existingId?: string; newTitle?: string; newParentId?: string };
 }
 
 let counter = 0;
@@ -55,9 +52,9 @@ export function highlightId(): string {
 }
 
 /**
- * Texte normalisé pour comparer une citation au texte : sans espaces (les espaces des
- * guillemets français varient), apostrophes et guillemets unifiés, en minuscules ; `map`
- * donne la position d'origine de chaque caractère.
+ * Normalized text to compare a quote with the text: without spaces (spaces around quotation
+ * marks vary), with unified apostrophes and quotation marks, in lowercase; `map` gives the
+ * original position of each character.
  */
 function normalized(text: string): { value: string; map: number[] } {
   let value = "";
@@ -73,7 +70,7 @@ function normalized(text: string): { value: string; map: number[] } {
   return { value, map };
 }
 
-/** Position d'une citation dans le texte : exacte, sinon à la ponctuation et aux espaces près. */
+/** Position of a quote in the text: exact, otherwise up to punctuation and spaces. */
 export function locateQuote(
   text: string,
   quote: string,
@@ -96,7 +93,7 @@ export function locateQuote(
   return { start, end };
 }
 
-/** Étape 2 : Eugenia surligne les connaissances candidates du texte. */
+/** Step 2: Eugenia highlights the candidate knowledge of the text. */
 export async function highlightKnowledge(context: TaskContext, text: string): Promise<Highlight[]> {
   const highlights: Highlight[] = [];
   for (const chunk of splitText(text)) {
@@ -106,7 +103,7 @@ export async function highlightKnowledge(context: TaskContext, text: string): Pr
         messages: [
           {
             role: "user" as const,
-            content: `<etape>surlignage</etape>\n<texte>\n${chunk.text}\n</texte>`,
+            content: `<step>highlight</step>\n<text>\n${chunk.text}\n</text>`,
           },
         ],
         schema: HighlightsSchema,
@@ -135,30 +132,19 @@ export async function highlightKnowledge(context: TaskContext, text: string): Pr
   return highlights.sort((a, b) => a.start - b.start || a.end - b.end);
 }
 
-function categoriesBlock(categories: readonly CategoryOption[]): string {
-  return categories
-    .map(
-      (c) =>
-        `- id: ${c.id} | chemin : ${c.path}${c.description ? ` | ${excerpt(c.description, 160)}` : ""}`,
-    )
-    .join("\n");
-}
-
-/** Étape 4 : Eugenia propose une flashcard par passage surligné. */
+/** Step 4: Eugenia proposes a knowledge item and its first flashcard per highlighted passage. */
 export async function proposeKnowledge(
   context: TaskContext,
   input: {
     text: string;
     highlights: readonly Pick<Highlight, "id" | "quote">[];
-    categories: readonly CategoryOption[];
   },
 ): Promise<KnowledgeProposal[]> {
-  const known = new Set(input.categories.map((c) => c.id));
   const proposals: KnowledgeProposal[] = [];
   const batchSize = 15;
   for (let i = 0; i < input.highlights.length; i += batchSize) {
     const batch = input.highlights.slice(i, i + batchSize);
-    const passages = batch.map((h, n) => `${n + 1}. « ${h.quote} »`).join("\n");
+    const passages = batch.map((h, n) => `${n + 1}. "${h.quote}"`).join("\n");
     const result = await context.provider.json(
       withSignal(context, {
         system: systemPrompt(context, "extract"),
@@ -166,10 +152,9 @@ export async function proposeKnowledge(
           {
             role: "user" as const,
             content: [
-              "<etape>proposition</etape>",
-              `<texte>\n${excerpt(input.text, 60000)}\n</texte>`,
+              "<step>propose</step>",
+              `<text>\n${excerpt(input.text, 60000)}\n</text>`,
               `<passages>\n${passages}\n</passages>`,
-              `<categories>\n${categoriesBlock(input.categories)}\n</categories>`,
             ].join("\n"),
           },
         ],
@@ -181,22 +166,12 @@ export async function proposeKnowledge(
     for (const card of result.cards) {
       const highlight = batch[card.highlight - 1];
       if (!highlight) continue;
-      const category: KnowledgeProposal["category"] = {};
-      if (card.category.existing_id && known.has(card.category.existing_id)) {
-        category.existingId = card.category.existing_id;
-      } else if (card.category.new_title?.trim()) {
-        category.newTitle = card.category.new_title.trim();
-        if (card.category.new_parent_id && known.has(card.category.new_parent_id)) {
-          category.newParentId = card.category.new_parent_id;
-        }
-      }
       proposals.push({
         highlightId: highlight.id,
         knowledge: card.knowledge.trim(),
         title: card.title.trim(),
         question: card.question.trim(),
         answer: card.answer.trim(),
-        category,
       });
     }
   }

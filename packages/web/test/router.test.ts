@@ -20,28 +20,28 @@ describe("routes", () => {
     { name: "discussion", kind: "note" },
     { name: "discussion" },
     { name: "discussions" },
-    { name: "discussions", kind: "quiz", q: "lune" },
+    { name: "discussions", kind: "quiz", q: "moon" },
     { name: "library", kind: "book", q: "Descartes" },
     { name: "ask", id: "01ABC" },
     { name: "graph", id: "01ABC" },
     { name: "dashboard" },
-    { name: "search", q: "lune noire" },
+    { name: "search", q: "black moon" },
     { name: "settings" },
     { name: "changes" },
     { name: "summaries", id: "01ABC" },
     { name: "new-wiki" },
   ];
-  it.each(routes)("aller-retour %o", (route) => {
+  it.each(routes)("round trip %o", (route) => {
     expect(parseHash(href(route))).toEqual(route);
   });
 
-  it("route inconnue", () => {
-    expect(parseHash("#/inconnu")).toEqual({ name: "not-found" });
+  it("unknown route", () => {
+    expect(parseHash("#/unknown")).toEqual({ name: "not-found" });
   });
 });
 
-describe("dépôts", () => {
-  it("accepte owner/name, une URL GitHub ou une URL de l'application", () => {
+describe("repositories", () => {
+  it("accepts owner/name, a GitHub URL or an app URL", () => {
     expect(parseRepo("alice/wiki")).toEqual({ owner: "alice", name: "wiki" });
     expect(parseRepo("https://github.com/alice/wiki.git")).toEqual({
       owner: "alice",

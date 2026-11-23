@@ -13,7 +13,7 @@
   </defs>
   <rect x="9" y="9" width="1190" height="1190" rx="33" fill="#11161d"/>
 
-  <!-- « E » capitale, « ia » en minuscules géométriques, sur une même ligne de base. -->
+  <!-- Capital "E", geometric lowercase "ia", on the same baseline. -->
   <g fill="#fff">
     <path d="M217 376H517V466H317V557H499V641H317V741H517V831H217Z"/>
     <path d="M577 541H661V831H577Z"/>

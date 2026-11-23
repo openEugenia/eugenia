@@ -1,4 +1,4 @@
-/** Liens entre nœuds (§5.8) : résolution, réécriture lors d'un déplacement, rétroliens. */
+/** Links between nodes (§5.8): resolution, rewriting on a move, backlinks. */
 import { rewriteDestinations, scanLinks, unlinkWhere } from "./markdown.ts";
 import {
   dirname,
@@ -12,11 +12,11 @@ import {
 import { nodeForPath, type WikiNode, type WikiTree } from "./tree.ts";
 
 export interface ResolvedLink {
-  /** Chemin cible, relatif à la racine du dépôt. */
+  /** Target path, relative to the repository root. */
   path: string;
-  /** Ancre éventuelle (`#section`). */
+  /** Optional anchor (`#section`). */
   hash: string;
-  /** Le lien se termine par `/` (lien vers un dossier). */
+  /** The link ends with `/` (link to a folder). */
   trailingSlash: boolean;
 }
 
@@ -26,7 +26,7 @@ export function isExternalUrl(url: string): boolean {
   return SCHEME_RE.test(url) || url.startsWith("//");
 }
 
-/** Résout un lien relatif écrit dans `fromFile`. Renvoie `null` pour les liens externes. */
+/** Resolves a relative link written in `fromFile`. Returns `null` for external links. */
 export function resolveLinkTarget(fromFile: string, url: string): ResolvedLink | null {
   const trimmed = url.trim();
   if (
@@ -46,24 +46,24 @@ export function resolveLinkTarget(fromFile: string, url: string): ResolvedLink |
   try {
     decoded = decodeURI(pathPart);
   } catch {
-    // destination mal encodée : on la garde telle quelle
+    // badly encoded destination: keep it as is
   }
   const target = normalizePath(joinPath(dirname(fromFile), decoded));
   if (target.startsWith("..")) return null;
   return { path: target, hash, trailingSlash: decoded.endsWith("/") };
 }
 
-/** Encode les caractères qui posent problème dans une destination Markdown. */
+/** Encodes the characters that are problematic in a Markdown destination. */
 export function encodeLinkPath(path: string): string {
   return path.replace(/[ ()%]/g, (c) => encodeURIComponent(c));
 }
 
-/** Lien relatif de `fromFile` vers la page `node` (vers son `index.md`). */
+/** Relative link from `fromFile` to the page `node` (to its `index.md`). */
 export function linkToNode(fromFile: string, node: Pick<WikiNode, "indexPath">): string {
   return encodeLinkPath(relativePath(dirname(fromFile), node.indexPath));
 }
 
-/** Lien Markdown complet vers une page. */
+/** Full Markdown link to a page. */
 export function markdownLinkToNode(
   fromFile: string,
   node: Pick<WikiNode, "indexPath" | "title">,
@@ -74,8 +74,8 @@ export function markdownLinkToNode(
 }
 
 /**
- * Réécrit les liens d'un fichier déplacé de `oldFile` vers `newFile`, dont les cibles
- * ont pu être déplacées selon `mapPath` (ancien chemin → nouveau chemin).
+ * Rewrites the links of a file moved from `oldFile` to `newFile`, whose targets may have
+ * moved according to `mapPath` (old path → new path).
  */
 export function rewriteLinksForMove(
   content: string,
@@ -92,14 +92,14 @@ export function rewriteLinksForMove(
     let rel = relativePath(dirname(newFile), target);
     if (resolved.trailingSlash && !rel.endsWith("/")) rel += "/";
     const next = encodeLinkPath(rel) + resolved.hash;
-    // Même cible qu'avant : on garde l'écriture d'origine.
+    // Same target as before: keep the original spelling.
     const before = resolveLinkTarget(newFile, link.url);
     if (before && before.path === target && before.hash === resolved.hash) return undefined;
     return next;
   });
 }
 
-/** Fonction de correspondance pour le déplacement d'un dossier entier. */
+/** Mapping function for moving a whole folder. */
 export function directoryMapper(
   oldDir: string,
   newDir: string,
@@ -107,7 +107,7 @@ export function directoryMapper(
   return (path) => (isUnder(oldDir, path) ? rebase(path, oldDir, newDir) : undefined);
 }
 
-/** Remplace par du texte simple les liens dont la cible vérifie `shouldUnlink` (§6.2 règle 6). */
+/** Replaces with plain text the links whose target matches `shouldUnlink` (§6.2 rule 6). */
 export function unlinkTargets(
   content: string,
   filePath: string,
@@ -119,7 +119,7 @@ export function unlinkTargets(
   });
 }
 
-/** Liens internes (relatifs) d'un document. */
+/** Internal (relative) links of a document. */
 export function internalLinks(content: string, filePath: string): ResolvedLink[] {
   const out: ResolvedLink[] = [];
   for (const link of scanLinks(content).links) {
@@ -129,18 +129,18 @@ export function internalLinks(content: string, filePath: string): ResolvedLink[]
   return out;
 }
 
-/** Page ciblée par un lien résolu, si c'en est une. */
+/** Page targeted by a resolved link, if it is one. */
 export function linkedNode(tree: WikiTree, target: ResolvedLink): WikiNode | undefined {
   const node = nodeForPath(tree, target.path);
   if (node) return node;
-  // Lien vers un dossier sans extension (ex. `../lilith`).
+  // Link to a folder without extension (e.g. `../lilith`).
   if (extname(target.path) === "") return tree.byPath.get(target.path);
   return undefined;
 }
 
 /**
- * Rétroliens : pour chaque page, les pages qui pointent vers elle.
- * `contents` associe le chemin d'un `index.md` à son contenu.
+ * Backlinks: for each page, the pages that link to it.
+ * `contents` maps the path of an `index.md` to its content.
  */
 export function buildBacklinks(
   tree: WikiTree,

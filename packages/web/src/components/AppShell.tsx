@@ -1,6 +1,5 @@
 /**
- * Coquille de l'application : barre supérieure, panneau latéral à trois espaces (wiki,
- * bibliothèque, discussions), contenu.
+ * App shell: top bar, side panel with three spaces (wiki, library, discussions), content.
  */
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
@@ -27,7 +26,13 @@ import { href, navigate, openRepo, useRoute, type Route } from "../lib/router.ts
 import { normalizeTerm } from "../lib/text.ts";
 import type { Derived } from "../lib/workspace.ts";
 import { canEdit, useWiki } from "../store/wiki.ts";
-import { DiscussionKindIcon, SourceKindIcon, Spinner, VisibilityBadge } from "./common.tsx";
+import {
+  DiscussionKindIcon,
+  RecordBadge,
+  SourceKindIcon,
+  Spinner,
+  VisibilityBadge,
+} from "./common.tsx";
 import { moveWithConfirmation } from "./NodeActions.tsx";
 import { TreeView } from "./TreeView.tsx";
 
@@ -39,30 +44,27 @@ function SyncIndicator() {
   const count = Object.keys(pending.changes).length;
   const uncommitted = uncommittedPaths(pending).length;
   let className = "sync-indicator";
-  let label = "À jour";
+  let label = "Up to date";
   if (pending.conflicts.length > 0) {
     className += " is-conflict";
-    label = `${pending.conflicts.length} conflit(s)`;
+    label = `${pending.conflicts.length} conflict(s)`;
   } else if (!online || offline) {
     className += " is-offline";
-    label = count > 0 ? `Hors ligne · ${count} en attente` : "Hors ligne";
+    label = count > 0 ? `Offline · ${count} pending` : "Offline";
   } else if (syncing) {
-    label = "Synchronisation…";
+    label = "Synchronizing…";
   } else if (count > 0) {
     className += " is-pending";
-    label =
-      uncommitted > 0
-        ? `${uncommitted} modification(s) à enregistrer`
-        : `${count} en file d'attente`;
+    label = uncommitted > 0 ? `${uncommitted} change(s) to save` : `${count} queued`;
   }
   return (
     <a
       className={`oe-button oe-button--ghost oe-button--sm ${className}`}
       href={href({ name: "changes" })}
-      title="Modifications et synchronisation"
+      title="Changes and synchronization"
     >
       {syncing ? (
-        <Spinner small label="Synchronisation" />
+        <Spinner small label="Synchronizing" />
       ) : !online || offline ? (
         <CloudOff aria-hidden="true" />
       ) : (
@@ -75,7 +77,7 @@ function SyncIndicator() {
 
 export type Section = "wiki" | "library" | "discussions";
 
-/** Espace correspondant à la page ouverte. */
+/** Space matching the open page. */
 function sectionFor(route: Route, derived: Derived, currentId: string | undefined): Section {
   if (route.name === "library") return "library";
   if (route.name === "discussions" || route.name === "discussion" || route.name === "ask")
@@ -88,11 +90,11 @@ function sectionFor(route: Route, derived: Derived, currentId: string | undefine
 
 const SECTIONS: { id: Section; label: string; icon: ReactNode }[] = [
   { id: "wiki", label: "Wiki", icon: <FolderTree aria-hidden="true" /> },
-  { id: "library", label: "Bibliothèque", icon: <Library aria-hidden="true" /> },
+  { id: "library", label: "Library", icon: <Library aria-hidden="true" /> },
   { id: "discussions", label: "Discussions", icon: <MessagesSquare aria-hidden="true" /> },
 ];
 
-/** Bibliothèque dans le panneau latéral : sources par titre, filtre rapide. */
+/** Library in the side panel: sources by title, quick filter. */
 function LibraryPanel({
   derived,
   currentId,
@@ -106,7 +108,7 @@ function LibraryPanel({
 }) {
   const [filter, setFilter] = useState("");
   const sources = useMemo(
-    () => librarySources(derived.tree).sort((a, b) => a.title.localeCompare(b.title, "fr")),
+    () => librarySources(derived.tree).sort((a, b) => a.title.localeCompare(b.title, "en")),
     [derived.tree],
   );
   const q = normalizeTerm(filter.trim());
@@ -119,15 +121,15 @@ function LibraryPanel({
         <input
           className="oe-input oe-input--sm"
           type="search"
-          placeholder="Filtrer les sources…"
+          placeholder="Filter sources…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          aria-label="Filtrer les sources"
+          aria-label="Filter sources"
         />
       )}
       {sources.length === 0 ? (
         <p className="muted small side-panel__empty">
-          Aucune source. Ajoutez les livres, articles et sites d'où viennent vos connaissances.
+          No sources. Add the books, articles and websites your knowledge comes from.
         </p>
       ) : (
         <ul className="tree">
@@ -144,12 +146,13 @@ function LibraryPanel({
                   <span className="title">{s.title}</span>
                 </a>
                 <span className="tree-flags">
-                  <span className="muted small" title="Connaissances qui citent cette source">
+                  <span className="muted small" title="Knowledge items citing this source">
                     {derived.knowledgeBySource.get(s.id)?.length ?? 0}
                   </span>
                   {owner && (
                     <VisibilityBadge visibility={s.isPublic ? "public" : "private"} compact />
                   )}
+                  {!owner && !s.isPublic && <RecordBadge compact />}
                 </span>
               </div>
             </li>
@@ -157,13 +160,13 @@ function LibraryPanel({
         </ul>
       )}
       <a className="side-panel__more" href={href({ name: "library" })} onClick={onNavigate}>
-        Toute la bibliothèque
+        Whole library
       </a>
     </div>
   );
 }
 
-/** Discussions récentes dans le panneau latéral. */
+/** Recent discussions in the side panel. */
 function DiscussionsPanel({
   derived,
   currentPath,
@@ -178,7 +181,7 @@ function DiscussionsPanel({
     <div className="side-panel">
       {recent.length === 0 ? (
         <p className="muted small side-panel__empty">
-          Aucune discussion. Écrivez une note rapide ou posez une question sur votre wiki.
+          No discussions. Write a quick note or ask a question about your wiki.
         </p>
       ) : (
         <ul className="tree">
@@ -193,7 +196,7 @@ function DiscussionsPanel({
                   title={d.meta.preview ?? d.meta.title}
                 >
                   <DiscussionKindIcon kind={d.meta.kind} />
-                  <span className="title">{d.meta.title || "Sans titre"}</span>
+                  <span className="title">{d.meta.title || "Untitled"}</span>
                 </a>
                 <span className="tree-flags muted small">
                   {d.meta.created ? formatDate(d.meta.created) : ""}
@@ -204,7 +207,7 @@ function DiscussionsPanel({
         </ul>
       )}
       <a className="side-panel__more" href={href({ name: "discussions" })} onClick={onNavigate}>
-        Toutes les discussions
+        All discussions
       </a>
     </div>
   );
@@ -220,7 +223,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
   const [query, setQuery] = useState(route.name === "search" ? (route.q ?? "") : "");
   const routeSection = derived ? sectionFor(route, derived, currentId) : "wiki";
   const [section, setSection] = useState<Section>(routeSection);
-  // L'onglet suit la page ouverte ; l'utilisateur peut en changer librement ensuite.
+  // The tab follows the open page; the user can then switch freely.
   useEffect(() => setSection(routeSection), [routeSection]);
   if (!derived || !workspace) return null;
   const owner = workspace.mode === "owner";
@@ -241,7 +244,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
         <button
           type="button"
           className="oe-button oe-button--ghost oe-button--sm icon-only menu-toggle"
-          aria-label="Afficher l'arbre"
+          aria-label="Show the tree"
           aria-expanded={sidebarOpen}
           onClick={() => setSidebarOpen((v) => !v)}
         >
@@ -254,7 +257,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
             e.preventDefault();
             openRepo(null);
           }}
-          title="Accueil d'Eugenia"
+          title="Eugenia home"
         >
           <img src={`${import.meta.env.BASE_URL}icons/mark.svg`} alt="" />
           <span className="app-brand__name">Eugenia</span>
@@ -265,40 +268,39 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
         {!owner && (
           <span
             className="oe-badge oe-badge--success"
-            title="Vous consultez la partie publique de ce wiki"
+            title="You are viewing the public part of this wiki"
           >
             <Globe aria-hidden="true" /> <span className="app-bar__label">Public</span>
           </span>
         )}
         {owner && !resolved?.canWrite && (
           <span className="oe-badge oe-badge--warning" title={resolved?.readOnlyReason}>
-            <AlertTriangle aria-hidden="true" />{" "}
-            <span className="app-bar__label">Lecture seule</span>
+            <AlertTriangle aria-hidden="true" /> <span className="app-bar__label">Read-only</span>
           </span>
         )}
         <form className="app-bar__search" role="search" onSubmit={submit}>
           <input
             className="oe-input"
             type="search"
-            placeholder="Rechercher…"
-            aria-label="Rechercher dans le wiki"
+            placeholder="Search…"
+            aria-label="Search the wiki"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </form>
-        <nav className="app-bar__actions" aria-label="Outils">
+        <nav className="app-bar__actions" aria-label="Tools">
           <a
             className="oe-button oe-button--ghost oe-button--sm icon-only"
             href={href({ name: "search" })}
-            aria-label="Recherche"
-            title="Recherche"
+            aria-label="Search"
+            title="Search"
           >
             <Search />
           </a>
           <a
             className="oe-button oe-button--ghost oe-button--sm"
             href={href({ name: "ask" })}
-            title="Poser une question sur le wiki"
+            title="Ask a question about the wiki"
           >
             <MessageCircleQuestion aria-hidden="true" />{" "}
             <span className="app-bar__label">Questions</span>
@@ -306,8 +308,8 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
           <a
             className="oe-button oe-button--ghost oe-button--sm icon-only"
             href={href({ name: "graph" })}
-            aria-label="Graphe"
-            title="Graphe"
+            aria-label="Graph"
+            title="Graph"
           >
             <Network />
           </a>
@@ -315,8 +317,8 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
             <a
               className="oe-button oe-button--ghost oe-button--sm icon-only"
               href={href({ name: "dashboard" })}
-              aria-label="Tableau de bord"
-              title="Tableau de bord"
+              aria-label="Dashboard"
+              title="Dashboard"
             >
               <LayoutDashboard />
             </a>
@@ -325,13 +327,13 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
             <a
               className="oe-button oe-button--ghost oe-button--sm"
               href={href({ name: "summaries" })}
-              title="Descriptions des sous-wikis"
+              title="Sub-wiki descriptions"
             >
               <RefreshCw aria-hidden="true" />
               {staleCount > 0 && (
                 <span
                   className="count-badge"
-                  aria-label={`${staleCount} descriptions périmées ou manquantes`}
+                  aria-label={`${staleCount} stale or missing descriptions`}
                 >
                   {staleCount}
                 </span>
@@ -342,15 +344,15 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
           <a
             className="oe-button oe-button--ghost oe-button--sm icon-only"
             href={href({ name: "settings" })}
-            aria-label="Paramètres"
-            title="Paramètres"
+            aria-label="Settings"
+            title="Settings"
           >
             <Settings />
           </a>
         </nav>
       </header>
-      <aside className="sidebar" aria-label="Espaces du wiki">
-        <div className="section-tabs" role="tablist" aria-label="Espaces">
+      <aside className="sidebar" aria-label="Wiki spaces">
+        <div className="section-tabs" role="tablist" aria-label="Spaces">
           {SECTIONS.map((item) => (
             <button
               key={item.id}
@@ -377,7 +379,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
             }
             onClick={() => setSidebarOpen(false)}
           >
-            {section === "wiki" ? "Connaissances" : section === "library" ? "Sources" : "Récentes"}
+            {section === "wiki" ? "Knowledge" : section === "library" ? "Sources" : "Recent"}
           </a>
           {editable && section === "wiki" && (
             <a
@@ -390,16 +392,16 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
                     : derived.tree.rootId,
                 type: "category",
               })}
-              title="Nouvelle catégorie"
+              title="New category"
             >
-              <Plus aria-hidden="true" /> Catégorie
+              <Plus aria-hidden="true" /> Category
             </a>
           )}
           {editable && section === "library" && (
             <a
               className="oe-button oe-button--ghost oe-button--sm"
               href={href({ name: "new", parentId: derived.tree.libraryId, type: "source" })}
-              title="Nouvelle source"
+              title="New source"
             >
               <Plus aria-hidden="true" /> Source
             </a>
@@ -408,7 +410,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
             <a
               className="oe-button oe-button--ghost oe-button--sm"
               href={href({ name: "discussion", kind: "note" })}
-              title="Nouvelle note rapide"
+              title="New quick note"
             >
               <StickyNote aria-hidden="true" /> Note
             </a>

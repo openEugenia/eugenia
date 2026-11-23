@@ -1,6 +1,6 @@
 /**
- * Arbre du wiki (panneau latéral) : catégories et connaissances atomiques, repliable, badges,
- * jauges, glisser-déposer (§9.2). Les flashcards se consultent depuis leur connaissance.
+ * Wiki tree (side panel): categories and atomic knowledge, collapsible, badges, gauges,
+ * drag and drop (§9.2). Flashcards are viewed from their knowledge item.
  */
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -52,12 +52,12 @@ export function TreeView({
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const branch = useMemo(() => branchMasteryMap(tree, mastery), [tree, mastery]);
-  // Une flashcard ouverte est signalée sur sa connaissance.
+  // An open flashcard is shown on its knowledge item.
   const currentNode = currentId ? tree.nodes.get(currentId) : undefined;
   const highlighted =
     currentNode?.type === "flashcard" && currentNode.parentId ? currentNode.parentId : currentId;
 
-  // Le nœud courant est toujours visible : ses ancêtres sont dépliés.
+  // The current node is always visible: its ancestors are expanded.
   useEffect(() => {
     if (!currentId || !tree.nodes.has(currentId)) return;
     const chain = ancestors(tree, currentId).map((a) => a.id);
@@ -70,7 +70,7 @@ export function TreeView({
     try {
       localStorage.setItem(`eugenia:tree:${storageKey}`, JSON.stringify([...expanded]));
     } catch {
-      // stockage indisponible
+      // storage unavailable
     }
   }, [expanded, storageKey]);
 
@@ -148,7 +148,7 @@ export function TreeView({
               type="button"
               className="tree-toggle"
               onClick={() => toggle(node.id)}
-              aria-label={open ? `Replier ${node.title}` : `Déplier ${node.title}`}
+              aria-label={open ? `Collapse ${node.title}` : `Expand ${node.title}`}
               aria-expanded={open}
             >
               {open ? <ChevronDown /> : <ChevronRight />}
@@ -174,12 +174,12 @@ export function TreeView({
               />
             )}
             {stale && (
-              <span className="flag-dot flag-dot--stale" title="Description périmée ou manquante" />
+              <span className="flag-dot flag-dot--stale" title="Stale or missing description" />
             )}
             {pendingNodes.has(node.id) && (
               <span
                 className="flag-dot flag-dot--pending"
-                title="Modifié, pas encore enregistré dans le dépôt"
+                title="Changed, not saved to the repository yet"
               />
             )}
             {owner && <VisibilityBadge visibility={node.isPublic ? "public" : "private"} compact />}
@@ -197,7 +197,7 @@ export function TreeView({
   const root = tree.nodes.get(tree.rootId);
   if (!root) return null;
   return (
-    <ul className="tree" aria-label="Arbre du wiki">
+    <ul className="tree" aria-label="Wiki tree">
       {renderNode(root, tree)}
     </ul>
   );

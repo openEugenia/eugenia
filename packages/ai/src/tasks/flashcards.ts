@@ -1,6 +1,6 @@
 /**
- * Flashcards d'une connaissance atomique : Eugenia propose de nouvelles questions qui testent
- * la même connaissance sous d'autres angles, sans reprendre les flashcards existantes.
+ * Flashcards of an atomic knowledge item: Eugenia proposes new questions that test the same
+ * knowledge from other angles, without repeating the existing flashcards.
  */
 import { z } from "zod";
 import { systemPrompt, withSignal, type TaskContext } from "./context.ts";
@@ -15,10 +15,10 @@ export interface FlashcardDraft {
 }
 
 export interface FlashcardsInput {
-  /** Énoncé de la connaissance (la partie en gras est la cible d'apprentissage). */
+  /** Statement of the knowledge item (the bold part is the learning target). */
   knowledge: string;
   title: string;
-  /** Titres des catégories, de la racine au parent. */
+  /** Titles of the categories, from the root to the parent. */
   path: readonly string[];
   existing: readonly FlashcardDraft[];
   count?: number;
@@ -30,7 +30,7 @@ export async function proposeFlashcards(
 ): Promise<FlashcardDraft[]> {
   const count = Math.min(5, Math.max(1, input.count ?? 3));
   const existing = input.existing
-    .map((c, i) => `${i + 1}. Question : ${c.question}\n   Réponse attendue : ${c.answer}`)
+    .map((c, i) => `${i + 1}. Question: ${c.question}\n   Expected answer: ${c.answer}`)
     .join("\n");
   const result = await context.provider.json(
     withSignal(context, {
@@ -39,9 +39,9 @@ export async function proposeFlashcards(
         {
           role: "user" as const,
           content: [
-            `<connaissance>\nTitre : ${input.title}\nChemin : ${[...input.path, input.title].join(" > ")}\n\n${input.knowledge}\n</connaissance>`,
-            `<flashcards_existantes>\n${existing || "(aucune)"}\n</flashcards_existantes>`,
-            `<nombre>${count}</nombre>`,
+            `<knowledge>\nTitle: ${input.title}\nPath: ${[...input.path, input.title].join(" > ")}\n\n${input.knowledge}\n</knowledge>`,
+            `<existing_flashcards>\n${existing || "(none)"}\n</existing_flashcards>`,
+            `<count>${count}</count>`,
           ].join("\n"),
         },
       ],

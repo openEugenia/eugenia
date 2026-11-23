@@ -1,6 +1,6 @@
 /**
- * Flashcards proposées par Eugenia pour une connaissance atomique : de nouvelles questions
- * sur la même connaissance, à relire, retoucher et ajouter en un commit.
+ * Flashcards proposed by Eugenia for an atomic knowledge item: new questions on the same
+ * knowledge, to review, touch up and add in one commit.
  */
 import { useState } from "react";
 import { Plus, Sparkles } from "lucide-react";
@@ -54,7 +54,7 @@ export function FlashcardSuggestions({ node }: { node: WikiNode }) {
         existing,
       });
       setDrafts(result.map((d) => ({ ...d, include: true })));
-      if (result.length === 0) toast("Eugenia ne propose pas de nouvelle flashcard.");
+      if (result.length === 0) toast("Eugenia does not propose any new flashcard.");
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
@@ -74,11 +74,11 @@ export function FlashcardSuggestions({ node }: { node: WikiNode }) {
         reserved.push(created.indexPath);
         return created.change;
       });
-      const message = `Flashcards de « ${node.title} »`;
+      const message = `Flashcards of "${node.title}"`;
       await stage(changes, message);
       await commit(message, reserved);
       setDrafts(null);
-      toast(`${selected.length} flashcard(s) ajoutée(s).`, "success");
+      toast(`${selected.length} flashcard(s) added.`, "success");
     } catch (error) {
       toast(errorMessage(error), "error");
     }
@@ -95,8 +95,8 @@ export function FlashcardSuggestions({ node }: { node: WikiNode }) {
         disabled={busy}
         onClick={() => void suggest()}
       >
-        {busy ? <Spinner small label="Eugenia réfléchit" /> : <Sparkles aria-hidden="true" />}{" "}
-        Proposer des flashcards
+        {busy ? <Spinner small label="Eugenia is thinking" /> : <Sparkles aria-hidden="true" />}{" "}
+        Propose flashcards
       </button>
       {drafts && drafts.length > 0 && (
         <div className="stack" style={{ marginTop: "0.75rem" }}>
@@ -108,7 +108,7 @@ export function FlashcardSuggestions({ node }: { node: WikiNode }) {
                   checked={d.include}
                   onChange={(e) => update(i, { include: e.target.checked })}
                 />{" "}
-                Garder cette flashcard
+                Keep this flashcard
               </label>
               <label className="oe-field">
                 <span className="oe-label">Question</span>
@@ -120,7 +120,7 @@ export function FlashcardSuggestions({ node }: { node: WikiNode }) {
                 />
               </label>
               <label className="oe-field">
-                <span className="oe-label">Réponse attendue</span>
+                <span className="oe-label">Expected answer</span>
                 <input
                   className="oe-input"
                   value={d.answer}
@@ -136,14 +136,14 @@ export function FlashcardSuggestions({ node }: { node: WikiNode }) {
               disabled={!drafts.some((d) => d.include)}
               onClick={() => void add()}
             >
-              <Plus aria-hidden="true" /> Ajouter les flashcards retenues
+              <Plus aria-hidden="true" /> Add the selected flashcards
             </button>
             <button
               type="button"
               className="oe-button oe-button--ghost oe-button--sm"
               onClick={() => setDrafts(null)}
             >
-              Annuler
+              Cancel
             </button>
           </div>
         </div>

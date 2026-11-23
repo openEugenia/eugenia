@@ -15,7 +15,7 @@ import { memoryWiki, page, type Files } from "./helpers.ts";
 
 const CONFIG = "title: Test\nroot: wiki/\n";
 
-/** Vecteur pseudo-aléatoire reproductible, normé. */
+/** Reproducible, normalized pseudo-random vector. */
 function vector(seed: number, size = 1024): number[] {
   let x = seed;
   const out = Array.from({ length: size }, () => {
@@ -27,7 +27,7 @@ function vector(seed: number, size = 1024): number[] {
 }
 
 describe("format _embedding.json", () => {
-  it("relit un vecteur quantifié sur 8 bits sans perte de direction", () => {
+  it("reads back an 8-bit quantized vector without losing its direction", () => {
     const original = vector(7);
     const text = serializeEmbedding(
       newEmbeddingDocument({
@@ -47,15 +47,15 @@ describe("format _embedding.json", () => {
       dimensions: 1024,
       encoding: "int8",
     });
-    // 1 octet par dimension, en base64.
+    // 1 byte per dimension, in base64.
     expect((data.vector as string).length).toBe(Math.ceil(1024 / 3) * 4);
     const doc = parseEmbedding(text);
     expect(doc.vector).toHaveLength(1024);
     expect(cosineSimilarity(original, doc.vector)).toBeGreaterThan(0.999);
   });
 
-  it("refuse un fichier d'un autre format ou incohérent", () => {
-    expect(() => parseEmbedding('{"format": "autre"}')).toThrow();
+  it("refuses a file of another format or an inconsistent one", () => {
+    expect(() => parseEmbedding('{"format": "other"}')).toThrow();
     const text = serializeEmbedding(
       newEmbeddingDocument({ model: "m", textSha: "abc1234", vector: [0.1, 0.2] }),
     );
@@ -63,70 +63,70 @@ describe("format _embedding.json", () => {
   });
 });
 
-describe("texte envoyé au modèle", () => {
-  it("garde le titre, les étiquettes et le texte, sans frontmatter ni adresse de lien", () => {
+describe("text sent to the model", () => {
+  it("keeps the title, tags and text, without frontmatter or link URLs", () => {
     const text = embeddingText(
       page(
-        { id: "A", title: "Apogée", tags: ["astronomie"], updated: "2026-01-01T00:00:00Z" },
-        "Point le plus **éloigné**, voir [Lune](../lune/index.md).",
+        { id: "A", title: "Apogee", tags: ["astronomy"], updated: "2026-01-01T00:00:00Z" },
+        "**Farthest** point, see [Moon](../moon/index.md).",
       ),
     );
-    expect(text).toBe("Apogée\nÉtiquettes : astronomie\n\nPoint le plus éloigné, voir Lune.");
+    expect(text).toBe("Apogee\nTags: astronomy\n\nFarthest point, see Moon.");
   });
 
-  it("assemble connaissance, question et réponse d'une flashcard, sans les titres de section", () => {
+  it("puts together knowledge, question and answer of a flashcard, without section headings", () => {
     const text = embeddingText(
       page(
         { id: "L", type: "flashcard", title: "Lilith" },
-        "## Connaissance\n**Lilith** est un démon.\n\n## Question\nQui ?\n\n## Réponse attendue\nLilith",
+        "## Knowledge\n**Lilith** is a demon.\n\n## Question\nWho?\n\n## Expected answer\nLilith",
       ),
     );
-    expect(text).toBe("Lilith\n\nLilith est un démon.\n\nQui ?\n\nLilith");
+    expect(text).toBe("Lilith\n\nLilith is a demon.\n\nWho?\n\nLilith");
   });
 });
 
-describe("état des embeddings d'un wiki", async () => {
-  const lune = page({ id: "L", title: "Lune" }, "Satellite de la Terre.");
-  const lunePath = "wiki/science/lune/index.md";
-  const luneEmbedding = (textSha: string, model = "mistral-embed"): string =>
+describe("embedding state of a wiki", async () => {
+  const moon = page({ id: "L", title: "Moon" }, "Satellite of the Earth.");
+  const moonPath = "wiki/science/moon/index.md";
+  const moonEmbedding = (textSha: string, model = "mistral-embed"): string =>
     serializeEmbedding(newEmbeddingDocument({ model, textSha, vector: vector(1, 8) }));
-  const sha = await embeddingTextSha(embeddingText(lune));
+  const sha = await embeddingTextSha(embeddingText(moon));
   const files: Files = {
     ".notes/config.yml": CONFIG,
-    "wiki/index.md": page({ id: "R", title: "Racine" }, ""),
-    "wiki/science/index.md": page({ id: "S", title: "Science" }, "Les sciences."),
-    [lunePath]: lune,
-    "wiki/science/lune/_embedding.json": luneEmbedding(sha),
-    "wiki/histoire/index.md": page({ id: "H", title: "Histoire" }, "Le passé."),
-    "wiki/histoire/_embedding.json": luneEmbedding("0000000"),
-    "wiki/autre/index.md": page({ id: "O", title: "Autre" }, ""),
-    "wiki/autre/_embedding.json": luneEmbedding(sha, "autre-modele"),
+    "wiki/index.md": page({ id: "R", title: "Root" }, ""),
+    "wiki/science/index.md": page({ id: "S", title: "Science" }, "The sciences."),
+    [moonPath]: moon,
+    "wiki/science/moon/_embedding.json": moonEmbedding(sha),
+    "wiki/history/index.md": page({ id: "H", title: "History" }, "The past."),
+    "wiki/history/_embedding.json": moonEmbedding("0000000"),
+    "wiki/other/index.md": page({ id: "O", title: "Other" }, ""),
+    "wiki/other/_embedding.json": moonEmbedding(sha, "other-model"),
   };
   const wiki = await memoryWiki(files);
   const entries = new Map(
     (await embeddingEntries(wiki.view, "mistral-embed")).map((e) => [e.node.id, e]),
   );
 
-  it("rattache _embedding.json à sa page, sans en faire une pièce jointe", () => {
+  it("attaches _embedding.json to its page, without making it an attachment", () => {
     const node = wiki.tree.nodes.get("L")!;
-    expect(node.embedding?.path).toBe("wiki/science/lune/_embedding.json");
-    expect(embeddingPath(node)).toBe("wiki/science/lune/_embedding.json");
+    expect(node.embedding?.path).toBe("wiki/science/moon/_embedding.json");
+    expect(embeddingPath(node)).toBe("wiki/science/moon/_embedding.json");
     expect(node.attachments).toEqual([]);
   });
 
-  it("distingue embeddings à jour, périmés et manquants", () => {
+  it("tells current, stale and missing embeddings apart", () => {
     expect(entries.get("L")!.status).toBe("current");
     expect(entries.get("H")!.status).toBe("stale");
     expect(entries.get("S")!.status).toBe("missing");
     expect(entries.get("O")!.status).toBe("stale");
   });
 
-  it("garde un vecteur périmé du même modèle pour chercher, jamais celui d'un autre modèle", () => {
+  it("keeps a stale vector of the same model for searching, never one of another model", () => {
     expect(entries.get("H")!.vector).toBeDefined();
     expect(entries.get("O")!.vector).toBeUndefined();
   });
 
-  it("reste à jour quand la page est déplacée (liens réécrits, texte identique)", async () => {
+  it("stays current when the page is moved (rewritten links, identical text)", async () => {
     const changes = await moveNode(wiki.view, "L", "H");
     const moved = { ...files };
     for (const change of changes) {
@@ -134,7 +134,7 @@ describe("état des embeddings d'un wiki", async () => {
       else if (change.op === "write") moved[change.path] = change.content;
       else if (change.op === "copy") moved[change.path] = files[change.from]!;
     }
-    expect(moved["wiki/histoire/lune/_embedding.json"]).toBeDefined();
+    expect(moved["wiki/history/moon/_embedding.json"]).toBeDefined();
     const after = await memoryWiki(moved);
     const [entry] = await embeddingEntries(after.view, "mistral-embed", [
       after.tree.nodes.get("L")!,
@@ -143,16 +143,16 @@ describe("état des embeddings d'un wiki", async () => {
   });
 });
 
-describe("similarité", () => {
-  it("classe les pages de la plus à la moins proche, en ignorant les dimensions différentes", () => {
+describe("similarity", () => {
+  it("ranks pages from closest to farthest, ignoring different dimensions", () => {
     const query = [1, 0, 0];
     const hits = rankBySimilarity(query, [
-      { id: "loin", vector: [0, 1, 0] },
-      { id: "proche", vector: [0.9, 0.1, 0] },
-      { id: "autre-modele", vector: [1, 0] },
-      { id: "moyen", vector: [0.5, 0.5, 0] },
+      { id: "far", vector: [0, 1, 0] },
+      { id: "close", vector: [0.9, 0.1, 0] },
+      { id: "other-model", vector: [1, 0] },
+      { id: "middle", vector: [0.5, 0.5, 0] },
     ]);
-    expect(hits.map((h) => h.id)).toEqual(["proche", "moyen", "loin"]);
+    expect(hits.map((h) => h.id)).toEqual(["close", "middle", "far"]);
     expect(hits[0]!.score).toBeCloseTo(0.9939, 3);
   });
 });

@@ -1,4 +1,4 @@
-/** Exécution de commandes externes (git, gh, ssh-keygen). */
+/** Runs external commands (git, gh, ssh-keygen). */
 import { spawn } from "node:child_process";
 import { CliError, dim, type Logger } from "./output.ts";
 
@@ -6,12 +6,12 @@ export interface RunOptions {
   cwd?: string;
   input?: string;
   env?: NodeJS.ProcessEnv;
-  /** Affiche la commande sans l'exécuter. */
+  /** Shows the command without running it. */
   dryRun?: boolean;
   log?: Logger;
-  /** Texte à masquer dans les journaux (jeton). */
+  /** Text to mask in the logs (token). */
   secret?: string;
-  /** Ne lève pas d'erreur si le code de sortie est non nul. */
+  /** Does not throw if the exit code is not zero. */
   allowFailure?: boolean;
 }
 
@@ -45,16 +45,14 @@ export async function run(
     child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
     child.on("error", (error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT")
-        reject(new CliError(`Commande introuvable : ${command}. Installez-la puis réessayez.`));
+        reject(new CliError(`Command not found: ${command}. Install it and try again.`));
       else reject(error);
     });
     child.on("close", (code) => {
       const result = { code: code ?? 1, stdout, stderr };
       if (result.code !== 0 && !options.allowFailure) {
         reject(
-          new CliError(
-            `Échec de « ${printable} » :\n${mask(stderr || stdout, options.secret).trim()}`,
-          ),
+          new CliError(`"${printable}" failed:\n${mask(stderr || stdout, options.secret).trim()}`),
         );
       } else {
         resolve(result);

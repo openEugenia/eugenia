@@ -1,6 +1,6 @@
 /**
- * Opérations d'édition (§9.3). Chaque opération renvoie la liste des fichiers à écrire,
- * copier ou supprimer ; l'appelant les regroupe dans un commit.
+ * Editing operations (§9.3). Each operation returns the list of files to write, copy or
+ * delete; the caller groups them into one commit.
  */
 import type { WikiConfig } from "./config.ts";
 import { parseDiscussion, type DiscussionDocument, serializeDiscussion } from "./discussion.ts";
@@ -37,7 +37,7 @@ import type {
 import { ulid } from "./ulid.ts";
 import { defaultVisibilityFor } from "./visibility.ts";
 
-/** Vue de travail d'un wiki : arbre, fichiers et lecture des contenus. */
+/** Working view of a wiki: tree, files and content reading. */
 export interface WikiView {
   config: WikiConfig;
   tree: WikiTree;
@@ -54,25 +54,25 @@ export function isMarkdownPath(path: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Création
+// Creation
 // ---------------------------------------------------------------------------
 
 export interface NewPage {
-  /** Dossier du parent. */
+  /** Folder of the parent. */
   parentPath: string;
-  /** Le parent est-il public (avec tous ses ancêtres) ? */
+  /** Is the parent public (with all its ancestors)? */
   parentIsPublic: boolean;
   title: string;
   type?: PageType;
   body?: string;
   visibility?: Visibility;
-  /** Ne pas écrire de visibilité : la page hérite de celle de son parent. */
+  /** Do not write a visibility: the page inherits its parent's. */
   inheritVisibility?: boolean;
   tags?: string[];
   order?: number;
   sources?: SourceRef[];
   extracted_from?: string;
-  /** Source : nature, auteurs, adresse, date de publication, fichier personnel. */
+  /** Source: kind, authors, URL, publication date, personal file. */
   kind?: SourceKind;
   authors?: string[];
   url?: string;
@@ -90,8 +90,8 @@ export interface CreatedPage {
 }
 
 /**
- * Crée une page. `extraPaths` liste les chemins déjà réservés par d'autres opérations
- * du même lot, pour éviter les collisions de noms de dossiers.
+ * Creates a page. `extraPaths` lists the paths already reserved by other operations of the
+ * same batch, to avoid folder name collisions.
  */
 export function createPage(
   view: Pick<WikiView, "config" | "files">,
@@ -99,7 +99,7 @@ export function createPage(
   extraPaths: Iterable<string> = [],
 ): CreatedPage {
   const title = page.title.trim();
-  if (title === "") throw new OperationError("Le titre ne peut pas être vide.");
+  if (title === "") throw new OperationError("The title cannot be empty.");
   const taken = directoryEntries([...view.files.keys(), ...extraPaths], page.parentPath);
   const name = folderNameFor(title, taken, view.config.folder_name_max_length);
   const path = joinPath(page.parentPath, name);
@@ -138,7 +138,7 @@ export function createPage(
   };
 }
 
-/** Flashcard d'une connaissance : titre tiré de la question. */
+/** Flashcard of a knowledge item: title taken from the question. */
 export function createFlashcard(
   view: Pick<WikiView, "config" | "files">,
   knowledge: Pick<WikiNode, "path" | "isPublic">,
@@ -150,7 +150,7 @@ export function createFlashcard(
     parentIsPublic: knowledge.isPublic,
     title: flashcardTitle(card.question),
     type: "flashcard",
-    // Une flashcard prolonge sa connaissance : elle en suit la visibilité.
+    // A flashcard extends its knowledge item: it follows its visibility.
     inheritVisibility: true,
     body: serializeFlashcardBody({ question: card.question, answer: card.answer }),
   };
@@ -159,7 +159,7 @@ export function createFlashcard(
   return createPage(view, page, extraPaths);
 }
 
-/** Document d'une page virtuelle (dossier sans `index.md`), créé à la première édition. */
+/** Document of a virtual page (folder without `index.md`), created on the first edit. */
 function materialize(node: WikiNode, now: Date): PageDocument {
   return {
     fields: {
@@ -180,7 +180,7 @@ async function readPage(view: WikiView, node: WikiNode, now: Date): Promise<Page
 }
 
 // ---------------------------------------------------------------------------
-// Modification et renommage
+// Update and rename
 // ---------------------------------------------------------------------------
 
 export interface PagePatch {
@@ -200,8 +200,8 @@ export interface PagePatch {
 }
 
 /**
- * Modifie une page. Si le titre change, le dossier est renommé (§5.2) et les liens
- * entrants sont réécrits dans le même lot de modifications.
+ * Updates a page. If the title changes, the folder is renamed (§5.2) and incoming links
+ * are rewritten in the same batch of changes.
  */
 export async function updatePage(
   view: WikiView,
@@ -214,7 +214,7 @@ export async function updatePage(
   const f = doc.fields;
   if (patch.title !== undefined) {
     const title = patch.title.trim();
-    if (title === "") throw new OperationError("Le titre ne peut pas être vide.");
+    if (title === "") throw new OperationError("The title cannot be empty.");
     f.title = title;
   }
   if (patch.type !== undefined) f.type = patch.type;
@@ -269,8 +269,8 @@ export async function updatePage(
 }
 
 /**
- * Déplace (ou renomme) le dossier d'une page et de toute sa branche, puis réécrit
- * les liens : ceux de la branche vers l'extérieur et ceux de l'extérieur vers la branche.
+ * Moves (or renames) the folder of a page and its whole branch, then rewrites the links:
+ * those from the branch to the outside and those from the outside to the branch.
  */
 async function relocate(
   view: WikiView,
@@ -311,7 +311,7 @@ async function relocate(
     }
   }
 
-  // Liens entrants depuis le reste du dépôt (wiki, bibliothèque, discussions).
+  // Incoming links from the rest of the repository (wiki, library, discussions).
   const needles = [node.name, encodeLinkPath(node.name)];
   for (const [path] of view.files) {
     if (isUnder(oldDir, path) || !isMarkdownPath(path) || !isContentPath(view.config, path))
@@ -326,13 +326,13 @@ async function relocate(
 }
 
 // ---------------------------------------------------------------------------
-// Déplacement et suppression
+// Move and delete
 // ---------------------------------------------------------------------------
 
 /**
- * Déplace une page sous un nouveau parent. Le nom de dossier est conservé s'il est
- * libre. Sous un parent privé, les nœuds publics de la branche deviennent privés
- * (règle 3) ; l'interface prévient l'utilisateur avant.
+ * Moves a page under a new parent. The folder name is kept if it is free. Under a private
+ * parent, the public nodes of the branch become private (rule 3); the interface warns the
+ * user beforehand.
  */
 export async function moveNode(
   view: WikiView,
@@ -342,9 +342,9 @@ export async function moveNode(
   const tree = view.tree;
   const node = getNode(tree, nodeId);
   const parent = getNode(tree, newParentId);
-  if (node.parentId === null) throw new OperationError("La racine ne peut pas être déplacée.");
+  if (node.parentId === null) throw new OperationError("The root cannot be moved.");
   if (parent.id === node.id || isAncestorOf(tree, node.id, parent.id)) {
-    throw new OperationError("Une page ne peut pas être déplacée dans sa propre branche.");
+    throw new OperationError("A page cannot be moved into its own branch.");
   }
   if (node.parentId === parent.id) return [];
   const problem = placementProblem(tree, node, parent.id);
@@ -357,7 +357,7 @@ export async function moveNode(
   return relocate(view, node, parent.path, name, new Map(), transform);
 }
 
-/** Rend privé un `index.md` qui se déclare public. */
+/** Makes private an `index.md` that declares itself public. */
 function privatizeIfPage(path: string, content: string): string {
   if (basename(path) !== "index.md") return content;
   const doc = parsePage(content);
@@ -367,13 +367,13 @@ function privatizeIfPage(path: string, content: string): string {
 }
 
 export interface DeleteOptions {
-  /** Suppression explicite de toute la branche (obligatoire si la page a des enfants). */
+  /** Explicit deletion of the whole branch (required if the page has children). */
   recursive?: boolean;
 }
 
 /**
- * Supprime une page (et sa branche) ; les liens entrants deviennent du texte simple. Les
- * connaissances qui citaient une source supprimée gardent une référence libre (son titre).
+ * Deletes a page (and its branch); incoming links become plain text. Knowledge items that
+ * cited a deleted source keep a free reference (its title).
  */
 export async function deleteNode(
   view: WikiView,
@@ -381,10 +381,10 @@ export async function deleteNode(
   options: DeleteOptions = {},
 ): Promise<FileChange[]> {
   const node = getNode(view.tree, nodeId);
-  if (node.parentId === null) throw new OperationError("La racine ne peut pas être supprimée.");
+  if (node.parentId === null) throw new OperationError("The root cannot be deleted.");
   if (node.childIds.length > 0 && !options.recursive) {
     throw new OperationError(
-      `« ${node.title} » contient ${descendants(view.tree, nodeId).length} page(s) : confirmez la suppression récursive.`,
+      `"${node.title}" contains ${descendants(view.tree, nodeId).length} page(s): confirm the recursive deletion.`,
     );
   }
   const changes: FileChange[] = [];
@@ -411,7 +411,7 @@ export async function deleteNode(
   return changes;
 }
 
-/** Remplace les références à des sources supprimées par une référence libre. */
+/** Replaces references to deleted sources with a free reference. */
 function detachSourceRefs(content: string, removed: ReadonlyMap<string, WikiNode>): string {
   const doc = parsePage(content);
   if (!doc.fields.sources) return content;
@@ -428,10 +428,10 @@ function detachSourceRefs(content: string, removed: ReadonlyMap<string, WikiNode
 }
 
 // ---------------------------------------------------------------------------
-// Visibilité
+// Visibility
 // ---------------------------------------------------------------------------
 
-/** Écrit les visibilités calculées par `makePublicAssignments` / `makePrivateAssignments`. */
+/** Writes the visibilities computed by `makePublicAssignments` / `makePrivateAssignments`. */
 export async function applyVisibility(
   view: WikiView,
   assignments: ReadonlyMap<string, Visibility | undefined>,
@@ -465,7 +465,7 @@ export function newDiscussionDocument(input: {
     fields: {
       id: ulid(input.now?.getTime()),
       title: input.title,
-      // Une discussion est personnelle : privée par défaut (§5.6, §6.2).
+      // A discussion is personal: private by default (§5.6, §6.2).
       visibility: "private",
       created: now,
       updated: now,
@@ -487,14 +487,14 @@ export function writeDiscussion(path: string, doc: DiscussionDocument): FileChan
   return { op: "write", path, content: serializeDiscussion(doc) };
 }
 
-/** Noms des fichiers existants d'un dossier (pour éviter les collisions de noms). */
+/** Names of the existing files of a folder (to avoid name collisions). */
 export function reservedEntries(view: Pick<WikiView, "files">, dir: string): Set<string> {
   const out = new Set<string>();
   for (const path of view.files.keys()) if (dirname(path) === dir) out.add(basename(path));
   return out;
 }
 
-/** Noms des fichiers existants du dossier des discussions. */
+/** Names of the existing files of the discussions folder. */
 export function discussionEntries(view: Pick<WikiView, "files" | "config">): Set<string> {
   return reservedEntries(view, view.config.discussions);
 }

@@ -1,4 +1,4 @@
-/** Nommage des dossiers à partir des titres (§5.2). */
+/** Folder naming from titles (§5.2). */
 
 const LIGATURES: Record<string, string> = {
   œ: "oe",
@@ -19,9 +19,9 @@ const LIGATURES: Record<string, string> = {
 export const FALLBACK_SLUG = "page";
 
 /**
- * Dérive un nom de dossier d'un titre : minuscules, sans accents, caractères non
- * alphanumériques remplacés par `-`, tronqué à `maxLength` caractères sans couper un
- * mot lorsque c'est possible.
+ * Derives a folder name from a title: lowercase, accents removed, non-alphanumeric
+ * characters replaced with `-`, truncated to `maxLength` characters without cutting a word
+ * when possible.
  */
 export function slugify(title: string, maxLength = 32): string {
   let s = title.replace(/[œŒæÆßøØđĐłŁþð]/g, (c) => LIGATURES[c] ?? c);
@@ -34,15 +34,15 @@ export function slugify(title: string, maxLength = 32): string {
     const cut = s.slice(0, maxLength);
     const breaksWord = s[maxLength] !== "-";
     const lastDash = cut.lastIndexOf("-");
-    // « Si possible » : on recule jusqu'au dernier mot entier ; un premier mot plus
-    // long que la limite est coupé.
+    // "When possible": back up to the last whole word; a first word longer than the
+    // limit is cut.
     s = breaksWord && lastDash > 0 ? cut.slice(0, lastDash) : cut;
     s = s.replace(/-+$/g, "");
   }
   return s === "" ? FALLBACK_SLUG : s;
 }
 
-/** Ajoute un suffixe `-2`, `-3`… si le nom est déjà pris par un frère. */
+/** Adds a `-2`, `-3`… suffix if the name is already taken by a sibling. */
 export function uniqueName(base: string, taken: ReadonlySet<string>): string {
   if (!taken.has(base)) return base;
   for (let i = 2; ; i++) {
@@ -52,8 +52,8 @@ export function uniqueName(base: string, taken: ReadonlySet<string>): string {
 }
 
 /**
- * Nom de dossier pour un titre. Si le nom actuel correspond déjà au titre (au suffixe
- * de collision près) et n'est pas pris par un autre frère, il est conservé.
+ * Folder name for a title. If the current name already matches the title (up to the
+ * collision suffix) and is not taken by another sibling, it is kept.
  */
 export function folderNameFor(
   title: string,
@@ -70,7 +70,7 @@ export function folderNameFor(
   return uniqueName(base, taken);
 }
 
-/** Titre lisible à partir d'un nom de dossier (pages sans `index.md`). */
+/** Readable title from a folder name (pages without `index.md`). */
 export function humanize(name: string): string {
   const s = name.replace(/[-_]+/g, " ").trim();
   return s === "" ? name : s.charAt(0).toUpperCase() + s.slice(1);

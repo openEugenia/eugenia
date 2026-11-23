@@ -39,7 +39,7 @@ The following table gives an example with an atomic knowledge item, the question
 > | atomic knowledge : | **Lilith** is a female demon from Jewish tradition, originally based on a Mesopotamian deity |
 > | question : | What is the name of the female demon from Jewish tradition who is based on a Mesopotamian deity?|
 > | minimal expected answer : | Lilith|
-> | user answer : | I think the answer is: Lilite la Pépite|
+> | user answer : | I think the answer is: Lilita the Pita|
 
 Based on this exchange, here is the feedback and score {{< var eugenia >}} might provide:
 

@@ -1,7 +1,7 @@
 /**
- * Accès à Eugenia depuis l'application : choix du fournisseur selon les paramètres et
- * la règle « IA locale pour le privé » (§11.1), avertissement avant le premier envoi de
- * contenu privé à un fournisseur distant.
+ * Access to Eugenia from the app: choice of the provider according to the settings and the
+ * "local AI for private content" rule (§11.1), warning before private content is first sent to
+ * a remote provider.
  */
 import type { AIProvider, TaskContext } from "@openeugenia/ai";
 import { useSettings } from "../store/settings.ts";
@@ -9,29 +9,29 @@ import { confirmDialog } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
 import { hasAI } from "./settings.ts";
 
-/** Pose (une fois) la question de l'IA locale pour les nœuds privés. */
+/** Asks (once) whether private nodes should be kept for a local AI. */
 export async function ensurePrivacyChoice(): Promise<void> {
   const { settings, update } = useSettings.getState();
   if (settings.ai.localOnlyForPrivate !== null) return;
   const localOnly = await confirmDialog({
-    title: "Connaissances privées et IA",
-    body: "Souhaitez-vous réserver le traitement de vos connaissances privées à une IA locale (par exemple Ollama, sur votre ordinateur) ? Si oui, aucune donnée privée ne sera envoyée à un fournisseur distant ; les actions sur des nœuds privés seront bloquées tant qu'aucune IA locale n'est configurée. Vous pourrez changer d'avis dans les paramètres.",
-    confirmLabel: "Oui, IA locale pour le privé",
-    cancelLabel: "Non, utiliser mon fournisseur",
+    title: "Private knowledge and AI",
+    body: "Do you want to keep the processing of your private knowledge for a local AI (for example Ollama, on your computer)? If so, no private data will be sent to a remote provider; actions on private nodes will be blocked until a local AI is configured. You can change your mind in the settings.",
+    confirmLabel: "Yes, local AI for private content",
+    cancelLabel: "No, use my provider",
   });
   await update((s) => ({ ...s, ai: { ...s.ai, localOnlyForPrivate: localOnly } }));
 }
 
-/** Avertit (une fois) avant le premier envoi de contenu privé à un fournisseur distant. */
+/** Warns (once) before private content is first sent to a remote provider. */
 async function acknowledgeRemote(provider: AIProvider): Promise<void> {
   if (useSettings.getState().settings.ai.remoteWarningAcknowledged) return;
   const { AIError } = await import("@openeugenia/ai");
   const accepted = await confirmDialog({
-    title: "Envoi de contenu privé",
-    body: `Cette action envoie des connaissances privées à ${provider.info.label} (${provider.info.model}). Elles quittent alors votre appareil pour être traitées par ce fournisseur. Cet avertissement ne s'affiche qu'une fois ; vous pouvez réserver le privé à une IA locale dans les paramètres.`,
-    confirmLabel: "J'ai compris, envoyer",
+    title: "Sending private content",
+    body: `This action sends private knowledge to ${provider.info.label} (${provider.info.model}). It then leaves your device to be processed by this provider. This warning is only shown once; you can keep private content for a local AI in the settings.`,
+    confirmLabel: "Understood, send",
   });
-  if (!accepted) throw new AIError("aborted", "Envoi annulé.");
+  if (!accepted) throw new AIError("aborted", "Sending cancelled.");
   await useSettings
     .getState()
     .update((s) => ({ ...s, ai: { ...s.ai, remoteWarningAcknowledged: true } }));
@@ -39,14 +39,14 @@ async function acknowledgeRemote(provider: AIProvider): Promise<void> {
 
 export interface EmbeddingAccess {
   provider: AIProvider;
-  /** Les pages privées peuvent être envoyées à ce fournisseur. */
+  /** Private pages may be sent to this provider. */
   allowsPrivate: boolean;
 }
 
 /**
- * Fournisseur d'embeddings (recherche sémantique). Si le privé est réservé à une IA locale et
- * que ce fournisseur est distant, seules les pages publiques lui sont envoyées. Avec
- * `sendsPrivate`, l'avertissement d'envoi de contenu privé est affiché la première fois.
+ * Embedding provider (semantic search). If private content is kept for a local AI and this
+ * provider is remote, only public pages are sent to it. With `sendsPrivate`, the warning about
+ * sending private content is shown the first time.
  */
 export async function embeddingAccess(sendsPrivate = false): Promise<EmbeddingAccess> {
   const { AIError, createProvider } = await import("@openeugenia/ai");
@@ -54,7 +54,7 @@ export async function embeddingAccess(sendsPrivate = false): Promise<EmbeddingAc
   if (!config?.model) {
     throw new AIError(
       "config",
-      "La recherche sémantique n'est pas configurée : ajoutez une clé Mistral dans les paramètres.",
+      "Semantic search is not configured: add a Mistral key in the settings.",
     );
   }
   const provider = createProvider(config);
@@ -66,21 +66,18 @@ export async function embeddingAccess(sendsPrivate = false): Promise<EmbeddingAc
 }
 
 /**
- * Contexte d'une tâche d'Eugenia. `involvesPrivate` indique si des nœuds privés
- * seront envoyés au modèle.
+ * Context of an Eugenia task. `involvesPrivate` tells whether private nodes will be sent to the
+ * model.
  */
 export async function taskContext(
   involvesPrivate: boolean,
   signal?: AbortSignal,
 ): Promise<TaskContext> {
-  // Le module d'IA (SDK compris) n'est chargé qu'au premier usage d'Eugenia.
+  // The AI module (SDK included) is only loaded the first time Eugenia is used.
   const { AIError, createProvider, selectProvider } = await import("@openeugenia/ai");
   const settingsState = useSettings.getState();
   if (!hasAI(settingsState.settings)) {
-    throw new AIError(
-      "config",
-      "Aucun fournisseur d'IA n'est configuré : ajoutez-en un dans les paramètres.",
-    );
+    throw new AIError("config", "No AI provider is configured: add one in the settings.");
   }
   await ensurePrivacyChoice();
   const { settings } = useSettings.getState();
@@ -96,7 +93,7 @@ export async function taskContext(
   return {
     provider,
     prompts: derived?.prompts ?? {},
-    variables: { wiki_title: derived?.config.title ?? "mon wiki" },
+    variables: { wiki_title: derived?.config.title ?? "my wiki" },
     ...(signal ? { signal } : {}),
   };
 }

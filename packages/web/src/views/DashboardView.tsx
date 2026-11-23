@@ -1,4 +1,4 @@
-/** Tableau de bord (§8.3, §9.2 vue 8) : indicateurs, courbes de maîtrise, révisions, rappels. */
+/** Dashboard (§8.3, §9.2 view 8): indicators, mastery curves, reviews, reminders. */
 import { useMemo, useState } from "react";
 import { AlertTriangle, Brain } from "lucide-react";
 import {
@@ -24,9 +24,9 @@ import { branchMasteryMap } from "../lib/mastery.ts";
 import { href } from "../lib/router.ts";
 
 const RANGES = [
-  { days: 30, label: "30 jours" },
-  { days: 90, label: "90 jours" },
-  { days: 365, label: "1 an" },
+  { days: 30, label: "30 days" },
+  { days: 90, label: "90 days" },
+  { days: 365, label: "1 year" },
 ];
 const SLOTS = ["var(--viz-series-2)", "var(--viz-series-3)", "var(--viz-series-4)"];
 
@@ -79,7 +79,7 @@ export function DashboardView() {
     if (cards.length > 0) {
       out.push({
         id: "all",
-        label: "Ensemble",
+        label: "Overall",
         color: "var(--viz-series-1)",
         points: averageCurve(
           toCards(cards.map(ref)),
@@ -125,16 +125,15 @@ export function DashboardView() {
   if (!owner) {
     return (
       <div className="page">
-        <h1>Tableau de bord</h1>
+        <h1>Dashboard</h1>
         <InfoBox>
-          Le tableau de bord présente votre maîtrise : il est disponible quand vous ouvrez votre
-          propre wiki.
+          The dashboard shows your mastery: it is available when you open your own wiki.
         </InfoBox>
       </div>
     );
   }
 
-  // Une catégorie garde sa couleur tant qu'elle reste sélectionnée.
+  // A category keeps its color as long as it stays selected.
   const toggle = (id: string): void =>
     setSelected((list) =>
       list.includes(id) ? list.filter((x) => x !== id) : list.length >= 3 ? list : [...list, id],
@@ -142,11 +141,11 @@ export function DashboardView() {
 
   return (
     <div className="page page--wide">
-      <h1>Tableau de bord</h1>
+      <h1>Dashboard</h1>
       {cards.length === 0 ? (
-        <EmptyState title="Pas encore de connaissance atomique">
-          Extrayez des connaissances de vos sources ou de vos notes rapides, et ajoutez-leur des
-          flashcards, pour suivre ici votre maîtrise.
+        <EmptyState title="No atomic knowledge yet">
+          Extract knowledge from your sources or quick notes, and add flashcards to it, to follow
+          your mastery here.
         </EmptyState>
       ) : (
         <>
@@ -155,7 +154,7 @@ export function DashboardView() {
             style={{ display: "flex", gap: "2rem", alignItems: "flex-end", flexWrap: "wrap" }}
           >
             <div>
-              <span className="stat-tile__label">Maîtrise moyenne aujourd'hui</span>
+              <span className="stat-tile__label">Average mastery today</span>
               <div className="hero-figure">{formatPercent(stats.mean)}</div>
             </div>
             {stats.mean !== undefined && stats.mean < threshold && (
@@ -168,36 +167,32 @@ export function DashboardView() {
                   paddingBottom: "0.5rem",
                 }}
               >
-                <AlertTriangle aria-hidden="true" style={{ color: "var(--status-warning)" }} /> sous
-                le seuil de rappel ({formatPercent(threshold)})
+                <AlertTriangle aria-hidden="true" style={{ color: "var(--status-warning)" }} />{" "}
+                below the reminder threshold ({formatPercent(threshold)})
               </span>
             )}
           </section>
           <section className="section kpi-row">
             <StatTile
-              label="Connaissances atomiques"
+              label="Atomic knowledge"
               value={formatInteger(stats.knowledge)}
-              note={`${plural(cards.length, "flashcard")}, ${plural(stats.unsourced, "connaissance")} à sourcer`}
+              note={`${plural(cards.length, "flashcard")}, ${formatInteger(stats.unsourced)} needing a source`}
             />
+            <StatTile label="Sources" value={formatInteger(stats.sources)} note="in the library" />
             <StatTile
-              label="Sources"
-              value={formatInteger(stats.sources)}
-              note="dans la bibliothèque"
-            />
-            <StatTile
-              label="Révisées sur 30 jours"
+              label="Reviewed over 30 days"
               value={formatPercent(stats.reviewRate)}
-              note="part des flashcards évaluées au moins une fois"
+              note="share of flashcards evaluated at least once"
             />
-            <StatTile label="Évaluations sur 7 jours" value={formatInteger(stats.week)} />
+            <StatTile label="Evaluations over 7 days" value={formatInteger(stats.week)} />
             <StatTile
-              label="À réviser"
+              label="To review"
               value={formatInteger(stats.atRisk)}
-              note={`maîtrise sous ${formatPercent(threshold)}`}
+              note={`mastery below ${formatPercent(threshold)}`}
             />
           </section>
 
-          <div className="toolbar section" role="group" aria-label="Période">
+          <div className="toolbar section" role="group" aria-label="Period">
             {RANGES.map((r) => (
               <button
                 key={r.days}
@@ -213,17 +208,15 @@ export function DashboardView() {
 
           <section className="section oe-card">
             <LineChart
-              title="Maîtrise dans le temps"
-              subtitle={
-                selected.length === 0 ? "ensemble des connaissances" : "comparaison par catégorie"
-              }
+              title="Mastery over time"
+              subtitle={selected.length === 0 ? "all knowledge" : "comparison by category"}
               series={series}
               xFormat={(d) => formatShortDate(dayToDate(d))}
-              threshold={{ value: threshold, label: "Seuil de rappel" }}
+              threshold={{ value: threshold, label: "Reminder threshold" }}
               height={260}
             />
             <fieldset className="oe-field" style={{ border: 0, padding: 0, marginTop: "0.75rem" }}>
-              <legend className="oe-label">Comparer jusqu'à 3 catégories</legend>
+              <legend className="oe-label">Compare up to 3 categories</legend>
               <div className="badges">
                 {categories
                   .filter((c) => (branch.get(c.id)?.count ?? 0) > 0)
@@ -243,18 +236,18 @@ export function DashboardView() {
           </section>
 
           <section className="section oe-card">
-            <ColumnChart title="Évaluations par jour" data={perDay} valueLabel="évaluation(s)" />
+            <ColumnChart title="Evaluations per day" data={perDay} valueLabel="evaluation(s)" />
           </section>
 
           <section className="section">
-            <h2>Catégories</h2>
+            <h2>Categories</h2>
             <table className="chart-table">
               <thead>
                 <tr>
-                  <th>Catégorie</th>
-                  <th>Connaissances</th>
-                  <th>Maîtrise</th>
-                  <th>À réviser</th>
+                  <th>Category</th>
+                  <th>Flashcards</th>
+                  <th>Mastery</th>
+                  <th>To review</th>
                 </tr>
               </thead>
               <tbody>

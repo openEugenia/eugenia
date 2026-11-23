@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { AIProvider, GenerateRequest, JsonRequest, ProviderInfo } from "../src/index.ts";
 
-/** Fournisseur scripté pour les tests. */
+/** Scripted provider for tests. */
 export class FakeProvider implements AIProvider {
   readonly info: ProviderInfo;
   readonly calls: GenerateRequest[] = [];
@@ -11,7 +11,7 @@ export class FakeProvider implements AIProvider {
   constructor(script: { json?: unknown[]; text?: string[] } = {}, local = true) {
     this.jsonQueue = [...(script.json ?? [])];
     this.textQueue = [...(script.text ?? [])];
-    this.info = { kind: local ? "ollama" : "openai", label: "Faux", model: "faux", local };
+    this.info = { kind: local ? "ollama" : "openai", label: "Fake", model: "fake", local };
   }
 
   async complete(request: GenerateRequest): Promise<string> {

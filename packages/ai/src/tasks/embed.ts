@@ -1,14 +1,14 @@
-/** Embeddings des pages et des requêtes, pour la recherche sémantique (§14). */
+/** Embeddings of pages and queries, for semantic search (§14). */
 import { AIError } from "../errors.ts";
 import type { AIProvider } from "../types.ts";
 
 export interface EmbedOptions {
   signal?: AbortSignal;
-  /** Textes par requête, au plus (défaut : 32). */
+  /** Maximum number of texts per request (default: 32). */
   batchSize?: number;
-  /** Caractères par requête, au plus (défaut : 40 000, environ 10 000 jetons). */
+  /** Maximum number of characters per request (default: 40,000, about 10,000 tokens). */
   maxChars?: number;
-  /** Appelé après chaque lot, avec le nombre de textes déjà traités. */
+  /** Called after each batch, with the number of texts already processed. */
   onProgress?: (done: number, total: number) => void;
 }
 
@@ -16,7 +16,7 @@ export function canEmbed(provider: AIProvider): boolean {
   return typeof provider.embed === "function";
 }
 
-/** Embeddings de textes, par lots, dans l'ordre des textes. */
+/** Embeddings of texts, in batches, in the order of the texts. */
 export async function embedTexts(
   provider: AIProvider,
   texts: readonly string[],
@@ -26,7 +26,7 @@ export async function embedTexts(
   if (!embed) {
     throw new AIError(
       "config",
-      `${provider.info.label} ne calcule pas d'embeddings : choisissez Mistral (mistral-embed) ou un autre fournisseur compatible OpenAI pour la recherche sémantique.`,
+      `${provider.info.label} does not compute embeddings: choose Mistral (mistral-embed) or another OpenAI-compatible provider for semantic search.`,
     );
   }
   const batchSize = options.batchSize ?? 32;
@@ -42,8 +42,8 @@ export async function embedTexts(
     chars = 0;
   };
   for (const text of texts) {
-    // Une entrée vide est refusée par certaines API.
-    const input = text.trim() || "(vide)";
+    // An empty input is refused by some APIs.
+    const input = text.trim() || "(empty)";
     if (batch.length > 0 && (batch.length >= batchSize || chars + input.length > maxChars)) {
       await flush();
     }
@@ -54,7 +54,7 @@ export async function embedTexts(
   return out;
 }
 
-/** Embedding d'une requête de recherche. */
+/** Embedding of a search query. */
 export async function embedQuery(
   provider: AIProvider,
   query: string,

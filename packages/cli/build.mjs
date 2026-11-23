@@ -1,5 +1,5 @@
-// Construit la CLI en un seul fichier exécutable (dépendances incluses), utilisable par
-// la GitHub Action sans installation supplémentaire.
+// Builds the CLI into a single executable file (dependencies included), usable by the GitHub
+// Action without any extra installation.
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
 

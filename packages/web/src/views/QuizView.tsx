@@ -1,7 +1,7 @@
 /**
- * Quiz conversationnel (§8.3) : questions par maîtrise croissante, évaluation par
- * Eugenia (ou auto-évaluation hors ligne), maîtrise mise à jour aussitôt, quiz commité
- * en une fois à la fin de la session.
+ * Conversational quiz (§8.3): questions by increasing mastery, evaluation by Eugenia (or
+ * self-assessment offline), mastery updated right away, quiz committed in one go at the end of
+ * the session.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -62,7 +62,7 @@ interface Result {
 
 const now = (): string => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
-/** Question et réponse de la flashcard, énoncé de la connaissance qu'elle teste (sa page parente). */
+/** Question and answer of the flashcard, statement of the knowledge it tests (its parent page). */
 async function loadCard(card: WikiNode): Promise<CardContent> {
   const workspace = useWiki.getState().workspace!;
   const parsed = parseFlashcardBody(parsePage(await workspace.readText(card.indexPath)).body);
@@ -74,15 +74,15 @@ async function loadCard(card: WikiNode): Promise<CardContent> {
     ).statement;
   }
   const targets = learningTargets(knowledge);
-  const question = parsed.question || `Complétez : ${knowledge.replace(/\*\*[^*]+\*\*/g, "____")}`;
+  const question = parsed.question || `Fill in: ${knowledge.replace(/\*\*[^*]+\*\*/g, "____")}`;
   const answer = parsed.answer || targets.join(", ") || knowledge;
   return { knowledge, question, answer };
 }
 
 /**
- * Sous le retour d'Eugenia : la réponse officielle de la fiche et la connaissance complète,
- * pour voir ce qu'on aurait pu ajouter, avec de quoi ouvrir ou retoucher la fiche dans un
- * autre onglet sans interrompre le quiz.
+ * Below Eugenia's feedback: the card's official answer and the full knowledge item, to see what
+ * could have been added, with links to open or touch up the card in another tab without
+ * interrupting the quiz.
  */
 function CardReference({
   card,
@@ -93,18 +93,18 @@ function CardReference({
   content: CardContent;
   showAnswer: boolean;
 }) {
-  const newTab = { target: "_blank", rel: "noopener", title: "S'ouvre dans un nouvel onglet" };
+  const newTab = { target: "_blank", rel: "noopener", title: "Opens in a new tab" };
   return (
     <div className="message__reference">
       {showAnswer && (
         <div>
-          <span className="message__reference-label">Réponse attendue</span>
+          <span className="message__reference-label">Expected answer</span>
           <Markdown text={content.answer} path={card.indexPath} />
         </div>
       )}
       {content.knowledge && content.knowledge !== content.answer && (
         <div>
-          <span className="message__reference-label">Connaissance</span>
+          <span className="message__reference-label">Knowledge</span>
           <Markdown text={content.knowledge} path={card.indexPath} />
         </div>
       )}
@@ -114,14 +114,14 @@ function CardReference({
           href={href({ name: "node", id: card.id })}
           {...newTab}
         >
-          <ExternalLink aria-hidden="true" /> Ouvrir la fiche
+          <ExternalLink aria-hidden="true" /> Open the card
         </a>
         <a
           className="oe-button oe-button--ghost oe-button--sm"
           href={href({ name: "edit", id: card.id })}
           {...newTab}
         >
-          <Pencil aria-hidden="true" /> Modifier la fiche
+          <Pencil aria-hidden="true" /> Edit the card
         </a>
       </div>
     </div>
@@ -139,7 +139,7 @@ export function QuizView({ id }: { id: string }) {
   const [order, setOrder] = useState<WikiNode[]>([]);
   const [index, setIndex] = useState(0);
   const [content, setContent] = useState<CardContent | null>(null);
-  // Contenu des fiches déjà posées, pour afficher la réponse officielle sous chaque retour.
+  // Content of the cards already asked, to show the official answer under each feedback.
   const [contents, setContents] = useState<Map<string, CardContent>>(new Map());
   const [answer, setAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
@@ -153,12 +153,12 @@ export function QuizView({ id }: { id: string }) {
   const live = useRef({ path, answered: 0, phase, title: node?.title ?? "" });
   live.current = { path, answered: results.length, phase, title: node?.title ?? "" };
 
-  // Quitter la page pendant un quiz : les réponses déjà données sont commitées.
+  // Leaving the page during a quiz: the answers already given are committed.
   useEffect(
     () => () => {
       const { path: p, answered, phase: ph, title } = live.current;
       if (p && answered > 0 && ph === "running")
-        void useWiki.getState().commit(`Quiz — ${title} (${answered} réponse(s), interrompu)`, [p]);
+        void useWiki.getState().commit(`Quiz — ${title} (${answered} answer(s), interrupted)`, [p]);
     },
     [],
   );
@@ -166,15 +166,15 @@ export function QuizView({ id }: { id: string }) {
   if (!node)
     return (
       <div className="page">
-        <ErrorBox title="Page introuvable">Cette catégorie n'existe pas.</ErrorBox>
+        <ErrorBox title="Page not found">This category does not exist.</ErrorBox>
       </div>
     );
   if (!editable)
     return (
       <div className="page">
         <InfoBox>
-          Les quiz enregistrent vos révisions dans votre dépôt privé : ouvrez votre wiki avec un
-          jeton pour réviser.
+          Quizzes record your reviews in your private repository: open your wiki with a token to
+          review.
         </InfoBox>
       </div>
     );
@@ -250,7 +250,7 @@ export function QuizView({ id }: { id: string }) {
     const messages: DiscussionMessage[] = [
       ...doc.messages,
       ...(!self || userText
-        ? [{ role: "user" as const, timestamp: now(), content: userText || "(pas de réponse)" }]
+        ? [{ role: "user" as const, timestamp: now(), content: userText || "(no answer)" }]
         : []),
       {
         role: "eugenia",
@@ -279,24 +279,24 @@ export function QuizView({ id }: { id: string }) {
         answer,
       });
       const parts = [evaluation.feedback];
-      if (evaluation.missing.length) parts.push(`Manquant : ${evaluation.missing.join(" ; ")}.`);
+      if (evaluation.missing.length) parts.push(`Missing: ${evaluation.missing.join("; ")}.`);
       if (evaluation.superfluous.length)
-        parts.push(`En trop : ${evaluation.superfluous.join(" ; ")}.`);
+        parts.push(`Superfluous: ${evaluation.superfluous.join("; ")}.`);
       setLastEvaluation(evaluation);
       await record(evaluation.score, parts.join("\n\n"), false);
     } catch (error) {
-      toast(`${errorMessage(error)} Vous pouvez passer en auto-évaluation.`, "error");
+      toast(`${errorMessage(error)} You can switch to self-assessment.`, "error");
     } finally {
       setBusy(false);
     }
   };
 
   const selfScore = async (score: number): Promise<void> => {
-    const labels: Record<number, string> = { 0: "à revoir", 0.5: "partiellement", 1: "acquise" };
-    // L'auto-évaluation garde la trace de la réponse saisie, s'il y en a une.
+    const labels: Record<number, string> = { 0: "to review", 0.5: "partly", 1: "known" };
+    // Self-assessment keeps a trace of the typed answer, if there is one.
     await record(
       score,
-      `Auto-évaluation : ${labels[score]} (réponse attendue : ${content?.answer ?? ""}).`,
+      `Self-assessment: ${labels[score]} (expected answer: ${content?.answer ?? ""}).`,
       true,
     );
   };
@@ -311,7 +311,7 @@ export function QuizView({ id }: { id: string }) {
     if (path && results.length > 0) {
       await useWiki
         .getState()
-        .commit(`Quiz — ${node.title} (${plural(results.length, "réponse")})`, [path]);
+        .commit(`Quiz — ${node.title} (${plural(results.length, "answer")})`, [path]);
     }
     setPhase("finished");
   };
@@ -331,18 +331,18 @@ export function QuizView({ id }: { id: string }) {
       {phase === "intro" && (
         <section className="oe-card">
           {cards.length === 0 ? (
-            <EmptyState title="Aucune flashcard à réviser">
-              Cette branche ne contient pas encore de flashcard : ajoutez-en aux connaissances
-              atomiques pour les réviser.
+            <EmptyState title="No flashcard to review">
+              This branch does not contain any flashcard yet: add some to its atomic knowledge to
+              review it.
             </EmptyState>
           ) : (
             <>
               <p>
-                {plural(cards.length, "flashcard")}, posées de la moins maîtrisée à la mieux
-                maîtrisée. Arrêtez quand vous voulez : chaque réponse met à jour votre maîtrise.
+                {plural(cards.length, "flashcard")}, asked from the least to the best mastered. Stop
+                whenever you want: each answer updates your mastery.
               </p>
               <fieldset className="oe-field" style={{ border: 0, padding: 0 }}>
-                <legend className="oe-label">Évaluation des réponses</legend>
+                <legend className="oe-label">Evaluation of the answers</legend>
                 <label className="check">
                   <input
                     type="radio"
@@ -352,8 +352,8 @@ export function QuizView({ id }: { id: string }) {
                     onChange={() => setMode("ai")}
                   />
                   <span>
-                    Par Eugenia, qui compare votre réponse à la réponse attendue{" "}
-                    {!hasAI(settings) && "(configurez une IA dans les paramètres)"}
+                    By Eugenia, who compares your answer with the expected answer{" "}
+                    {!hasAI(settings) && "(set up an AI in the settings)"}
                   </span>
                 </label>
                 <label className="check">
@@ -364,19 +364,19 @@ export function QuizView({ id }: { id: string }) {
                     onChange={() => setMode("self")}
                   />
                   <span>
-                    Auto-évaluation : vous révélez la réponse et notez vous-même (0, ½ ou 1), même
-                    hors ligne
+                    Self-assessment: you reveal the answer and grade yourself (0, ½ or 1), even
+                    offline
                   </span>
                 </label>
                 {!online && mode === "ai" && (
                   <span className="oe-help">
-                    Hors ligne : seule une IA locale peut évaluer vos réponses.
+                    Offline: only a local AI can evaluate your answers.
                   </span>
                 )}
               </fieldset>
               <div className="actions actions--start">
                 <button type="button" className="oe-button" onClick={() => void start()}>
-                  <Brain aria-hidden="true" /> Commencer
+                  <Brain aria-hidden="true" /> Start
                 </button>
               </div>
             </>
@@ -391,14 +391,14 @@ export function QuizView({ id }: { id: string }) {
             style={{ justifyContent: "space-between", marginBottom: "1rem" }}
           >
             <span className="small muted">
-              Question {index + 1} sur {order.length}
+              Question {index + 1} of {order.length}
             </span>
             <button
               type="button"
               className="oe-button oe-button--ghost oe-button--sm"
               onClick={() => void finish()}
             >
-              <CircleStop aria-hidden="true" /> Arrêter
+              <CircleStop aria-hidden="true" /> Stop
             </button>
           </div>
           <div className="progress" aria-hidden="true">
@@ -416,7 +416,7 @@ export function QuizView({ id }: { id: string }) {
                   className={`message message--${m.role}`}
                 >
                   <span className="message__who">
-                    {m.role === "eugenia" ? "Eugenia" : "Vous"}
+                    {m.role === "eugenia" ? "Eugenia" : "You"}
                     {typeof m.meta?.score === "number" && (
                       <span className="score">· score {formatPercent(m.meta.score as number)}</span>
                     )}
@@ -427,7 +427,7 @@ export function QuizView({ id }: { id: string }) {
                       <CardReference
                         card={reference}
                         content={referenceContent}
-                        // L'auto-évaluation a déjà révélé la réponse, reprise dans le message.
+                        // Self-assessment already revealed the answer, repeated in the message.
                         showAnswer={m.meta?.self !== true}
                       />
                     )}
@@ -435,25 +435,25 @@ export function QuizView({ id }: { id: string }) {
                 </div>
               );
             })}
-            {busy && <Spinner label="Eugenia réfléchit" />}
+            {busy && <Spinner label="Eugenia is thinking" />}
           </div>
           {card && content && !answered && (
             <div className="composer">
               {mode === "self" && revealed && (
                 <div className="oe-alert oe-alert--info">
-                  <strong className="oe-alert__title">Réponse attendue</strong>
+                  <strong className="oe-alert__title">Expected answer</strong>
                   <Markdown text={content.answer} path={card.indexPath} />
                 </div>
               )}
               <textarea
                 className="oe-textarea"
-                placeholder="Votre réponse…"
+                placeholder="Your answer…"
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && mode === "ai") void submit();
                 }}
-                aria-label="Votre réponse"
+                aria-label="Your answer"
                 autoFocus
               />
               <div className="actions">
@@ -464,7 +464,7 @@ export function QuizView({ id }: { id: string }) {
                       className="oe-button oe-button--ghost oe-button--sm"
                       onClick={() => setMode("self")}
                     >
-                      Passer en auto-évaluation
+                      Switch to self-assessment
                     </button>
                     <button
                       type="button"
@@ -472,32 +472,32 @@ export function QuizView({ id }: { id: string }) {
                       disabled={busy}
                       onClick={() => void submit()}
                     >
-                      <Send aria-hidden="true" /> Répondre
+                      <Send aria-hidden="true" /> Answer
                     </button>
                   </>
                 ) : !revealed ? (
                   <button type="button" className="oe-button" onClick={() => setRevealed(true)}>
-                    <Eye aria-hidden="true" /> Révéler la réponse
+                    <Eye aria-hidden="true" /> Reveal the answer
                   </button>
                 ) : (
                   <>
-                    <span className="small muted">Votre note :</span>
+                    <span className="small muted">Your grade:</span>
                     <button
                       type="button"
                       className="oe-button oe-button--secondary"
                       onClick={() => void selfScore(0)}
                     >
-                      0 — à revoir
+                      0 — to review
                     </button>
                     <button
                       type="button"
                       className="oe-button oe-button--secondary"
                       onClick={() => void selfScore(0.5)}
                     >
-                      ½ — partiellement
+                      ½ — partly
                     </button>
                     <button type="button" className="oe-button" onClick={() => void selfScore(1)}>
-                      1 — acquise
+                      1 — known
                     </button>
                   </>
                 )}
@@ -518,19 +518,19 @@ export function QuizView({ id }: { id: string }) {
                       flexWrap: "wrap",
                     }}
                   >
-                    Maîtrise de « {r.card.title} » :{" "}
+                    Mastery of "{r.card.title}":{" "}
                     <MasteryMeter value={r.before} threshold={threshold} /> →{" "}
                     <MasteryMeter value={r.after} threshold={threshold} />
                     {lastEvaluation &&
                       lastEvaluation.score > derived.config.mastery.success_threshold && (
-                        <Check aria-label="Réussite" style={{ color: "var(--oe-color-success)" }} />
+                        <Check aria-label="Success" style={{ color: "var(--oe-color-success)" }} />
                       )}
                   </p>
                 );
               })()}
               <div className="actions">
                 <button type="button" className="oe-button" onClick={() => void next()} autoFocus>
-                  {index + 1 >= order.length ? "Terminer" : "Question suivante"}
+                  {index + 1 >= order.length ? "Finish" : "Next question"}
                 </button>
               </div>
             </div>
@@ -542,24 +542,24 @@ export function QuizView({ id }: { id: string }) {
         <section className="oe-card oe-card--featured">
           <h2 className="oe-card__title">
             <Sparkles aria-hidden="true" style={{ display: "inline", verticalAlign: "-0.15em" }} />{" "}
-            Quiz terminé
+            Quiz finished
           </h2>
           {results.length === 0 ? (
-            <p>Aucune réponse : rien n'a été enregistré.</p>
+            <p>No answer: nothing was saved.</p>
           ) : (
             <>
               <p>
-                {plural(results.length, "réponse")}, score moyen{" "}
-                <strong>{formatPercent(mean)}</strong>. Le quiz est enregistré dans vos{" "}
-                <a href={href({ name: "discussions", kind: "quiz" })}>discussions</a> : il sert de
-                trace pour recalculer votre maîtrise.
+                {plural(results.length, "answer")}, average score{" "}
+                <strong>{formatPercent(mean)}</strong>. The quiz is saved in your{" "}
+                <a href={href({ name: "discussions", kind: "quiz" })}>discussions</a>: it is the
+                trace your mastery is recomputed from.
               </p>
               <table className="chart-table">
                 <thead>
                   <tr>
                     <th>Flashcard</th>
                     <th>Score</th>
-                    <th>Maîtrise</th>
+                    <th>Mastery</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -580,10 +580,10 @@ export function QuizView({ id }: { id: string }) {
           )}
           <div className="actions actions--start">
             <button type="button" className="oe-button" onClick={() => setPhase("intro")}>
-              <RotateCcw aria-hidden="true" /> Relancer un quiz
+              <RotateCcw aria-hidden="true" /> Start another quiz
             </button>
             <a className="oe-button oe-button--ghost" href={href({ name: "node", id: node.id })}>
-              Retour à « {node.title} »
+              Back to "{node.title}"
             </a>
           </div>
         </section>

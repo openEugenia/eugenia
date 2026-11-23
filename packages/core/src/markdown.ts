@@ -1,6 +1,6 @@
 /**
- * Analyse Markdown (mdast / micromark) : liens avec leurs positions exactes, réécriture
- * des destinations sans reformater le reste du texte, extraction de texte brut.
+ * Markdown analysis (mdast / micromark): links with their exact positions, rewriting of
+ * destinations without reformatting the rest of the text, plain-text extraction.
  */
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes, Root } from "mdast";
@@ -9,19 +9,19 @@ export type LinkKind = "link" | "image" | "definition";
 
 export interface MarkdownLink {
   kind: LinkKind;
-  /** Destination telle que décodée par le parseur. */
+  /** Destination as decoded by the parser. */
   url: string;
-  /** Destination brute dans la source (sans chevrons). */
+  /** Raw destination in the source (without angle brackets). */
   raw: string;
-  /** Position de la destination brute dans la source. */
+  /** Position of the raw destination in the source. */
   destStart: number;
   destEnd: number;
-  /** Position de la construction complète (`[texte](url)`, `![alt](src)`, `[id]: url`). */
+  /** Position of the whole construct (`[text](url)`, `![alt](src)`, `[id]: url`). */
   start: number;
   end: number;
-  /** Texte brut du libellé (texte du lien, texte alternatif ou identifiant). */
+  /** Raw label text (link text, alternative text or identifier). */
   label: string;
-  /** Identifiant normalisé (définitions de références). */
+  /** Normalized identifier (reference definitions). */
   identifier?: string;
 }
 
@@ -42,7 +42,7 @@ export function parseMarkdown(text: string): Root {
   return fromMarkdown(text);
 }
 
-/** Position du `]` fermant un libellé ouvert en `from` (après le `[`), ou -1. */
+/** Position of the `]` closing a label opened at `from` (after the `[`), or -1. */
 function findLabelEnd(text: string, from: number, limit: number): number {
   let depth = 0;
   for (let i = from; i < limit; i++) {
@@ -52,7 +52,7 @@ function findLabelEnd(text: string, from: number, limit: number): number {
       continue;
     }
     if (c === "`") {
-      // Les crochets dans du code en ligne ne comptent pas.
+      // Brackets inside inline code do not count.
       let ticks = 1;
       while (text[i + ticks] === "`") ticks++;
       const fence = "`".repeat(ticks);
@@ -71,7 +71,7 @@ function findLabelEnd(text: string, from: number, limit: number): number {
   return -1;
 }
 
-/** Destination d'un lien à partir de la position `from` (juste après `(` ou `:`). */
+/** Destination of a link starting at `from` (right after `(` or `:`). */
 function scanDestination(
   text: string,
   from: number,
@@ -112,7 +112,7 @@ function walk(node: Nodes, visit: (node: Nodes) => void): void {
   if ("children" in node) for (const child of node.children) walk(child as Nodes, visit);
 }
 
-/** Liste les liens, images et définitions d'un texte Markdown, avec leurs positions. */
+/** Lists the links, images and definitions of a Markdown text, with their positions. */
 export function scanLinks(text: string): LinkScan {
   const links: MarkdownLink[] = [];
   const references: MarkdownReference[] = [];
@@ -128,7 +128,7 @@ export function scanLinks(text: string): LinkScan {
     const start = pos.start.offset;
     const end = pos.end.offset;
     if (node.type === "link") {
-      if (text[start] !== "[") return; // lien automatique
+      if (text[start] !== "[") return; // autolink
       const labelEnd = findLabelEnd(text, start + 1, end);
       if (labelEnd < 0 || text[labelEnd + 1] !== "(") return;
       const dest = scanDestination(text, labelEnd + 2, end);
@@ -207,21 +207,21 @@ function applyEdits(text: string, edits: Edit[]): string {
   let out = "";
   let cursor = 0;
   for (const edit of sorted) {
-    if (edit.start < cursor) continue; // chevauchement : la modification englobante l'emporte
+    if (edit.start < cursor) continue; // overlap: the enclosing edit wins
     out += text.slice(cursor, edit.start) + edit.text;
     cursor = edit.end;
   }
   return out + text.slice(cursor);
 }
 
-/** Échappe une destination pour l'écrire dans un lien Markdown. */
+/** Escapes a destination to write it in a Markdown link. */
 export function formatDestination(url: string): string {
   return /[\s()<>]/.test(url) ? `<${url.replace(/[<>]/g, (c) => encodeURIComponent(c))}>` : url;
 }
 
 /**
- * Réécrit les destinations des liens. `rewrite` renvoie la nouvelle destination, ou
- * `undefined` pour laisser le lien intact. Le reste du texte n'est pas modifié.
+ * Rewrites link destinations. `rewrite` returns the new destination, or `undefined` to
+ * leave the link untouched. The rest of the text is not modified.
  */
 export function rewriteDestinations(
   text: string,
@@ -232,7 +232,7 @@ export function rewriteDestinations(
   for (const link of links) {
     const next = rewrite(link);
     if (next === undefined || next === link.raw) continue;
-    // La destination brute peut être entre chevrons : on remplace aussi ceux-ci.
+    // The raw destination may be in angle brackets: replace them too.
     const angle = text[link.destStart - 1] === "<" && text[link.destEnd] === ">";
     edits.push({
       start: angle ? link.destStart - 1 : link.destStart,
@@ -244,8 +244,8 @@ export function rewriteDestinations(
 }
 
 /**
- * Remplace par leur simple texte les liens et images dont la destination vérifie
- * `predicate` (y compris via une définition de référence, qui est supprimée).
+ * Replaces with their plain text the links and images whose destination matches
+ * `predicate` (including through a reference definition, which is removed).
  */
 export function unlinkWhere(text: string, predicate: (link: MarkdownLink) => boolean): string {
   let current = text;
@@ -286,7 +286,7 @@ const BLOCK_TYPES = new Set([
   "tableRow",
 ]);
 
-/** Texte brut d'un document Markdown (recherche plein texte, extraits). */
+/** Plain text of a Markdown document (full-text search, excerpts). */
 export function markdownToText(markdown: string): string {
   let tree: Root;
   try {
@@ -328,7 +328,7 @@ export function markdownToText(markdown: string): string {
     .trim();
 }
 
-/** Texte du premier paragraphe (les titres sont ignorés). */
+/** Text of the first paragraph (headings are ignored). */
 export function firstParagraph(markdown: string): string {
   let tree: Root;
   try {
@@ -347,7 +347,7 @@ export function firstParagraph(markdown: string): string {
   return "";
 }
 
-/** Tronque un texte à `max` caractères en fin de mot, avec une ellipse. */
+/** Truncates a text to `max` characters at a word boundary, with an ellipsis. */
 export function truncate(text: string, max: number): string {
   const clean = text.replace(/\s+/g, " ").trim();
   if (clean.length <= max) return clean;
@@ -356,7 +356,7 @@ export function truncate(text: string, max: number): string {
   return (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.!?-]+$/, "") + "…";
 }
 
-/** Parties en gras d'un énoncé : les cibles d'apprentissage d'une flashcard (§5.7). */
+/** Bold parts of a statement: the learning targets of a flashcard (§5.7). */
 export function boldParts(markdown: string): string[] {
   let tree: Root;
   try {

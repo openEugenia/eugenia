@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Tests de bout en bout sur l'application construite. GitHub et l'API Claude sont
- * simulés en mémoire (interception des requêtes) : aucun accès réseau réel.
+ * End-to-end tests on the built app. GitHub and the Claude API are simulated in memory
+ * (request interception): no real network access.
  */
 export default defineConfig({
   testDir: "e2e",
@@ -14,7 +14,7 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4173/eugenia/",
     serviceWorkers: "block",
-    locale: "fr-FR",
+    locale: "en-US",
     trace: "retain-on-failure",
   },
   webServer: {

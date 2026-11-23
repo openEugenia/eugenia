@@ -1,4 +1,4 @@
-/** Extraction d'un objet JSON dans une réponse texte (fournisseurs sans sortie structurée). */
+/** Extracts a JSON object from a text answer (providers without structured output). */
 
 export function extractJson(text: string): unknown {
   const trimmed = text.trim();
@@ -9,7 +9,7 @@ export function extractJson(text: string): unknown {
     try {
       return JSON.parse(candidate);
     } catch {
-      // on essaie le premier objet équilibré
+      // try the first balanced object
     }
     const start = candidate.search(/[[{]/);
     if (start < 0) continue;
@@ -18,11 +18,11 @@ export function extractJson(text: string): unknown {
       try {
         return JSON.parse(slice);
       } catch {
-        // suivant
+        // next
       }
     }
   }
-  throw new SyntaxError("Aucun JSON valide dans la réponse.");
+  throw new SyntaxError("No valid JSON in the answer.");
 }
 
 function balanced(text: string, start: number): string | null {

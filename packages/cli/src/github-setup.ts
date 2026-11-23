@@ -1,6 +1,6 @@
 /**
- * Mise en place des dépôts GitHub avec la CLI `gh` (§6.4) : dépôt privé, dépôt public,
- * clé de déploiement en écriture sur le dépôt public, secret dans le dépôt privé.
+ * Sets up the GitHub repositories with the `gh` CLI (§6.4): private repository, public
+ * repository, deploy key with write access to the public repository, secret in the private one.
  */
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,7 +14,7 @@ export interface GithubRepos {
   publicRepo: string;
 }
 
-/** Nom des dépôts : valeurs données, sinon `<compte>/eugenia-wiki` et `<privé>-public`. */
+/** Names of the repositories: given values, otherwise `<account>/eugenia-wiki` and `<private>-public`. */
 export async function resolveRepos(options: {
   privateRepo?: string;
   publicRepo?: string;
@@ -22,9 +22,7 @@ export async function resolveRepos(options: {
 }): Promise<GithubRepos> {
   const status = await run("gh", ["auth", "status"], { allowFailure: true });
   if (status.code !== 0) {
-    throw new CliError(
-      "La CLI GitHub n'est pas connectée : lancez `gh auth login` puis réessayez.",
-    );
+    throw new CliError("The GitHub CLI is not logged in: run `gh auth login` and try again.");
   }
   let privateRepo = options.privateRepo;
   if (!privateRepo) {
@@ -52,25 +50,25 @@ export async function setupGithub(
   const { dir, log, dryRun, privateRepo, publicRepo, branch } = options;
   const exec = { log, dryRun };
 
-  // 1. Dépôt privé (sans pousser : le secret doit exister avant le premier push).
+  // 1. Private repository (without pushing: the secret must exist before the first push).
   const existingPrivate = await repoExists(privateRepo);
   if (existingPrivate.exists && !existingPrivate.isPrivate) {
     throw new CliError(
-      `Le dépôt ${privateRepo} est public : le dépôt source d'un wiki doit être privé.`,
+      `The repository ${privateRepo} is public: the source repository of a wiki must be private.`,
     );
   }
   if (!existingPrivate.exists) {
     await run(
       "gh",
-      ["repo", "create", privateRepo, "--private", "--description", "Mon wiki Eugenia (privé)"],
+      ["repo", "create", privateRepo, "--private", "--description", "My Eugenia wiki (private)"],
       exec,
     );
   }
 
-  // 2. Dépôt public.
+  // 2. Public repository.
   const existingPublic = await repoExists(publicRepo);
   if (existingPublic.exists && existingPublic.isPrivate) {
-    log.warn(`Attention : ${publicRepo} est privé ; il doit être public pour être lu par tous.`);
+    log.warn(`Warning: ${publicRepo} is private; it must be public to be readable by everyone.`);
   }
   if (!existingPublic.exists) {
     await run(
@@ -81,13 +79,14 @@ export async function setupGithub(
         publicRepo,
         "--public",
         "--description",
-        "Partie publique de mon wiki Eugenia (générée)",
+        "Public part of my Eugenia wiki (generated)",
       ],
       exec,
     );
   }
 
-  // 3. Clé de déploiement en écriture sur le dépôt public, clé privée en secret du dépôt privé.
+  // 3. Deploy key with write access to the public repository, private key as a secret of the
+  // private repository.
   const keyDir = await mkdtemp(join(tmpdir(), "eugenia-key-"));
   try {
     const key = join(keyDir, "deploy_key");
@@ -107,7 +106,7 @@ export async function setupGithub(
         publicRepo,
         "--allow-write",
         "--title",
-        `Eugenia — publication depuis ${privateRepo}`,
+        `Eugenia — publication from ${privateRepo}`,
       ],
       exec,
     );
@@ -120,7 +119,7 @@ export async function setupGithub(
     await rm(keyDir, { recursive: true, force: true });
   }
 
-  // 4. Dépôt local : commit initial et premier push (qui déclenche la publication).
+  // 4. Local repository: initial commit and first push (which triggers the publication).
   const inside = await run("git", ["rev-parse", "--is-inside-work-tree"], {
     cwd: dir,
     allowFailure: true,
@@ -132,7 +131,7 @@ export async function setupGithub(
     allowFailure: true,
   });
   if (staged.code !== 0 || dryRun) {
-    await run("git", ["commit", "-q", "-m", "Initialisation du wiki Eugenia"], {
+    await run("git", ["commit", "-q", "-m", "Initialize the Eugenia wiki"], {
       cwd: dir,
       ...exec,
     });
@@ -142,7 +141,7 @@ export async function setupGithub(
     allowFailure: true,
   });
   if (remote.code !== 0) {
-    // Même protocole que la CLI gh (HTTPS par défaut, avec son assistant d'identification).
+    // Same protocol as the gh CLI (HTTPS by default, with its credential helper).
     const protocol = (
       await run("gh", ["config", "get", "git_protocol"], { allowFailure: true })
     ).stdout.trim();
@@ -156,5 +155,5 @@ export async function setupGithub(
     });
   }
   await run("git", ["push", "-u", "origin", branch], { cwd: dir, ...exec });
-  log.info(green(`Dépôts prêts : ${privateRepo} (privé) → ${publicRepo} (public).`));
+  log.info(green(`Repositories ready: ${privateRepo} (private) → ${publicRepo} (public).`));
 }

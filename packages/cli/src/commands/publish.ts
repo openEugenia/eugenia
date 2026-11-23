@@ -1,4 +1,4 @@
-/** `eugenia publish` : construit la partie publique et la pousse dans le dépôt public (§6.4). */
+/** `eugenia publish`: builds the public part and pushes it to the public repository (§6.4). */
 import { copyFile, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -9,15 +9,15 @@ import { bold, CliError, green, red, reportProblems, type Logger } from "../outp
 
 export interface PublishOptions {
   dir: string;
-  /** Dépôt public cible (`owner/name`). */
+  /** Target public repository (`owner/name`). */
   target?: string;
-  /** Adresse git explicite du dépôt cible (remplace celle déduite de `target`). */
+  /** Explicit git URL of the target repository (replaces the one deduced from `target`). */
   remote?: string;
-  /** Dossier de sortie (sinon un dossier temporaire). */
+  /** Output folder (otherwise a temporary folder). */
   out?: string;
   branch: string;
   privateRepo?: string;
-  /** Variable d'environnement contenant un jeton d'écriture (sinon SSH / clé de déploiement). */
+  /** Environment variable holding a write token (otherwise SSH / deploy key). */
   tokenEnv: string;
   dryRun: boolean;
   message?: string;
@@ -25,12 +25,10 @@ export interface PublishOptions {
 
 export async function publishCommand(options: PublishOptions, log: Logger): Promise<number> {
   if (options.target && !/^[\w.-]+\/[\w.-]+$/.test(options.target)) {
-    throw new CliError("--target doit être de la forme owner/name.");
+    throw new CliError("--target must have the form owner/name.");
   }
   if (!options.target && !options.remote && !options.out) {
-    throw new CliError(
-      "Indiquez --target owner/name (ou --out <dossier> pour seulement construire).",
-    );
+    throw new CliError("Give --target owner/name (or --out <folder> to only build).");
   }
   const wiki = await loadDiskWiki(resolve(options.dir));
   const publication = await buildPublication(wiki.view, {
@@ -39,14 +37,12 @@ export async function publishCommand(options: PublishOptions, log: Logger): Prom
   });
   reportProblems(log, publication.problems);
   if (!publication.ok) {
-    log.error(
-      red("Publication refusée : corrigez les erreurs ci-dessus (aucun fichier n'a été publié)."),
-    );
+    log.error(red("Publication refused: fix the errors above (no file was published)."));
     return 1;
   }
   const s = publication.stats;
   log.info(
-    `${s.pages} page(s) publique(s) : ${s.knowledge} connaissance(s), ${s.flashcards} flashcard(s), ${s.sources} source(s) ; ${s.summaries} description(s), ${s.attachments} fichier(s) joint(s), ${s.discussions} discussion(s).`,
+    `${s.pages} public page(s): ${s.knowledge} knowledge item(s), ${s.flashcards} flashcard(s), ${s.sources} source(s); ${s.records} private source(s) as bibliographic records only; ${s.summaries} description(s), ${s.attachments} attached file(s), ${s.discussions} discussion(s).`,
   );
 
   const outDir = options.out
@@ -55,7 +51,7 @@ export async function publishCommand(options: PublishOptions, log: Logger): Prom
   try {
     const existing = await readdir(outDir).catch(() => [] as string[]);
     if (options.out && existing.length > 0) {
-      throw new CliError(`Le dossier de sortie ${outDir} n'est pas vide.`);
+      throw new CliError(`The output folder ${outDir} is not empty.`);
     }
     for (const file of publication.files) {
       const target = join(outDir, file.path);
@@ -63,7 +59,7 @@ export async function publishCommand(options: PublishOptions, log: Logger): Prom
       if ("content" in file) await writeFile(target, file.content);
       else await copyFile(join(wiki.dir, file.copyFrom), target);
     }
-    log.info(`Arborescence publique construite dans ${outDir}.`);
+    log.info(`Public tree built in ${outDir}.`);
 
     if (options.target || options.remote) {
       const token = process.env[options.tokenEnv] || undefined;
@@ -73,7 +69,7 @@ export async function publishCommand(options: PublishOptions, log: Logger): Prom
         dir: outDir,
         remote,
         branch: options.branch,
-        message: options.message ?? `Publication du wiki — ${date}`,
+        message: options.message ?? `Wiki publication — ${date}`,
         log,
         dryRun: options.dryRun,
         ...(token ? { secret: token } : {}),
@@ -82,8 +78,8 @@ export async function publishCommand(options: PublishOptions, log: Logger): Prom
         bold(
           green(
             options.dryRun
-              ? "Simulation terminée : rien n'a été poussé."
-              : `Publié dans ${options.target ?? remote}.`,
+              ? "Dry run complete: nothing was pushed."
+              : `Published to ${options.target ?? remote}.`,
           ),
         ),
       );

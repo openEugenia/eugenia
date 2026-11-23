@@ -1,4 +1,4 @@
-/** `eugenia summarize` : génère en lot les descriptions périmées ou manquantes (§11.2). */
+/** `eugenia summarize`: generates the stale or missing descriptions in a batch (§11.2). */
 import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
@@ -31,17 +31,17 @@ import { bold, CliError, dim, green, yellow, type Logger } from "../output.ts";
 export interface SummarizeOptions {
   dir: string;
   scope: SummaryScope | "both";
-  /** Identifiant ou dossier du nœud dont on traite la branche (racine par défaut). */
+  /** Identifier or folder of the node whose branch is processed (root by default). */
   node?: string;
-  /** Régénère aussi les descriptions à jour (sauf verrouillées). */
+  /** Also regenerates fresh descriptions (except locked ones). */
   force: boolean;
   dryRun: boolean;
   provider?: ProviderKind;
   model?: string;
   baseUrl?: string;
-  /** Refuse d'envoyer du contenu privé à un fournisseur distant. */
+  /** Refuses to send private content to a remote provider. */
   localOnlyPrivate: boolean;
-  /** Fournisseur injecté (tests). */
+  /** Injected provider (tests). */
   providerInstance?: AIProvider;
 }
 
@@ -56,7 +56,7 @@ export function providerFromEnvironment(
   const model = options.model ?? env.EUGENIA_AI_MODEL;
   switch (kind) {
     case "anthropic":
-      // Sans clé explicite, le SDK cherche ANTHROPIC_API_KEY ou un profil `ant auth login`.
+      // Without an explicit key, the SDK looks for ANTHROPIC_API_KEY or an `ant auth login` profile.
       return {
         kind,
         ...(env.ANTHROPIC_API_KEY ? { apiKey: env.ANTHROPIC_API_KEY } : {}),
@@ -65,7 +65,7 @@ export function providerFromEnvironment(
     case "openai":
       if (!model)
         throw new CliError(
-          "Indiquez le modèle (--model ou EUGENIA_AI_MODEL) pour un fournisseur compatible OpenAI.",
+          "Give the model (--model or EUGENIA_AI_MODEL) for an OpenAI-compatible provider.",
         );
       return {
         kind,
@@ -84,22 +84,22 @@ export function providerFromEnvironment(
           : {}),
       };
     default:
-      throw new CliError(`Fournisseur inconnu : ${String(kind)} (anthropic, openai ou ollama).`);
+      throw new CliError(`Unknown provider: ${String(kind)} (anthropic, openai or ollama).`);
   }
 }
 
-/** Nœud désigné par son identifiant, son dossier ou son titre (racine par défaut). */
+/** Node given by its identifier, folder or title (root by default). */
 export function findBranch(wiki: DiskWiki, node: string | undefined): WikiNode {
   if (!node) return wiki.tree.nodes.get(wiki.tree.rootId)!;
   const found =
     wiki.tree.nodes.get(node) ??
     wiki.tree.byPath.get(node.replace(/\/+$/, "")) ??
     [...wiki.tree.nodes.values()].find((n) => n.title.toLowerCase() === node.toLowerCase());
-  if (!found) throw new CliError(`Nœud introuvable : ${node}`);
+  if (!found) throw new CliError(`Node not found: ${node}`);
   return found;
 }
 
-/** Nœuds d'une branche ayant besoin d'une description, des plus profonds vers la racine. */
+/** Nodes of a branch that need a description, from the deepest to the root. */
 function allNeeding(wiki: DiskWiki, branch: WikiNode, scope: SummaryScope): WikiNode[] {
   const out: WikiNode[] = [];
   const visit = (node: WikiNode): void => {
@@ -127,17 +127,17 @@ export async function summarizeCommand(options: SummarizeOptions, log: Logger): 
       ? allNeeding(wiki, branch, scope).filter((n) => states.get(n.id)?.status !== "locked")
       : regenerationOrder(wiki.tree, states, branch.id);
     if (plan.length === 0) {
-      log.info(dim(`Portée ${scope} : aucune description à générer.`));
+      log.info(dim(`Scope ${scope}: no description to generate.`));
       continue;
     }
-    log.info(bold(`Portée ${scope} : ${plan.length} description(s) à générer.`));
+    log.info(bold(`Scope ${scope}: ${plan.length} description(s) to generate.`));
     for (const node of plan) {
       const isPrivate = summaryInvolvesPrivate(wiki.tree, node, scope);
       if (isPrivate && !provider.info.local) {
         if (options.localOnlyPrivate) {
           log.warn(
             yellow(
-              `  ignoré « ${node.title} » : contenu privé et fournisseur distant (--local-only-private).`,
+              `  skipped "${node.title}": private content and remote provider (--local-only-private).`,
             ),
           );
           skipped++;
@@ -146,7 +146,7 @@ export async function summarizeCommand(options: SummarizeOptions, log: Logger): 
         if (!warned) {
           log.warn(
             yellow(
-              `Du contenu privé va être envoyé à ${provider.info.label} (${provider.info.model}).`,
+              `Private content is going to be sent to ${provider.info.label} (${provider.info.model}).`,
             ),
           );
           warned = true;
@@ -159,7 +159,7 @@ export async function summarizeCommand(options: SummarizeOptions, log: Logger): 
           await summaryInputFor(wiki.view, node.id, scope, wiki.summaries),
         );
       } catch (error) {
-        if (error instanceof AIError) throw new CliError(`« ${node.title} » : ${error.message}`);
+        if (error instanceof AIError) throw new CliError(`"${node.title}": ${error.message}`);
         throw error;
       }
       const path = summaryPath(node, scope);
@@ -176,23 +176,23 @@ export async function summarizeCommand(options: SummarizeOptions, log: Logger): 
         log.info(`\n${bold(node.title)} ${dim(path)}\n${text}\n`);
       } else {
         await writeFile(join(wiki.dir, path), content);
-        // L'empreinte du parent dépend de cette nouvelle description : on met l'arbre à jour.
+        // The parent's fingerprint depends on this new description: update the tree.
         const file = { path, sha: await gitBlobSha(content) };
         if (scope === "public") node.summaries.public = file;
         else node.summaries.private = file;
         wiki.files.set(path, file);
         wiki.summaries.set(path, doc);
-        log.info(`  ${green("écrit")} ${path}`);
+        log.info(`  ${green("written")} ${path}`);
       }
       generated++;
     }
   }
   log.info(
     bold(
-      `${generated} description(s) ${options.dryRun ? "générée(s) (simulation)" : "écrite(s)"}${skipped ? `, ${skipped} ignorée(s)` : ""}.`,
+      `${generated} description(s) ${options.dryRun ? "generated (dry run)" : "written"}${skipped ? `, ${skipped} skipped` : ""}.`,
     ),
   );
   if (!options.dryRun && generated > 0)
-    log.info(dim("Relisez-les (git diff) avant de les commiter."));
+    log.info(dim("Review them (git diff) before committing them."));
   return 0;
 }

@@ -1,6 +1,6 @@
 /**
- * Accès à GitHub : API REST et GraphQL (propriétaire, avec jeton) et
- * raw.githubusercontent.com (lecture anonyme, sans limite de débit) — §7, §10.
+ * Access to GitHub: REST and GraphQL APIs (owner, with a token) and raw.githubusercontent.com
+ * (anonymous reading, without rate limit) — §7, §10.
  */
 import { base64ToBytes, bytesToBase64, utf8, type RepoFile } from "@openeugenia/core";
 import { repoLabel, type RepoRef } from "./repo.ts";
@@ -75,7 +75,7 @@ export class GitHubClient {
       });
     } catch (error) {
       throw new GitHubError(
-        `GitHub est injoignable (${error instanceof Error ? error.message : "réseau"}).`,
+        `GitHub cannot be reached (${error instanceof Error ? error.message : "network"}).`,
         "network",
       );
     }
@@ -92,7 +92,7 @@ export class GitHubClient {
     const status = response.status;
     if (status === 401)
       throw new GitHubError(
-        "Jeton GitHub refusé ou expiré : vérifiez-le dans les paramètres.",
+        "GitHub token refused or expired: check it in the settings.",
         "auth",
         status,
       );
@@ -103,25 +103,25 @@ export class GitHubClient {
       const reset = Number(response.headers.get("x-ratelimit-reset")) * 1000;
       const when =
         Number.isFinite(reset) && reset > 0
-          ? ` (jusqu'à ${new Date(reset).toLocaleTimeString("fr-FR")})`
+          ? ` (until ${new Date(reset).toLocaleTimeString("en")})`
           : "";
-      throw new GitHubError(`Limite de requêtes GitHub atteinte${when}.`, "rate_limit", status);
+      throw new GitHubError(`GitHub rate limit reached${when}.`, "rate_limit", status);
     }
     if (status === 403)
       throw new GitHubError(
-        `Accès refusé par GitHub : ${detail || "permissions insuffisantes"}.`,
+        `Access refused by GitHub: ${detail || "insufficient permissions"}.`,
         "forbidden",
         status,
       );
     if (status === 404)
       throw new GitHubError(
-        "Introuvable sur GitHub (ou inaccessible avec ce jeton).",
+        "Not found on GitHub (or not accessible with this token).",
         "not_found",
         status,
       );
     if (status === 409) throw new GitHubError(detail || "Conflit GitHub.", "conflict", status);
     if (status === 422)
-      throw new GitHubError(detail || "Requête refusée par GitHub.", "unprocessable", status);
+      throw new GitHubError(detail || "Request refused by GitHub.", "unprocessable", status);
     throw new GitHubError(
       `Erreur GitHub ${status}${detail ? ` : ${detail}` : ""}.`,
       "other",
@@ -148,7 +148,7 @@ export class GitHubClient {
     };
   }
 
-  /** SHA du dernier commit d'une branche, ou `null` si le dépôt est vide. */
+  /** SHA of the last commit of a branch, or `null` if the repository is empty. */
   async getBranchHead(ref: RepoRef, branch: string): Promise<string | null> {
     try {
       const data = await this.request<{ object: { sha: string } }>(
@@ -171,7 +171,7 @@ export class GitHubClient {
     return data.tree.sha;
   }
 
-  /** Arbre complet en un appel (§10.1). */
+  /** Complete tree in one call (§10.1). */
   async getTree(ref: RepoRef, treeSha: string): Promise<RepoFile[]> {
     const data = await this.request<{
       truncated: boolean;
@@ -179,7 +179,7 @@ export class GitHubClient {
     }>("GET", `/repos/${ref.owner}/${ref.name}/git/trees/${treeSha}?recursive=1`);
     if (data.truncated) {
       throw new GitHubError(
-        "Dépôt trop volumineux : l'arbre renvoyé par GitHub est tronqué.",
+        "Repository too large: the tree returned by GitHub is truncated.",
         "other",
       );
     }
@@ -206,7 +206,7 @@ export class GitHubClient {
     return decoder.decode(base64ToBytes(await this.getBlobBase64(ref, sha)));
   }
 
-  /** Lecture groupée de blobs texte via GraphQL (50 par requête), repli sur l'API REST. */
+  /** Batched reading of text blobs through GraphQL (50 per request), falling back on REST. */
   async getBlobsText(ref: RepoRef, shas: readonly string[]): Promise<Map<string, string>> {
     const out = new Map<string, string>();
     const unique = [...new Set(shas)];
@@ -230,7 +230,7 @@ export class GitHubClient {
           errors?: unknown[];
         }>("POST", "/graphql", { query });
         const repository = data.data?.repository;
-        if (!repository) throw new GitHubError("Réponse GraphQL incomplète.", "other");
+        if (!repository) throw new GitHubError("Incomplete GraphQL response.", "other");
         batch.forEach((sha, n) => {
           const blob = repository[`b${n}`];
           if (blob && blob.text !== null && !blob.isTruncated && !blob.isBinary)
@@ -299,7 +299,7 @@ export class GitHubClient {
     return data.sha;
   }
 
-  /** Avance la branche ; échoue (422) si elle a bougé entre-temps. */
+  /** Moves the branch forward; fails (422) if it moved in the meantime. */
   async updateRef(ref: RepoRef, branch: string, sha: string): Promise<void> {
     await this.request(
       "PATCH",
@@ -311,7 +311,7 @@ export class GitHubClient {
     );
   }
 
-  /** Premier fichier d'un dépôt vide (l'API Git Data ne fonctionne pas sur un dépôt vide). */
+  /** First file of an empty repository (the Git Data API does not work on an empty one). */
   async createFile(
     ref: RepoRef,
     path: string,
@@ -328,7 +328,7 @@ export class GitHubClient {
   }
 }
 
-/** Lecture anonyme du dépôt public, via raw.githubusercontent.com. */
+/** Anonymous reading of the public repository, through raw.githubusercontent.com. */
 export class RawClient {
   private branch = "HEAD";
 
@@ -344,7 +344,7 @@ export class RawClient {
       try {
         response = await this.fetchImpl(this.url(ref, path, branch), { cache: "no-cache" });
       } catch {
-        throw new GitHubError("raw.githubusercontent.com est injoignable.", "network");
+        throw new GitHubError("raw.githubusercontent.com cannot be reached.", "network");
       }
       if (response.ok) {
         this.branch = branch;
@@ -352,13 +352,13 @@ export class RawClient {
       }
       if (response.status !== 404) {
         throw new GitHubError(
-          `Erreur ${response.status} en lisant ${repoLabel(ref)}/${path}.`,
+          `Error ${response.status} while reading ${repoLabel(ref)}/${path}.`,
           "other",
           response.status,
         );
       }
     }
-    throw new GitHubError(`${path} introuvable dans ${repoLabel(ref)}.`, "not_found", 404);
+    throw new GitHubError(`${path} not found in ${repoLabel(ref)}.`, "not_found", 404);
   }
 
   async getText(ref: RepoRef, path: string): Promise<string> {
@@ -366,7 +366,7 @@ export class RawClient {
   }
 }
 
-/** Exécute `fn` sur chaque élément avec au plus `limit` appels simultanés. */
+/** Runs `fn` on each item with at most `limit` simultaneous calls. */
 export async function mapLimit<T>(
   items: readonly T[],
   limit: number,

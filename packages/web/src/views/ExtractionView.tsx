@@ -1,14 +1,16 @@
 /**
- * Extraction de connaissances atomiques (§8.1) : un texte (source de la bibliothèque,
- * discussion ou note rapide, texte collé, PDF), les surlignages d'Eugenia et de l'utilisateur,
- * les propositions (énoncé, cible en gras, titre, première flashcard, catégorie), puis un seul
- * commit. Un texte collé ou un PDF devient une source de la bibliothèque ; les connaissances
- * extraites citent leurs sources.
+ * Extraction of atomic knowledge (§8.1): a text (library source, discussion or quick note,
+ * pasted text, PDF), the highlights of Eugenia and of the user, the proposals (statement, bold
+ * target, title, first flashcard), the categories that group the knowledge of the document
+ * (existing ones, or new ones proposed by Eugenia, as Wikipedia would file it), then a single
+ * commit. A pasted text or a PDF becomes a library source; the extracted knowledge cites its
+ * sources.
  */
 import { useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   FileUp,
+  FolderPlus,
   Highlighter,
   Lightbulb,
   Plus,
@@ -31,12 +33,16 @@ import {
   type SourceRef,
 } from "@openeugenia/core";
 import {
+  categorizeKnowledge,
   categoryOptions,
   highlightId,
   highlightKnowledge,
+  orderPlanned,
+  PLANNED_PREFIX,
   proposeKnowledge,
-  type CategoryOption,
+  type CategoryPlan,
   type Highlight,
+  type PlannedCategory,
 } from "@openeugenia/ai";
 import {
   Breadcrumb,
@@ -56,7 +62,7 @@ import { materializeSources, splitList, type NewSourceDraft } from "../lib/sourc
 import { errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
 
-/** Origine du texte : source de la bibliothèque, discussion, texte collé ou PDF. */
+/** Origin of the text: library source, discussion, pasted text or PDF. */
 type Origin = "source" | "discussion" | "paste" | "pdf";
 type Step = "source" | "highlight" | "propose" | "done";
 
@@ -64,7 +70,7 @@ interface Source {
   kind: Origin;
   title: string;
   text: string;
-  /** Source ou discussion d'origine. */
+  /** Source or discussion the text comes from. */
   originId?: string;
   isPublic: boolean;
   pdf?: { name: string; base64: string };
@@ -78,13 +84,11 @@ interface Proposal {
   knowledge: string;
   question: string;
   answer: string;
-  /** Catégorie existante, ou `new`. */
+  /** Existing category, or key of a planned category (`new:…`). */
   categoryId: string;
-  newTitle: string;
-  newParentId: string;
 }
 
-/** Position d'une sélection dans le texte affiché. */
+/** Position of a selection in the displayed text. */
 function selectionOffsets(container: HTMLElement): { start: number; end: number } | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
@@ -97,7 +101,7 @@ function selectionOffsets(container: HTMLElement): { start: number; end: number 
   return { start, end: start + range.toString().length };
 }
 
-/** Découpe le texte en segments, chacun couvert par 0, 1 ou plusieurs surlignages. */
+/** Splits the text into segments, each covered by 0, 1 or several highlights. */
 function segments(
   text: string,
   highlights: readonly Highlight[],
@@ -122,6 +126,8 @@ function segments(
   return out;
 }
 
+const isPlanned = (id: string): boolean => id.startsWith(PLANNED_PREFIX);
+
 export function ExtractionView({ id, discussion }: { id?: string; discussion?: string }) {
   const derived = useDerived();
   const editable = useCanEdit();
@@ -143,39 +149,66 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
   const [sourceAuthors, setSourceAuthors] = useState("");
   const [pdf, setPdf] = useState<{ name: string; base64: string; text: string } | null>(null);
   const [attachPdf, setAttachPdf] = useState(true);
-  // Catégorie proposée par défaut aux connaissances : la catégorie d'où l'on vient.
+  // Default category of the knowledge: the category the extraction started from.
   const defaultCategory =
     node?.type === "category" && node.space === "wiki" ? node.id : derived.tree.rootId;
-  // Sources citées par toutes les connaissances extraites (en plus du texte importé).
+  // Sources cited by all the extracted knowledge (on top of the imported text).
   const [citations, setCitations] = useState<SourceRef[]>(isSourceNode ? [{ ref: node.id }] : []);
   const [drafts, setDrafts] = useState<NewSourceDraft[]>([]);
   const [source, setSource] = useState<Source | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [focused, setFocused] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [planned, setPlanned] = useState<PlannedCategory[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ id: string; title: string }[]>([]);
+  const [created, setCreated] = useState<{
+    knowledge: { id: string; title: string }[];
+    categories: { id: string; title: string }[];
+  }>({ knowledge: [], categories: [] });
   const textRef = useRef<HTMLDivElement>(null);
   const categories = useMemo(() => categoryOptions(derived), [derived]);
 
   if (id && !node)
     return (
       <div className="page">
-        <ErrorBox title="Page introuvable">Cette page n'existe pas.</ErrorBox>
+        <ErrorBox title="Page not found">This page does not exist.</ErrorBox>
       </div>
     );
   if (!editable)
     return (
       <div className="page">
-        <InfoBox>
-          L'extraction n'est possible que dans votre wiki, avec un accès en écriture.
-        </InfoBox>
+        <InfoBox>Extraction is only possible in your own wiki, with write access.</InfoBox>
       </div>
     );
 
   const involvesPrivate = (): boolean =>
     !(source?.isPublic ?? false) ||
     categories.some((c) => derived.tree.nodes.get(c.id)?.isPublic === false);
+
+  // Readable path of an existing or planned category.
+  const plannedByKey = new Map(planned.map((c) => [c.key, c]));
+  const existingPath = new Map(categories.map((c) => [c.id, c.path]));
+  const pathOf = (categoryId: string, depth = 0): string => {
+    const category = plannedByKey.get(categoryId);
+    if (!category) return existingPath.get(categoryId) ?? "?";
+    const parent = depth > planned.length ? "?" : pathOf(category.parent, depth + 1);
+    return `${parent} > ${category.title.trim() || "(untitled)"}`;
+  };
+  /** True if `candidate` is `key` or lies below it among the planned categories. */
+  const isWithin = (candidate: string, key: string): boolean => {
+    let current = plannedByKey.get(candidate);
+    for (let i = 0; current && i <= planned.length; i++) {
+      if (current.key === key) return true;
+      current = plannedByKey.get(current.parent);
+    }
+    return false;
+  };
+  const choices = [
+    ...categories.map((c) => ({ value: c.id, label: c.path })),
+    ...orderPlanned(planned).map((c) => ({ value: c.key, label: `${pathOf(c.key)} (new)` })),
+  ];
+  const usage = (key: string): number =>
+    proposals.filter((p) => p.include && isWithin(p.categoryId, key)).length;
 
   const prepareSource = (): void => {
     let next: Source | null = null;
@@ -193,16 +226,16 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
         kind,
         title: doc.fields.title || "Discussion",
         text: doc.messages
-          .map((m) => `${m.role === "user" ? "Moi" : "Eugenia"} : ${markdownToText(m.content)}`)
+          .map((m) => `${m.role === "user" ? "Me" : "Eugenia"}: ${markdownToText(m.content)}`)
           .join("\n\n"),
         originId: doc.fields.id,
         isPublic: false,
       };
     } else if (kind === "paste") {
-      if (!pasteText.trim()) return toast("Collez d'abord un texte.", "error");
+      if (!pasteText.trim()) return toast("Paste a text first.", "error");
       next = {
         kind,
-        title: pasteTitle.trim() || "Texte importé",
+        title: pasteTitle.trim() || "Imported text",
         text: pasteText.trim(),
         isPublic: false,
       };
@@ -219,8 +252,8 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
     if (!next || !next.text.trim())
       return toast(
         kind === "source"
-          ? "Cette source n'a pas de contenu : collez-y un extrait ou importez le texte."
-          : "Le texte source est vide.",
+          ? "This source has no content: paste an excerpt into it or import the text."
+          : "The source text is empty.",
         "error",
       );
     setSource(next);
@@ -230,17 +263,14 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
 
   const autoHighlight = async (): Promise<void> => {
     if (!source) return;
-    setBusy("Eugenia surligne les connaissances…");
+    setBusy("Eugenia is highlighting the knowledge…");
     try {
       const context = await taskContext(involvesPrivate());
       const found = await highlightKnowledge(context, source.text);
       setHighlights((list) =>
         [...list.filter((h) => h.origin === "user"), ...found].sort((a, b) => a.start - b.start),
       );
-      toast(
-        `${plural(found.length, "passage")} surligné${found.length > 1 ? "s" : ""}.`,
-        "success",
-      );
+      toast(`${plural(found.length, "passage")} highlighted.`, "success");
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
@@ -252,7 +282,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
     if (!textRef.current || !source) return;
     const offsets = selectionOffsets(textRef.current);
     if (!offsets || offsets.end <= offsets.start)
-      return toast("Sélectionnez un passage dans le texte.", "error");
+      return toast("Select a passage in the text.", "error");
     const quote = source.text.slice(offsets.start, offsets.end).trim();
     const start = source.text.indexOf(quote, offsets.start);
     setHighlights((list) =>
@@ -267,16 +297,29 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
   const propose = async (): Promise<void> => {
     if (!source) return;
     const kept = highlights.filter((h) => h.quote.trim());
-    if (kept.length === 0) return toast("Surlignez au moins un passage.", "error");
-    setBusy("Eugenia propose des connaissances…");
+    if (kept.length === 0) return toast("Highlight at least one passage.", "error");
+    setBusy("Eugenia is proposing knowledge…");
     try {
       const context = await taskContext(involvesPrivate());
-      const result = await proposeKnowledge(context, {
-        text: source.text,
-        highlights: kept,
-        categories,
-      });
-      const fallback = defaultCategory;
+      const result = await proposeKnowledge(context, { text: source.text, highlights: kept });
+      // Categories: all the knowledge of the document together, as Wikipedia would file it.
+      setBusy("Eugenia is filing the knowledge into categories…");
+      let plan: CategoryPlan = {
+        newCategories: [],
+        assignments: result.map(() => defaultCategory),
+      };
+      try {
+        plan = await categorizeKnowledge(context, {
+          document: source.title,
+          excerpt: source.text,
+          categories,
+          knowledge: result.map((p) => ({ title: p.title, knowledge: p.knowledge })),
+          fallbackId: defaultCategory,
+        });
+      } catch (error) {
+        toast(`Eugenia could not propose categories: ${errorMessage(error)}`, "error");
+      }
+      setPlanned(plan.newCategories);
       setProposals(
         result.map((p, i) => ({
           key: `${p.highlightId}-${i}`,
@@ -285,9 +328,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
           knowledge: p.knowledge,
           question: p.question,
           answer: p.answer,
-          categoryId: p.category.existingId ?? (p.category.newTitle ? "new" : fallback),
-          newTitle: p.category.newTitle ?? "",
-          newParentId: p.category.newParentId ?? fallback,
+          categoryId: plan.assignments[i] ?? defaultCategory,
         })),
       );
       setStep("propose");
@@ -301,13 +342,47 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
   const update = (key: string, patch: Partial<Proposal>): void =>
     setProposals((list) => list.map((p) => (p.key === key ? { ...p, ...patch } : p)));
 
+  const updatePlanned = (key: string, patch: Partial<PlannedCategory>): void =>
+    setPlanned((list) => list.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+
+  const addPlanned = (): void =>
+    setPlanned((list) => [
+      ...list,
+      { key: `${PLANNED_PREFIX}${highlightId()}`, title: "", parent: defaultCategory },
+    ]);
+
+  /** Removes a planned category: its knowledge and subcategories move up to its parent. */
+  const removePlanned = (key: string): void => {
+    const removed = plannedByKey.get(key);
+    if (!removed) return;
+    setPlanned((list) =>
+      list
+        .filter((c) => c.key !== key)
+        .map((c) => (c.parent === key ? { ...c, parent: removed.parent } : c)),
+    );
+    setProposals((list) =>
+      list.map((p) => (p.categoryId === key ? { ...p, categoryId: removed.parent } : p)),
+    );
+  };
+
   const validate = async (): Promise<void> => {
     const { workspace, stage, commit } = useWiki.getState();
     if (!workspace || !source) return;
     const selected = proposals.filter((p) => p.include && p.title.trim() && p.knowledge.trim());
     if (selected.length === 0)
-      return toast("Sélectionnez au moins une connaissance complète.", "error");
-    setBusy("Création des connaissances…");
+      return toast("Select at least one complete knowledge item.", "error");
+    // New categories that hold a selected knowledge item, directly or below.
+    const used = new Set<string>();
+    for (const p of selected) {
+      let category = plannedByKey.get(p.categoryId);
+      while (category && !used.has(category.key)) {
+        used.add(category.key);
+        category = plannedByKey.get(category.parent);
+      }
+    }
+    if ([...used].some((key) => !plannedByKey.get(key)!.title.trim()))
+      return toast("Give a title to every new category that holds knowledge.", "error");
+    setBusy("Creating the knowledge…");
     try {
       const tree = workspace.tree;
       const changes: FileChange[] = [];
@@ -315,13 +390,13 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
       const reserve = (path: string): void => {
         reserved.push(path);
       };
-      // 1. Texte collé ou PDF : nouvelle source de la bibliothèque, avec son fichier.
+      // 1. Pasted text or PDF: new library source, with its file.
       let originId = source.originId;
       const refs: SourceRef[] = [...citations];
       if (source.kind === "paste" || source.kind === "pdf") {
         const library = tree.nodes.get(tree.libraryId)!;
         const fileName = source.pdf && source.attachPdf ? safeFileName(source.pdf.name) : undefined;
-        const created = createPage(
+        const page = createPage(
           workspace,
           {
             parentPath: library.path,
@@ -339,56 +414,54 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
           },
           reserved,
         );
-        changes.push(created.change);
-        reserve(created.indexPath);
+        changes.push(page.change);
+        reserve(page.indexPath);
         if (source.pdf && fileName) {
-          const path = joinPath(created.path, fileName);
+          const path = joinPath(page.path, fileName);
           changes.push({ op: "write-binary", path, base64: source.pdf.base64 });
           reserve(path);
         }
-        originId = created.id;
-        refs.unshift({ ref: created.id });
+        originId = page.id;
+        refs.unshift({ ref: page.id });
       }
       const materialized = materializeSources(workspace, refs, drafts, reserved);
       changes.push(...materialized.changes);
       const sources = materialized.sources;
-      // 2. Nouvelles catégories (une par titre et parent).
-      const newCategories = new Map<string, { path: string; isPublic: boolean }>();
-      for (const p of selected) {
-        if (p.categoryId !== "new" || !p.newTitle.trim()) continue;
-        const key = `${p.newParentId}|${p.newTitle.trim().toLowerCase()}`;
-        if (newCategories.has(key)) continue;
-        const parent = tree.nodes.get(p.newParentId) ?? tree.nodes.get(tree.rootId)!;
-        const category = createPage(
+      // 2. New categories, each one after its parent.
+      const newCategories = new Map<string, { id: string; path: string; isPublic: boolean }>();
+      const madeCategories: { id: string; title: string }[] = [];
+      const location = (categoryId: string): { path: string; isPublic: boolean } => {
+        const fresh = newCategories.get(categoryId);
+        if (fresh) return fresh;
+        const existing = tree.nodes.get(categoryId) ?? tree.nodes.get(tree.rootId)!;
+        return { path: existing.path, isPublic: existing.isPublic };
+      };
+      for (const category of orderPlanned(planned)) {
+        if (!used.has(category.key)) continue;
+        const parent = location(category.parent);
+        const page = createPage(
           workspace,
-          { parentPath: parent.path, parentIsPublic: parent.isPublic, title: p.newTitle.trim() },
+          {
+            parentPath: parent.path,
+            parentIsPublic: parent.isPublic,
+            title: category.title.trim(),
+          },
           reserved,
         );
-        changes.push(category.change);
-        reserve(category.indexPath);
-        newCategories.set(key, { path: category.path, isPublic: false });
+        changes.push(page.change);
+        reserve(page.indexPath);
+        newCategories.set(category.key, { id: page.id, path: page.path, isPublic: false });
+        madeCategories.push({ id: page.id, title: category.title.trim() });
       }
-      // 3. Connaissances atomiques et leur première flashcard.
+      // 3. Atomic knowledge and its first flashcard.
       const made: { id: string; title: string }[] = [];
       for (const p of selected) {
-        let parentPath: string;
-        let parentIsPublic: boolean;
-        if (p.categoryId === "new" && p.newTitle.trim()) {
-          const category = newCategories.get(
-            `${p.newParentId}|${p.newTitle.trim().toLowerCase()}`,
-          )!;
-          parentPath = category.path;
-          parentIsPublic = category.isPublic;
-        } else {
-          const category = tree.nodes.get(p.categoryId) ?? tree.nodes.get(tree.rootId)!;
-          parentPath = category.path;
-          parentIsPublic = category.isPublic;
-        }
+        const parent = location(p.categoryId);
         const knowledge = createPage(
           workspace,
           {
-            parentPath,
-            parentIsPublic,
+            parentPath: parent.path,
+            parentIsPublic: parent.isPublic,
             title: p.title.trim(),
             type: "knowledge",
             body: serializeKnowledgeBody({ statement: p.knowledge }),
@@ -411,13 +484,13 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
         }
         made.push({ id: knowledge.id, title: p.title.trim() });
       }
-      const message = `Extraction : ${plural(made.length, "connaissance")} depuis « ${source.title} »`;
+      const message = `Extraction: ${plural(made.length, "knowledge item")} from "${source.title}"`;
       await stage(changes, message);
       await commit(
         message,
         changes.map((c) => c.path),
       );
-      setCreated(made);
+      setCreated({ knowledge: made, categories: madeCategories });
       setStep("done");
     } catch (error) {
       toast(errorMessage(error), "error");
@@ -426,7 +499,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
     }
   };
 
-  const categoryLabel = (option: CategoryOption): string => option.path;
+  const included = proposals.filter((p) => p.include).length;
 
   return (
     <div className="page page--wide">
@@ -446,15 +519,15 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
       ) : (
         <Breadcrumb
           tree={derived.tree}
-          trail={[{ label: "Bibliothèque", href: href({ name: "library" }) }]}
+          trail={[{ label: "Library", href: href({ name: "library" }) }]}
         />
       )}
-      <h1>Extraire des connaissances</h1>
+      <h1>Extract knowledge</h1>
       <ol className="stepper">
         {(["source", "highlight", "propose", "done"] as const).map((s, i) => (
           <li key={s} className={step === s ? "is-current" : ""}>
             <span className="num">{i + 1}</span>
-            {["Texte source", "Surlignage", "Propositions", "Terminé"][i]}
+            {["Source text", "Highlighting", "Proposals", "Done"][i]}
           </li>
         ))}
       </ol>
@@ -470,7 +543,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
 
       {step === "source" && (
         <section className="oe-card">
-          <div role="tablist" className="toolbar" aria-label="Origine du texte">
+          <div role="tablist" className="toolbar" aria-label="Origin of the text">
             {isSourceNode && (
               <button
                 type="button"
@@ -479,7 +552,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                 className={`oe-button oe-button--sm ${kind === "source" ? "" : "oe-button--ghost"}`}
                 onClick={() => setKind("source")}
               >
-                Cette source
+                This source
               </button>
             )}
             {discussion && (
@@ -490,7 +563,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                 className={`oe-button oe-button--sm ${kind === "discussion" ? "" : "oe-button--ghost"}`}
                 onClick={() => setKind("discussion")}
               >
-                La discussion
+                The discussion
               </button>
             )}
             <button
@@ -500,7 +573,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
               className={`oe-button oe-button--sm ${kind === "paste" ? "" : "oe-button--ghost"}`}
               onClick={() => setKind("paste")}
             >
-              Coller un texte
+              Paste a text
             </button>
             <button
               type="button"
@@ -509,44 +582,43 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
               className={`oe-button oe-button--sm ${kind === "pdf" ? "" : "oe-button--ghost"}`}
               onClick={() => setKind("pdf")}
             >
-              Importer un PDF
+              Import a PDF
             </button>
           </div>
           {kind === "source" && node && (
             <p className="muted">
-              Le contenu de « {node.title} » sera analysé ; les connaissances extraites citeront
-              cette source.
+              The content of "{node.title}" will be analyzed; the extracted knowledge will cite this
+              source.
             </p>
           )}
           {kind === "discussion" && (
             <p className="muted">
-              L'échange avec Eugenia sera analysé. Les connaissances extraites en garderont la trace
-              ; sans source extérieure, elles seront marquées « à sourcer » : vous pourrez leur en
-              associer une à l'étape des propositions.
+              The exchange with Eugenia will be analyzed. The extracted knowledge will keep track of
+              it; without an external source, it will be marked "needs a source": you can attach one
+              at the proposals step.
             </p>
           )}
           {(kind === "paste" || kind === "pdf") && (
             <div className="form-grid">
               <p className="muted small">
-                Le texte devient une nouvelle source de votre bibliothèque, citée par les
-                connaissances extraites.
+                The text becomes a new source of your library, cited by the extracted knowledge.
               </p>
               <div className="form-row">
                 <div className="oe-field">
                   <label className="oe-label" htmlFor="source-title">
-                    Titre de la source
+                    Source title
                   </label>
                   <input
                     id="source-title"
                     className="oe-input"
                     value={pasteTitle}
                     onChange={(e) => setPasteTitle(e.target.value)}
-                    placeholder={kind === "pdf" ? pdf?.name : "Article sur…"}
+                    placeholder={kind === "pdf" ? pdf?.name : "Article on…"}
                   />
                 </div>
                 <div className="oe-field">
                   <label className="oe-label" htmlFor="source-kind">
-                    Nature
+                    Kind
                   </label>
                   <select
                     id="source-kind"
@@ -565,7 +637,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
               <div className="form-row">
                 <div className="oe-field">
                   <label className="oe-label" htmlFor="source-authors">
-                    Auteurs (facultatif)
+                    Authors (optional)
                   </label>
                   <input
                     id="source-authors"
@@ -576,7 +648,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                 </div>
                 <div className="oe-field">
                   <label className="oe-label" htmlFor="source-url">
-                    Adresse (facultatif)
+                    URL (optional)
                   </label>
                   <input
                     id="source-url"
@@ -591,7 +663,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
               {kind === "paste" ? (
                 <div className="oe-field">
                   <label className="oe-label" htmlFor="source-text">
-                    Texte
+                    Text
                   </label>
                   <textarea
                     id="source-text"
@@ -607,7 +679,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                     className="oe-button oe-button--secondary"
                     style={{ alignSelf: "flex-start" }}
                   >
-                    <FileUp aria-hidden="true" /> Choisir un PDF
+                    <FileUp aria-hidden="true" /> Choose a PDF
                     <input
                       type="file"
                       accept="application/pdf"
@@ -615,18 +687,15 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        setBusy("Lecture du PDF…");
+                        setBusy("Reading the PDF…");
                         setSourceKind("document");
                         void Promise.all([pdfToText(file), fileToBase64(file)])
                           .then(([result, base64]) => {
                             setPdf({ name: file.name, base64, text: result.text });
-                            toast(
-                              `${plural(result.pages, "page")} converties en texte.`,
-                              "success",
-                            );
+                            toast(`${plural(result.pages, "page")} converted to text.`, "success");
                           })
                           .catch((error: unknown) =>
-                            toast(`PDF illisible : ${errorMessage(error)}`, "error"),
+                            toast(`Unreadable PDF: ${errorMessage(error)}`, "error"),
                           )
                           .finally(() => setBusy(null));
                       }}
@@ -635,7 +704,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                   {pdf && (
                     <>
                       <span className="oe-help">
-                        {pdf.name} : {plural(pdf.text.length, "caractère")} extraits.
+                        {pdf.name}: {plural(pdf.text.length, "character")} extracted.
                       </span>
                       <label className="check">
                         <input
@@ -643,13 +712,12 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                           checked={attachPdf}
                           onChange={(e) => setAttachPdf(e.target.checked)}
                         />
-                        <span>Joindre le PDF à la source (fichier personnel, jamais publié)</span>
+                        <span>Attach the PDF to the source (personal file, never published)</span>
                       </label>
                     </>
                   )}
                   <p className="muted small">
-                    Audio et vidéo : la transcription sera prise en charge dans une version
-                    ultérieure.
+                    Audio and video: transcription will be supported in a later version.
                   </p>
                 </div>
               )}
@@ -664,7 +732,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                 Boolean(busy) || (kind === "source" && nodeText.loading) || (kind === "pdf" && !pdf)
               }
             >
-              Continuer
+              Continue
             </button>
           </div>
         </section>
@@ -680,17 +748,17 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                 onClick={() => void autoHighlight()}
                 disabled={Boolean(busy)}
               >
-                <Wand2 aria-hidden="true" /> Surligner avec Eugenia
+                <Wand2 aria-hidden="true" /> Highlight with Eugenia
               </button>
               <button
                 type="button"
                 className="oe-button oe-button--ghost oe-button--sm"
                 onClick={addSelection}
               >
-                <Highlighter aria-hidden="true" /> Surligner la sélection
+                <Highlighter aria-hidden="true" /> Highlight the selection
               </button>
             </div>
-            <div ref={textRef} className="source-text" aria-label="Texte source">
+            <div ref={textRef} className="source-text" aria-label="Source text">
               {segments(source.text, highlights).map((seg, i) =>
                 seg.count === 0 ? (
                   <span key={i}>{seg.text}</span>
@@ -707,21 +775,19 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
           </section>
           <section>
             <div className="section__head">
-              <h2>
-                {plural(highlights.length, "passage")} surligné{highlights.length > 1 ? "s" : ""}
-              </h2>
+              <h2>{plural(highlights.length, "passage")} highlighted</h2>
               <button
                 type="button"
                 className="oe-button oe-button--sm"
                 onClick={() => void propose()}
                 disabled={Boolean(busy) || highlights.length === 0}
               >
-                <Sparkles aria-hidden="true" /> Proposer des connaissances
+                <Sparkles aria-hidden="true" /> Propose knowledge
               </button>
             </div>
             <p className="muted small">
-              Ajoutez vos propres surlignages, découpez ou affinez ceux d'Eugenia : chaque passage
-              deviendra une connaissance atomique.
+              Add your own highlights, split or refine Eugenia's: each passage will become an atomic
+              knowledge item.
             </p>
             <div className="form-grid">
               {highlights.map((h) => (
@@ -735,7 +801,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                     className="oe-textarea"
                     style={{ minHeight: "3.5rem" }}
                     value={h.quote}
-                    aria-label="Passage surligné"
+                    aria-label="Highlighted passage"
                     onChange={(e) =>
                       setHighlights((list) =>
                         list.map((x) => (x.id === h.id ? { ...x, quote: e.target.value } : x)),
@@ -744,7 +810,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                   />
                   {h.reason && <span className="muted small">{h.reason}</span>}
                   <div className="actions actions--start">
-                    <span className="oe-badge">{h.origin === "eugenia" ? "Eugenia" : "Vous"}</span>
+                    <span className="oe-badge">{h.origin === "eugenia" ? "Eugenia" : "You"}</span>
                     <button
                       type="button"
                       className="oe-button oe-button--ghost oe-button--sm"
@@ -756,14 +822,14 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                         )
                       }
                     >
-                      <Scissors aria-hidden="true" /> Découper
+                      <Scissors aria-hidden="true" /> Split
                     </button>
                     <button
                       type="button"
                       className="oe-button oe-button--ghost oe-button--sm"
                       onClick={() => setHighlights((list) => list.filter((x) => x.id !== h.id))}
                     >
-                      <Trash2 aria-hidden="true" /> Retirer
+                      <Trash2 aria-hidden="true" /> Remove
                     </button>
                   </div>
                 </div>
@@ -776,14 +842,14 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
       {step === "propose" && (
         <section>
           <div className="section__head">
-            <h2>{plural(proposals.filter((p) => p.include).length, "connaissance")} à créer</h2>
+            <h2>{plural(included, "knowledge item")} to create</h2>
             <div className="actions">
               <button
                 type="button"
                 className="oe-button oe-button--ghost oe-button--sm"
                 onClick={() => setStep("highlight")}
               >
-                Retour au surlignage
+                Back to highlighting
               </button>
               <button
                 type="button"
@@ -799,24 +865,22 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                       question: "",
                       answer: "",
                       categoryId: defaultCategory,
-                      newTitle: "",
-                      newParentId: derived.tree.rootId,
                     },
                   ])
                 }
               >
-                <Plus aria-hidden="true" /> Ajouter
+                <Plus aria-hidden="true" /> Add
               </button>
             </div>
           </div>
-          <section className="oe-card section" aria-label="Sources des connaissances">
+          <section className="oe-card section" aria-label="Sources of the knowledge">
             <h3 style={{ margin: 0 }}>Sources</h3>
             <p className="muted small">
               {source?.kind === "paste" || source?.kind === "pdf"
-                ? `Chaque connaissance citera la nouvelle source « ${source.title} », et les sources ajoutées ici.`
-                : "Chaque connaissance citera les sources ci-dessous."}
+                ? `Each knowledge item will cite the new source "${source.title}", and the sources added here.`
+                : "Each knowledge item will cite the sources below."}
               {citations.length === 0 && source?.kind === "discussion"
-                ? " Sans source, elles seront marquées « à sourcer » : appuyez-les de préférence sur une source extérieure."
+                ? ' Without a source, they will be marked "needs a source": preferably back them with an external source.'
                 : ""}
             </p>
             <SourcesEditor
@@ -827,6 +891,68 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
               onDraftsChange={setDrafts}
             />
           </section>
+          <section className="oe-card section" aria-label="New categories">
+            <h3 style={{ margin: 0 }}>New categories</h3>
+            <p className="muted small">
+              Eugenia compared the knowledge of "{source?.title}" with your categories, and proposes
+              the categories that group it best, as Wikipedia would. Rename, move or remove them:
+              only the categories that end up holding knowledge are created.
+            </p>
+            {planned.length === 0 && (
+              <p className="muted small">
+                No new category: the knowledge fits in your existing categories.
+              </p>
+            )}
+            <div className="form-grid">
+              {orderPlanned(planned).map((c) => (
+                <div key={c.key} className="planned-category">
+                  <div className="form-row">
+                    <input
+                      className="oe-input"
+                      value={c.title}
+                      placeholder="Title of the new category"
+                      aria-label="Title of the new category"
+                      onChange={(e) => updatePlanned(c.key, { title: e.target.value })}
+                    />
+                    <select
+                      className="oe-select"
+                      value={c.parent}
+                      aria-label={`Parent of "${c.title || "the new category"}"`}
+                      onChange={(e) => updatePlanned(c.key, { parent: e.target.value })}
+                    >
+                      {choices
+                        .filter((o) => !isWithin(o.value, c.key))
+                        .map((o) => (
+                          <option key={o.value} value={o.value}>
+                            under {o.label}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="actions actions--start">
+                    <span className="muted small">{plural(usage(c.key), "knowledge item")}</span>
+                    {c.reason && <span className="muted small">· {c.reason}</span>}
+                    <button
+                      type="button"
+                      className="oe-button oe-button--ghost oe-button--sm"
+                      onClick={() => removePlanned(c.key)}
+                    >
+                      <Trash2 aria-hidden="true" /> Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="actions actions--start">
+              <button
+                type="button"
+                className="oe-button oe-button--ghost oe-button--sm"
+                onClick={addPlanned}
+              >
+                <FolderPlus aria-hidden="true" /> New category
+              </button>
+            </div>
+          </section>
           <div className="form-grid">
             {proposals.map((p) => (
               <div key={p.key} className={`proposal${p.include ? "" : " is-excluded"}`}>
@@ -836,11 +962,11 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                     checked={p.include}
                     onChange={(e) => update(p.key, { include: e.target.checked })}
                   />
-                  <span>Créer cette connaissance</span>
+                  <span>Create this knowledge item</span>
                 </label>
                 <div className="form-row">
                   <div className="oe-field">
-                    <label className="oe-label">Titre</label>
+                    <label className="oe-label">Title</label>
                     <input
                       className="oe-input"
                       value={p.title}
@@ -848,46 +974,22 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                     />
                   </div>
                   <div className="oe-field">
-                    <label className="oe-label">Catégorie</label>
+                    <label className="oe-label">Category</label>
                     <select
                       className="oe-select"
                       value={p.categoryId}
                       onChange={(e) => update(p.key, { categoryId: e.target.value })}
                     >
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {categoryLabel(c)}
+                      {choices.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
                         </option>
                       ))}
-                      <option value="new">Nouvelle catégorie…</option>
                     </select>
                   </div>
                 </div>
-                {p.categoryId === "new" && (
-                  <div className="form-row">
-                    <input
-                      className="oe-input"
-                      placeholder="Titre de la nouvelle catégorie"
-                      value={p.newTitle}
-                      onChange={(e) => update(p.key, { newTitle: e.target.value })}
-                      aria-label="Nouvelle catégorie"
-                    />
-                    <select
-                      className="oe-select"
-                      value={p.newParentId}
-                      onChange={(e) => update(p.key, { newParentId: e.target.value })}
-                      aria-label="Sous la catégorie"
-                    >
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          sous {categoryLabel(c)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
                 <div className="oe-field">
-                  <label className="oe-label">Énoncé (cible d'apprentissage en **gras**)</label>
+                  <label className="oe-label">Statement (learning target in **bold**)</label>
                   <textarea
                     className="oe-textarea"
                     style={{ minHeight: "4rem" }}
@@ -897,7 +999,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                 </div>
                 <div className="form-row">
                   <div className="oe-field">
-                    <label className="oe-label">Question de la première flashcard</label>
+                    <label className="oe-label">Question of the first flashcard</label>
                     <textarea
                       className="oe-textarea"
                       style={{ minHeight: "3.5rem" }}
@@ -906,7 +1008,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
                     />
                   </div>
                   <div className="oe-field">
-                    <label className="oe-label">Réponse attendue</label>
+                    <label className="oe-label">Expected answer</label>
                     <textarea
                       className="oe-textarea"
                       style={{ minHeight: "3.5rem" }}
@@ -925,8 +1027,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
               disabled={Boolean(busy)}
               onClick={() => void validate()}
             >
-              <CheckCircle2 aria-hidden="true" /> Créer{" "}
-              {plural(proposals.filter((p) => p.include).length, "connaissance")}
+              <CheckCircle2 aria-hidden="true" /> Create {plural(included, "knowledge item")}
             </button>
           </div>
         </section>
@@ -935,45 +1036,60 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
       {step === "done" && (
         <section className="oe-card oe-card--featured">
           <h2 className="oe-card__title">
-            {plural(created.length, "connaissance")} créée{created.length > 1 ? "s" : ""}
+            {plural(created.knowledge.length, "knowledge item")} created
           </h2>
           <p className="oe-card__body">
-            Tout a été regroupé dans un seul commit{" "}
-            {useWiki.getState().online ? "" : "(envoyé au retour du réseau)"}.
+            Everything was grouped in a single commit{" "}
+            {useWiki.getState().online ? "" : "(sent when the network is back)"}.
           </p>
           <ul className="link-list">
-            {created.map((c) => (
+            {created.knowledge.map((c) => (
               <li key={c.id}>
                 <Lightbulb aria-hidden="true" />{" "}
                 <a href={href({ name: "node", id: c.id })}>{c.title}</a>
               </li>
             ))}
           </ul>
+          {created.categories.length > 0 && (
+            <>
+              <p className="oe-card__body">
+                In {plural(created.categories.length, "new category", "new categories")}:
+              </p>
+              <ul className="link-list">
+                {created.categories.map((c) => (
+                  <li key={c.id}>
+                    <FolderPlus aria-hidden="true" />{" "}
+                    <a href={href({ name: "node", id: c.id })}>{c.title}</a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <div className="actions actions--start">
             {node ? (
               <a
                 className="oe-button oe-button--secondary"
                 href={href({ name: "node", id: node.id })}
               >
-                Retour à « {node.title} »
+                Back to "{node.title}"
               </a>
             ) : discussion ? (
               <a
                 className="oe-button oe-button--secondary"
                 href={href({ name: "discussion", path: discussion })}
               >
-                Retour à la discussion
+                Back to the discussion
               </a>
             ) : (
               <a className="oe-button oe-button--secondary" href={href({ name: "library" })}>
-                Retour à la bibliothèque
+                Back to the library
               </a>
             )}
           </div>
         </section>
       )}
       {source && step !== "source" && step !== "done" && (
-        <p className="muted small section">Source : {source.title}</p>
+        <p className="muted small section">Source: {source.title}</p>
       )}
     </div>
   );

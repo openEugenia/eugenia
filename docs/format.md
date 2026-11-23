@@ -1,64 +1,63 @@
-# Format de stockage d'un wiki Eugenia
+# Storage format of an Eugenia wiki
 
-Un wiki Eugenia est un dépôt git ordinaire : des dossiers et des fichiers Markdown avec un
-frontmatter YAML. L'application ne montre jamais ces fichiers, mais ils restent lisibles et
-modifiables à la main. `eugenia validate` vérifie un dépôt modifié hors de l'application.
+An Eugenia wiki is an ordinary git repository: folders and Markdown files with a YAML
+frontmatter. The app never shows these files, but they stay readable and editable by hand.
+`eugenia validate` checks a repository edited outside the app.
 
-Ce document décrit la version 2 du format (spécification §5) : trois espaces (wiki,
-bibliothèque, discussions), connaissances atomiques et flashcards distinctes. Un wiki au
-format 1 (tout sous `wiki/`, discussions dans des dossiers `_discussions/` et `_quizzes/`) n'est
-pas migré automatiquement ; `validate` signale ses fichiers d'ancien format.
+This document describes version 2 of the format (specification §5): three spaces (wiki,
+library, discussions), atomic knowledge and separate flashcards. A format-1 wiki (everything
+under `wiki/`, discussions in `_discussions/` and `_quizzes/` folders) is not migrated
+automatically; `validate` reports its old-format files.
 
-## Arborescence
+## Tree
 
-Un wiki a trois espaces, chacun dans son dossier (configurables, §Configuration) :
+A wiki has three spaces, each in its own folder (configurable, §Configuration):
 
 ```
 .notes/
-  config.yml                 configuration du wiki
-  prompts/<nom>.md           surcharges facultatives des prompts d'Eugenia
-wiki/                        le wiki : catégories, connaissances atomiques, flashcards
-  index.md                   la page racine : le wiki global
-  _summary.md                description du wiki global (portée privée)
-  _summary.public.md         description du wiki global (portée publique)
-  _embedding.json            embedding de la page (recherche sémantique, jamais publié)
-  religion-et-croyances/
-    index.md                 une catégorie
+  config.yml                 wiki configuration
+  prompts/<name>.md          optional overrides of Eugenia's prompts
+wiki/                        the wiki: categories, atomic knowledge, flashcards
+  index.md                   the root page: the global wiki
+  _summary.md                description of the global wiki (private scope)
+  _summary.public.md         description of the global wiki (public scope)
+  _embedding.json            embedding of the page (semantic search, never published)
+  religion-and-beliefs/
+    index.md                 a category
     _summary.md
     lilith/
-      index.md               une connaissance atomique
-      quel-est-le-nom-du-demon-feminin/
-        index.md             une flashcard sur cette connaissance
-library/                     la bibliothèque : les sources, à plat
-  article-sur-lilith/
-    index.md                 une source
-    article.pdf              son fichier personnel (jamais publié)
-discussions/                 les discussions, questions, quiz et notes rapides
-  2026-11-10-1030-quiz-religion-et-croyances.md
+      index.md               an atomic knowledge item
+      what-is-the-name-of-the-female/
+        index.md             a flashcard on this knowledge item
+library/                     the library: the sources, flat
+  article-on-lilith/
+    index.md                 a source
+    article.pdf              its personal file (never published)
+discussions/                 discussions, questions, quizzes and quick notes
+  2026-11-10-1030-quiz-religion-and-beliefs.md
   2026-11-14-0830-51-pegasi-b.md
 ```
 
-- **Toute page est un dossier contenant un `index.md`**, qu'elle ait des enfants ou non. Les
-  sous-pages sont des sous-dossiers.
-- **Wiki** : une catégorie contient des sous-catégories et des connaissances ; une connaissance
-  ne contient que des flashcards ; une flashcard n'a pas de sous-page. `validate` signale les
-  pages mal rangées.
-- **Bibliothèque** : une liste à plat de sources, directement sous `library/`. Le dossier
-  lui-même n'a pas besoin d'`index.md`.
-- **Discussions** : un fichier Markdown par discussion, directement sous `discussions/`.
-- Les noms commençant par `_` ou `.` sont réservés à l'application et ne sont pas des pages.
-- Un dossier sans `index.md` qui contient des pages est affiché comme une catégorie (signalé
-  par `validate`).
-- Les autres fichiers d'un dossier sont des **fichiers joints** de sa page.
-- Ordre des enfants : champ `order`, puis titre (ordre alphabétique français).
-- Ni profondeur ni largeur maximales dans le wiki.
+- **Every page is a folder containing an `index.md`**, whether it has children or not.
+  Subpages are subfolders.
+- **Wiki**: a category contains subcategories and knowledge items; a knowledge item only contains
+  flashcards; a flashcard has no subpage. `validate` reports misplaced pages.
+- **Library**: a flat list of sources, directly under `library/`. The folder itself does not
+  need an `index.md`.
+- **Discussions**: one Markdown file per discussion, directly under `discussions/`.
+- Names starting with `_` or `.` are reserved for the app and are not pages.
+- A folder without `index.md` that contains pages is shown as a category (reported by
+  `validate`).
+- The other files of a folder are **attached files** of its page.
+- Order of children: `order` field, then title (alphabetical order).
+- No maximum depth or width in the wiki.
 
-### Nom des dossiers
+### Folder names
 
-Dérivé du titre : minuscules, sans accents, caractères non alphanumériques remplacés par `-`,
-tronqué à 32 caractères (`folder_name_max_length`) sans couper un mot si possible, suffixe `-2`,
-`-3`… en cas de collision. Quand le titre change, l'application renomme le dossier et réécrit
-les liens entrants (dans les trois espaces) dans le même commit ; l'`id` ne change jamais.
+Derived from the title: lowercase, without accents, non-alphanumeric characters replaced with
+`-`, truncated to 32 characters (`folder_name_max_length`) without cutting a word when possible,
+`-2`, `-3`… suffix on collision. When the title changes, the app renames the folder and rewrites
+the incoming links (in all three spaces) in the same commit; the `id` never changes.
 
 ## Pages (`index.md`)
 
@@ -67,71 +66,76 @@ les liens entrants (dans les trois espaces) dans le même commit ; l'`id` ne cha
 id: 01M6DP0H707WPFZNQATGBZG5SB   # ULID, stable
 type: knowledge                  # category | knowledge | flashcard | source
 title: Lilith
-visibility: public               # public | private ; hérité du parent si absent
+visibility: public               # public | private; inherited from the parent if absent
 created: 2026-11-02T08:29:00Z
 updated: 2026-11-02T08:29:00Z
-tags: [mythologie]
-order: 10                        # facultatif
+tags: [mythology]
+order: 10                        # optional
 ---
 ```
 
-Sans `type`, une page du wiki est une catégorie et une page de la bibliothèque une source
-(`note`, l'ancien type, est lu de la même façon). Un `type` inconnu est signalé. Les clés
-inconnues sont conservées.
+Without `type`, a wiki page is a category and a library page is a source (`note`, the old type,
+is read the same way). An unknown `type` is reported. Unknown keys are kept.
 
-### Catégories
+### Categories
 
-Le corps est un texte d'introduction libre (CommonMark et GFM), facultatif. Une catégorie avec
-des enfants est un **sous-wiki**, décrit par Eugenia (§Descriptions).
+The body is a free introduction text (CommonMark and GFM), optional. A category with children is
+a **sub-wiki**, described by Eugenia (§Descriptions).
 
-### Connaissances atomiques
+When knowledge is extracted from a document, Eugenia looks at the existing categories and at
+all the items of the document together, and proposes the categories that group them best, as
+Wikipedia would: existing categories when they fit exactly, otherwise new categories (possibly
+nested) under the most specific existing one. The user reviews them before the single commit
+that creates the categories and the knowledge.
+
+### Atomic knowledge
 
 ```yaml
 type: knowledge
-extracted_from: 01M6BK4140P9T3R69AH4Y8K1PA   # source ou discussion d'origine (facultatif)
+extracted_from: 01M6BK4140P9T3R69AH4Y8K1PA   # originating source or discussion (optional)
 sources:
-  - ref: 01M6BK4140P9T3R69AH4Y8K1PA        # une source de la bibliothèque
-    locator: p. 12                         # facultatif : page, chapitre, minutage…
-  - description: Conférence au Collège de France   # référence libre, hors bibliothèque
+  - ref: 01M6BK4140P9T3R69AH4Y8K1PA        # a library source
+    locator: p. 12                         # optional: page, chapter, timestamp…
+  - description: Lecture at the Royal Institution   # free reference, outside the library
     url: https://example.org
 ```
 
 ```markdown
-**Lilith** est un démon féminin de la tradition juive, inspiré d'une divinité d'origine mésopotamienne.
+**Lilith** is a female demon of Jewish tradition, inspired by a deity of Mesopotamian origin.
 
 ## Notes
-Voir aussi [la Lune noire](../../science/astronomie/lune-noire/index.md).
+See also [the Black Moon](../../science/astronomy/black-moon/index.md).
 ```
 
-Le corps commence par l'**énoncé** : un texte simple, précis, compréhensible sans contexte. La
-partie en **gras** est la cible d'apprentissage. Des sections libres (`## Notes`…) peuvent
-suivre. La catégorie d'une connaissance est sa position dans l'arbre. Une connaissance sans
-aucune source est signalée **« à sourcer »**.
+The body starts with the **statement**: a simple, precise text, understandable without context.
+The **bold** part is the learning target. Free sections (`## Notes`…) may follow. The category of
+a knowledge item is its position in the tree. A knowledge item without any source is marked
+**"needs a source"**.
 
 ### Flashcards
 
-Une flashcard est une sous-page d'une connaissance, qu'elle teste. Une connaissance peut en
-avoir plusieurs.
+A flashcard is a subpage of a knowledge item, which it tests. A knowledge item can have several.
 
 ```markdown
 ---
 id: 01M6BC89W0J04TZ0V9ZXT186H6
 type: flashcard
-title: Quel est le nom du démon féminin de la tradition juive, inspiré d'une divinité…
+title: What is the name of the female demon of Jewish tradition, inspired by a deity…
 created: 2026-11-02T08:30:00Z
 updated: 2026-11-02T08:30:00Z
 ---
 
 ## Question
-Quel est le nom du démon féminin de la tradition juive, inspiré d'une divinité d'origine mésopotamienne ?
+What is the name of the female demon of Jewish tradition, inspired by a deity of Mesopotamian origin?
 
-## Réponse attendue
+## Expected answer
 Lilith
 ```
 
-Le titre est tiré de la question. Une flashcard n'écrit pas de `visibility` : elle suit celle
-de sa connaissance. Les sections inconnues sont conservées. La maîtrise n'est pas stockée :
-elle est recalculée, flashcard par flashcard, à partir des quiz.
+The title is taken from the question. A flashcard does not write a `visibility`: it follows its
+knowledge item's. Unknown sections are kept. The headings of wikis written in French
+(`## Réponse attendue`, `## Connaissance`) are also read. Mastery is not stored: it is
+recomputed, flashcard by flashcard, from the quizzes.
 
 ### Sources
 
@@ -140,23 +144,27 @@ elle est recalculée, flashcard par flashcard, à partir des quiz.
 id: 01M6BK4140P9T3R69AH4Y8K1PA
 type: source
 kind: article          # book | article | web | video | audio | document | other
-title: Article sur Lilith
-authors: [Jeanne Dupont]
-published: "2019"      # date ou année, texte libre
+title: Article on Lilith
+authors: [Jane Doe]
+published: "2019"      # date or year, free text
 url: https://example.org/lilith
-file: article.pdf      # fichier personnel joint, jamais publié
+file: article.pdf      # attached personal file, never published
 visibility: private
 ---
 ```
 
-Le corps (extraits, résumé, notes de lecture) est le texte d'où Eugenia extrait des
-connaissances. La page d'une source liste les connaissances qui la citent (`sources[].ref`) ou
-qui en ont été extraites (`extracted_from`).
+The body (excerpts, summary, reading notes) is the text Eugenia extracts knowledge from. The page
+of a source lists the knowledge items that cite it (`sources[].ref`) or were extracted from it
+(`extracted_from`).
 
-## Descriptions des sous-wikis
+A private source is published as its **bibliographic record** only: `id`, `type`, `kind`,
+`title`, `authors`, `published`, `url` and `visibility: private`, without body, personal file,
+tags or other keys (§Generated public repository).
 
-`_summary.md` (portée privée : tous les enfants) et `_summary.public.md` (portée publique : les
-seuls enfants publics), dans le dossier de la page décrite :
+## Sub-wiki descriptions
+
+`_summary.md` (private scope: all children) and `_summary.public.md` (public scope: public
+children only), in the folder of the described page:
 
 ```yaml
 ---
@@ -165,25 +173,25 @@ type: summary
 scope: public
 model: claude-opus-5-5
 generated: 2026-11-15T09:00:00Z
-locked: false        # true : ne plus proposer de régénération
-sources:             # empreinte des sources au moment de la génération
-  01M6B5CJM0EDQQYQ3XR5ZN1ACK: a2d07f6    # la page elle-même : SHA de son index.md
-  01M6B8TE80FWZWZ9A13320JP2Z: 600db5a    # un enfant : SHA de sa description ou de son index.md
+locked: false        # true: no longer offer regeneration
+sources:             # fingerprint of the sources at generation time
+  01M6B5CJM0EDQQYQ3XR5ZN1ACK: f05eda9    # the page itself: SHA of its index.md
+  01M6B8TE80FWZWZ9A13320JP2Z: 14afef8    # a child: SHA of its description or of its index.md
 ---
-Texte de la description…
+Text of the description…
 ```
 
-- L'empreinte d'un enfant est le SHA (blob git, 7 caractères) de sa description de même portée
-  s'il a lui-même des enfants et une description, sinon de son `index.md`.
-- Une description est **périmée** quand l'ensemble des sources ou l'un de leurs SHA diffère ; la
-  péremption remonte aux ancêtres, sauf à travers une description verrouillée.
-- La régénération va des nœuds les plus profonds vers la racine.
+- The fingerprint of a child is the SHA (git blob, 7 characters) of its description of the same
+  scope if it has children itself and a description, otherwise of its `index.md`.
+- A description is **stale** when the set of sources or one of their SHAs differs; staleness
+  goes up to the ancestors, except through a locked description.
+- Regeneration goes from the deepest nodes to the root.
 
-## Embeddings (recherche sémantique)
+## Embeddings (semantic search)
 
-`_embedding.json`, dans le dossier de la page, résume le sens de son `index.md` par un vecteur,
-pour la recherche « par le sens » de l'application. Il est calculé par l'application ou par
-`eugenia embed` (Mistral `mistral-embed` par défaut, ou tout fournisseur compatible OpenAI).
+`_embedding.json`, in the folder of the page, sums up the meaning of its `index.md` as a vector,
+for the app's search "by meaning". It is computed by the app or by `eugenia embed` (Mistral
+`mistral-embed` by default, or any OpenAI-compatible provider).
 
 ```json
 {
@@ -199,139 +207,146 @@ pour la recherche « par le sens » de l'application. Il est calculé par l'appl
 }
 ```
 
-- Pages indexées : catégories, connaissances et sources. Les flashcards ne le sont pas : elles
-  reprennent leur connaissance.
-- Texte envoyé au modèle : titre, auteurs (sources), étiquettes, puis contenu en texte brut. Ni
-  frontmatter ni adresse de lien : déplacer une page ou changer sa visibilité ne rend pas son
-  embedding périmé.
-- `text_sha` : SHA (blob git, 7 caractères) de ce texte. L'embedding est **périmé** quand ce SHA
-  ou le modèle diffère ; un embedding d'un autre modèle n'est jamais comparé à la requête.
-- `vector` : composantes quantifiées sur 8 bits signés (base64), à multiplier par `scale`.
-- Le fichier suit la page quand elle est renommée ou déplacée, et disparaît avec elle. Il n'est
-  **jamais publié**, même pour une page publique : il est calculé sur le contenu du dépôt privé.
+- Indexed pages: categories, knowledge items and sources. Flashcards are not: they repeat their
+  knowledge item.
+- Text sent to the model: title, authors (sources), tags, then content as plain text. Neither
+  frontmatter nor link URLs: moving a page or changing its visibility does not make its
+  embedding stale.
+- `text_sha`: SHA (git blob, 7 characters) of this text. The embedding is **stale** when this SHA
+  or the model differs; an embedding from another model is never compared with the query.
+- `vector`: components quantized to signed 8 bits (base64), to multiply by `scale`.
+- The file follows the page when it is renamed or moved, and disappears with it. It is **never
+  published**, not even for a public page: it is computed on the content of the private
+  repository.
 
 ## Discussions
 
-Un fichier par discussion dans `discussions/`, nommé `<date>-<heure>-<titre>.md` (UTC). Une
-section par message (`## <rôle> · <horodatage>`), rôles `user` et `eugenia`. Les métadonnées
-d'un message sont portées par un commentaire HTML invisible.
+One file per discussion in `discussions/`, named `<date>-<time>-<title>.md` (UTC). One section
+per message (`## <role> · <timestamp>`), roles `user` and `eugenia`. The metadata of a message is
+carried by an invisible HTML comment.
 
 ```markdown
 ---
 id: 01M6CJ0SR0BVVET7CEJVMHZCXF
 type: discussion
-kind: quiz                         # discussion (défaut) | question | quiz | note
-title: Quiz — Religion et croyances
-scope_node: 01M6B8TE80FWZWZ9A13320JP2Z   # périmètre : catégorie interrogée, branche d'une question
-about: 01M6DP0H707WPFZNQATGBZG5SB        # page d'où la discussion a été ouverte (facultatif)
+kind: quiz                         # discussion (default) | question | quiz | note
+title: Quiz — Religion and beliefs
+scope_node: 01M6B8TE80FWZWZ9A13320JP2Z   # scope: quizzed category, branch of a question
+about: 01M6DP0H707WPFZNQATGBZG5SB        # page the discussion was opened from (optional)
 visibility: private
 ---
 
 ## eugenia · 2026-11-10T10:30:00Z
 <!-- eugenia: {"card": "01M6BC89W0J04TZ0V9ZXT186H6", "role": "question"} -->
-Quel est le nom du démon féminin… ?
+What is the name of the female demon…?
 
 ## user · 2026-11-10T10:30:20Z
-Je pense que c'est Lilite la Pépite
+I think it is Lilita the Pita
 
 ## eugenia · 2026-11-10T10:30:24Z
 <!-- eugenia: {"card": "01M6BC89W0J04TZ0V9ZXT186H6", "role": "feedback", "score": 0.3} -->
-La réponse est incorrecte : Lilith était attendue.
+The answer is incorrect: Lilith was expected.
 ```
 
-| `kind` | Usage |
+| `kind` | Use |
 |---|---|
-| `discussion` (ou absent) | Discussion libre avec Eugenia, à partir d'une page (`about`) ou non. |
-| `question` | Question sur l'arbre enregistrée, avec son périmètre (`scope_node`). |
-| `quiz` | Session de révision : la trace d'où la maîtrise est recalculée. |
-| `note` | Note rapide : Eugenia y répond par des connaissances candidates et des pistes de sources. |
+| `discussion` (or absent) | Free discussion with Eugenia, from a page (`about`) or not. |
+| `question` | Saved question about the tree, with its scope (`scope_node`). |
+| `quiz` | Review session: the trace mastery is recomputed from. |
+| `note` | Quick note: Eugenia answers it with candidate knowledge and source leads. |
 
-- Une discussion est rattachée aux pages `about` et `scope_node` : elle apparaît sur leur page.
-- Un message de retour (`role: feedback`) d'un quiz porte le **score** dans [0, 1] de la
-  flashcard `card` (`"self": true` pour une auto-évaluation). Seuls les quiz comptent pour la
-  maîtrise.
-- Une connaissance extraite d'une discussion la désigne par son `id` dans `extracted_from`.
-- Une discussion est privée par défaut ; un quiz n'est jamais publié.
+- A discussion is attached to the `about` and `scope_node` pages: it appears on their page.
+- A feedback message (`role: feedback`) of a quiz carries the **score** in [0, 1] of the
+  flashcard `card` (`"self": true` for a self-assessment). Only quizzes count for mastery.
+- A knowledge item extracted from a discussion refers to it by its `id` in `extracted_from`.
+- A discussion is private by default; a quiz is never published.
 
-### Maîtrise
+### Mastery
 
-La maîtrise se calcule par flashcard ; celle d'une connaissance ou d'une catégorie est la
-moyenne de ses flashcards. Pour chaque flashcard, à partir de sa date de création (jour `e` =
-`f`, m = 0,5, β = 0,95), on rejoue chronologiquement les scores x des quiz, au jour d :
+Mastery is computed per flashcard; the mastery of a knowledge item or a category is the average
+of its flashcards. For each flashcard, starting from its creation date (day `e` = `f`, m = 0.5,
+β = 0.95), the quiz scores x are replayed in chronological order, on day d:
 
-1. m ← m · β^(d − e) (déclin) ;
-2. m ← (1 − α) · m + α · x (α = 0,5) ;
-3. si x > 0,5 : β ← 1 − 0,05 / (1 + d − f) ; sinon f ← d et β ← 0,95 ;
+1. m ← m · β^(d − e) (decay);
+2. m ← (1 − α) · m + α · x (α = 0.5);
+3. if x > 0.5: β ← 1 − 0.05 / (1 + d − f); otherwise f ← d and β ← 0.95;
 4. e ← d.
 
-La maîtrise actuelle vaut m · β^(aujourd'hui − e). Les paramètres sont dans la configuration ;
-les modifier s'applique rétroactivement.
+The current mastery is m · β^(today − e). The parameters are in the configuration; changing them
+applies retroactively.
 
-## Liens
+## Links
 
-Liens Markdown **relatifs** vers le `index.md` de la page cible : `[Lilith](../lilith/index.md)`,
-y compris d'un espace à l'autre (`../wiki/…` depuis une discussion). L'application les réécrit
-quand une page est renommée, déplacée ou supprimée (le lien devient alors du texte). Supprimer
-une source transforme ses citations en références libres (son titre). À la publication, un lien
-vers ce qui n'est pas publié devient du texte.
+**Relative** Markdown links to the `index.md` of the target page:
+`[Lilith](../lilith/index.md)`, including from one space to another (`../wiki/…` from a
+discussion). The app rewrites them when a page is renamed, moved or deleted (the link then
+becomes text). Deleting a source turns its citations into free references (its title). On
+publication, a link to something that is not published becomes text.
 
 ## Configuration (`.notes/config.yml`)
 
 ```yaml
-title: Mon wiki
-root: wiki/                         # le wiki
-library: library/                   # la bibliothèque des sources
-discussions: discussions/           # les discussions
-private_repo: alice/eugenia-wiki    # recopié dans le dépôt public (détection du propriétaire)
+title: My wiki
+root: wiki/                         # the wiki
+library: library/                   # the source library
+discussions: discussions/           # the discussions
+private_repo: alice/eugenia-wiki    # copied to the public repository (owner detection)
 default_visibility: private
 folder_name_max_length: 32
 mastery:
   initial: 0.5
   alpha: 0.5
   decay_rate: 0.05
-  success_threshold: 0.5            # réussite si score > 0,5
-  reminder_threshold: 0.4           # rappel de révision sous ce seuil
+  success_threshold: 0.5            # success if score > 0.5
+  reminder_threshold: 0.4           # review reminder below this threshold
 ```
 
-Les réglages personnels (jeton, clés d'API, fournisseur d'IA) ne sont jamais dans le dépôt.
+Personal settings (token, API keys, AI provider) are never in the repository.
 
-## Visibilité
+## Visibility
 
-1. Une nouvelle page est privée.
-2. Sans `visibility`, une page hérite de son parent (la racine : `default_visibility`).
-3. Une page publique ne peut pas avoir d'ancêtre privé (`validate` et la publication refusent).
-4. Rendre une page publique ne rend pas publics ses descendants (l'application propose de les inclure).
-5. Rendre une page privée rend privés tous ses descendants.
-6. Chaque source de la bibliothèque a sa propre visibilité (privée par défaut). Une connaissance
-   publique qui cite une source privée est publiée sans cette référence.
+1. A new page is private.
+2. Without `visibility`, a page inherits from its parent (the root: `default_visibility`).
+3. A public page cannot have a private ancestor (`validate` and the publication refuse it).
+4. Making a page public does not make its descendants public (the app offers to include them).
+5. Making a page private makes all its descendants private.
+6. Each library source has its own visibility (private by default). A private source is published
+   as its bibliographic record only (title, kind, authors, date, URL), so that public knowledge
+   can still cite it; its content, personal file and tags stay private.
 
-## Dépôt public généré
+## Generated public repository
 
-Le dépôt public, écrit uniquement par la publication, contient les pages publiques du wiki et de
-la bibliothèque (sans fichier personnel des sources, ni lien ou référence vers le privé), leurs
-fichiers joints, les descriptions publiques renommées `_summary.md`, les discussions marquées
-publiques (jamais les quiz), une configuration réduite, un `README.md` et `.notes/index.json` :
+The public repository, written by the publication only, contains the public pages of the wiki
+and the library (without personal files of sources, nor links or references to anything
+unpublished), the bibliographic records of private sources, their attached files (public pages
+only), the public descriptions renamed `_summary.md`, the discussions marked public (never
+quizzes), a reduced configuration, a `README.md` and `.notes/index.json`:
 
 ```json
 {
   "format": "eugenia-index",
-  "version": 2,
+  "version": 3,
   "generated": "2026-11-17T16:28:24.202Z",
-  "title": "Wiki de démonstration",
+  "title": "Demo wiki",
   "root": "wiki",
   "library": "library",
   "discussions": "discussions",
   "rootId": "01M6B5CJM0EDQQYQ3XR5ZN1ACK",
   "files": [{ "path": "wiki/index.md", "sha": "a2d07f6…", "size": 540 }],
   "nodes": [
-    { "id": "01M6B5CJM0EDQQYQ3XR5ZN1ACK", "path": "wiki", "type": "category", "title": "Wiki de démonstration",
-      "visibility": "public", "parent": null, "description": "Ce wiki de démonstration rassemble…" },
+    { "id": "01M6B5CJM0EDQQYQ3XR5ZN1ACK", "path": "wiki", "type": "category", "title": "Demo wiki",
+      "visibility": "public", "parent": null, "description": "This is my wiki: I gather…" },
     { "id": "01M6DKS4209DK53G50GBPV3WD6", "path": "library/wikipedia-lilith", "type": "source",
-      "kind": "web", "url": "https://fr.wikipedia.org/wiki/Lilith", "parent": "virtual:library", "…": "…" }
+      "kind": "web", "url": "https://en.wikipedia.org/wiki/Lilith", "parent": "virtual:library", "…": "…" },
+    { "id": "01M6BK4140P9T3R69AH4Y8K1PA", "path": "library/article-on-lilith", "type": "source",
+      "title": "Article on Lilith", "visibility": "private", "kind": "article",
+      "authors": ["Jane Doe"], "url": "https://example.org/lilith", "published": "2019",
+      "parent": "virtual:library" }
   ],
   "discussionList": []
 }
 ```
 
-L'application lit ce fichier sans API GitHub (raw.githubusercontent.com), puis les fichiers à la
-demande, mis en cache par SHA.
+Version 3 of the index adds the bibliographic records of private sources (`"visibility":
+"private"`, without description, tags or dates). The app reads this file without the GitHub API
+(raw.githubusercontent.com), then the files on demand, cached by SHA.

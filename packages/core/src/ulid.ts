@@ -1,4 +1,4 @@
-/** Identifiants ULID : 48 bits d'horodatage + 80 bits aléatoires, en base32 de Crockford. */
+/** ULID identifiers: 48-bit timestamp + 80 random bits, in Crockford's base32. */
 
 const ENCODING = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const ULID_RE = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
@@ -12,7 +12,7 @@ export function ulid(time: number = Date.now(), random?: Uint8Array): string {
   }
   const bytes = random ?? globalThis.crypto.getRandomValues(new Uint8Array(16));
   let randomPart = "";
-  // 256 est un multiple de 32 : le modulo n'introduit aucun biais.
+  // 256 is a multiple of 32: the modulo introduces no bias.
   for (let i = 0; i < 16; i++) randomPart += ENCODING[(bytes[i] ?? 0) % 32]!;
   return timePart + randomPart;
 }
@@ -21,7 +21,7 @@ export function isUlid(value: unknown): value is string {
   return typeof value === "string" && ULID_RE.test(value);
 }
 
-/** Date encodée dans un ULID. */
+/** Date encoded in a ULID. */
 export function ulidTime(id: string): number {
   let t = 0;
   for (const c of id.slice(0, 10)) t = t * 32 + ENCODING.indexOf(c);

@@ -1,4 +1,4 @@
-/** Lecture d'un wiki sur disque (dépôt git local ou dossier extrait). */
+/** Reads a wiki on disk (local git repository or extracted folder). */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import {
@@ -18,7 +18,7 @@ export interface DiskWiki extends LoadedWiki {
   readBytes(path: string): Promise<Uint8Array>;
 }
 
-/** Liste récursive des fichiers, chemins POSIX relatifs au dossier. */
+/** Recursive list of files, as POSIX paths relative to the folder. */
 export async function listFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
   const walk = async (current: string): Promise<void> => {
@@ -47,7 +47,7 @@ export async function repoFiles(dir: string): Promise<RepoFile[]> {
 
 export async function loadDiskWiki(dir: string): Promise<DiskWiki> {
   const info = await stat(dir).catch(() => null);
-  if (!info?.isDirectory()) throw new Error(`Dossier introuvable : ${dir}`);
+  if (!info?.isDirectory()) throw new Error(`Folder not found: ${dir}`);
   const files = await repoFiles(dir);
   const cache = new Map<string, string>();
   const readText = async (path: string): Promise<string> => {

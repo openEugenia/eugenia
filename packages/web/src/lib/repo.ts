@@ -1,4 +1,4 @@
-/** Identifiant d'un dépôt GitHub (`owner/name`). */
+/** Identifier of a GitHub repository (`owner/name`). */
 
 export interface RepoRef {
   owner: string;
@@ -7,7 +7,7 @@ export interface RepoRef {
 
 const NAME_RE = /^[A-Za-z0-9_.-]+$/;
 
-/** Accepte `owner/name`, une URL GitHub ou une URL de l'application (`?repo=`). */
+/** Accepts `owner/name`, a GitHub URL or an app URL (`?repo=`). */
 export function parseRepo(input: string | null | undefined): RepoRef | null {
   if (!input) return null;
   let value = input.trim();
@@ -18,7 +18,7 @@ export function parseRepo(input: string | null | undefined): RepoRef | null {
     else if (url.hostname === "github.com")
       value = url.pathname.replace(/^\/+/, "").split("/").slice(0, 2).join("/");
   } catch {
-    // pas une URL
+    // not a URL
   }
   value = value.replace(/\.git$/, "").replace(/^\/+|\/+$/g, "");
   const [owner, name, ...rest] = value.split("/");

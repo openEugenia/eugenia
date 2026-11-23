@@ -1,4 +1,4 @@
-/** Lecture d'un flux Server-Sent Events (API compatibles OpenAI). */
+/** Reads a Server-Sent Events stream (OpenAI-compatible APIs). */
 
 export interface SSEEvent {
   event?: string;

@@ -1,4 +1,4 @@
-/** Erreurs des appels à l'IA, avec un message destiné à l'utilisateur. */
+/** Errors of AI calls, with a message meant for the user. */
 
 export type AIErrorKind =
   | "auth"

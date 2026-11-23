@@ -1,4 +1,4 @@
-/** Évaluation d'une réponse de quiz : retour détaillé et score dans [0, 1] (§8.3). */
+/** Evaluation of a quiz answer: detailed feedback and score in [0, 1] (§8.3). */
 import { z } from "zod";
 import { systemPrompt, withSignal, type TaskContext } from "./context.ts";
 
@@ -20,10 +20,10 @@ export interface EvaluationInput {
 
 export function evaluationMessage(input: EvaluationInput): string {
   return [
-    `<connaissance>\n${input.knowledge}\n</connaissance>`,
+    `<knowledge>\n${input.knowledge}\n</knowledge>`,
     `<question>\n${input.question}\n</question>`,
-    `<reponse_attendue>\n${input.expected}\n</reponse_attendue>`,
-    `<reponse_utilisateur>\n${input.answer.trim() || "(pas de réponse)"}\n</reponse_utilisateur>`,
+    `<expected_answer>\n${input.expected}\n</expected_answer>`,
+    `<user_answer>\n${input.answer.trim() || "(no answer)"}\n</user_answer>`,
   ].join("\n");
 }
 

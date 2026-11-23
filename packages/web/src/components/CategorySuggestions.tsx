@@ -1,4 +1,4 @@
-/** Suggestions de sous-catégories par Eugenia (§8.1). */
+/** Subcategory suggestions by Eugenia (§8.1). */
 import { useState } from "react";
 import { Lightbulb, Plus } from "lucide-react";
 import {
@@ -41,7 +41,7 @@ export function CategorySuggestions({ node }: { node: WikiNode }) {
           .map((c) => c.description ?? c.title),
       });
       setSuggestions(result);
-      if (result.length === 0) toast("Eugenia ne propose pas de nouvelle sous-catégorie.");
+      if (result.length === 0) toast("Eugenia does not suggest any new subcategory.");
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
@@ -58,9 +58,9 @@ export function CategorySuggestions({ node }: { node: WikiNode }) {
         parentIsPublic: node.isPublic,
         title: suggestion.title,
       });
-      await stage([created.change], `Créer la catégorie « ${suggestion.title} »`);
+      await stage([created.change], `Create the category "${suggestion.title}"`);
       setSuggestions((list) => list?.filter((s) => s !== suggestion) ?? null);
-      toast(`Catégorie « ${suggestion.title} » créée (en attente d'enregistrement).`, "success");
+      toast(`Category "${suggestion.title}" created (waiting to be saved).`, "success");
     } catch (error) {
       toast(errorMessage(error), "error");
     }
@@ -74,8 +74,8 @@ export function CategorySuggestions({ node }: { node: WikiNode }) {
         disabled={busy}
         onClick={() => void suggest()}
       >
-        {busy ? <Spinner small label="Eugenia réfléchit" /> : <Lightbulb aria-hidden="true" />}{" "}
-        Suggérer des sous-catégories
+        {busy ? <Spinner small label="Eugenia is thinking" /> : <Lightbulb aria-hidden="true" />}{" "}
+        Suggest subcategories
       </button>
       {suggestions && suggestions.length > 0 && (
         <ul className="link-list" style={{ marginTop: "0.75rem" }}>
@@ -88,7 +88,7 @@ export function CategorySuggestions({ node }: { node: WikiNode }) {
                 className="oe-button oe-button--ghost oe-button--sm"
                 onClick={() => void create(s)}
               >
-                <Plus aria-hidden="true" /> Créer
+                <Plus aria-hidden="true" /> Create
               </button>
             </li>
           ))}

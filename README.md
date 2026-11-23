@@ -1,120 +1,120 @@
 # Eugenia
 
-**Wiki personnel de connaissances, sur git.** Eugenia aide chacun à extraire, structurer et
-mémoriser durablement les connaissances de son quotidien, puis à les partager. Eugenia est à la
-fois le nom du projet et celui de l'assistante IA qui accompagne l'utilisateur.
+**A personal knowledge wiki, on git.** Eugenia helps everyone extract, structure and durably
+remember the knowledge of their daily life, then share it. Eugenia is both the name of the
+project and of the AI assistant that accompanies the user.
 
-- Vos connaissances sont des **fichiers Markdown dans vos propres dépôts git** : un dépôt privé
-  qui contient tout, un dépôt public généré avec ce que vous choisissez de partager. Aucune base
-  de données centrale ; un compte GitHub gratuit suffit.
-- Trois espaces : le **wiki**, un arbre de catégories (chaque sous-wiki **décrit par Eugenia**)
-  qui contient vos **connaissances atomiques**, chacune testée par une ou plusieurs
-  **flashcards** ; la **bibliothèque**, les sources d'où viennent ces connaissances (livres,
-  articles, sites, PDF) ; les **discussions**, tous vos échanges avec Eugenia (discussions,
-  questions, quiz, notes rapides).
-- Eugenia **extrait des connaissances atomiques** de vos sources, de vos notes rapides et de vos
-  discussions, en les rattachant à leurs sources, puis vous aide à les **réviser** par des quiz
-  conversationnels, avec une maîtrise qui décline avec le temps.
-- **Une seule instance** de l'application, publiée par openEugenia sur GitHub Pages, sert tous
-  les utilisateurs : chacun l'ouvre sur son propre dépôt. Elle fonctionne **hors ligne** (PWA).
+- Your knowledge is **Markdown files in your own git repositories**: a private repository that
+  holds everything, and a generated public repository with what you choose to share. No central
+  database; a free GitHub account is enough.
+- Three spaces: the **wiki**, a tree of categories (each sub-wiki **described by Eugenia**) that
+  holds your **atomic knowledge**, each item tested by one or more **flashcards**; the
+  **library**, the sources this knowledge comes from (books, articles, websites, PDFs); the
+  **discussions**, all your exchanges with Eugenia (discussions, questions, quizzes, quick notes).
+- Eugenia **extracts atomic knowledge** from your sources, quick notes and discussions, linking
+  it to its sources and filing it into categories as Wikipedia would, then helps you **review**
+  it with conversational quizzes, with a mastery that decays over time.
+- **A single instance** of the app, published by openEugenia on GitHub Pages, serves every user:
+  each one opens it on their own repository. It works **offline** (PWA).
 
-Application : <https://openeugenia.github.io/eugenia/> · Spécifications : [`specifications/`](specifications/README.md)
+App: <https://openeugenia.github.io/eugenia/> · Specification: [`specifications/`](specifications/README.md)
 
-## Démarrer
+## Getting started
 
-### Créer son wiki
+### Create your wiki
 
-Avec la CLI (Node.js 22.12 ou plus, pnpm 10, [GitHub CLI](https://cli.github.com/) connectée) :
+With the CLI (Node.js 22.12 or later, pnpm 10, [GitHub CLI](https://cli.github.com/) logged in):
 
 ```sh
 git clone https://github.com/openEugenia/eugenia.git && cd eugenia
 pnpm install && pnpm --filter @openeugenia/cli build
-node packages/cli/dist/eugenia.mjs init ../mon-wiki --title "Mon wiki" --github
+node packages/cli/dist/eugenia.mjs init ../my-wiki --title "My wiki" --github
 ```
 
-`--github` crée le dépôt privé, le dépôt public, la clé de déploiement et le secret de
-publication. Sans cette option, seuls les fichiers sont créés (configuration, racine et les
-15 catégories par défaut). On peut aussi créer le wiki depuis l'application (« Nouveau wiki »)
-dans un dépôt privé vide.
+`--github` creates the private repository, the public repository, the deploy key and the
+publication secret. Without this option, only the files are created (configuration, root and the
+15 default categories). You can also create the wiki from the app ("New wiki") in an empty
+private repository.
 
-### L'ouvrir
+### Open it
 
-1. Créez un [jeton fine-grained](https://github.com/settings/personal-access-tokens/new) limité au
-   dépôt privé du wiki, avec la permission « Contents » en lecture et écriture.
-2. Ouvrez `https://openeugenia.github.io/eugenia/?repo=<compte>/<dépôt>` et saisissez le jeton
-   dans les paramètres, ainsi que votre fournisseur d'IA (clé Claude, serveur compatible OpenAI ou
-   Ollama local).
+1. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) limited
+   to the private repository of the wiki, with the "Contents" permission in read and write.
+2. Open `https://openeugenia.github.io/eugenia/?repo=<account>/<repository>` and enter the token
+   in the settings, along with your AI provider (Claude key, OpenAI-compatible server or local
+   Ollama).
 
-N'importe qui peut lire votre partie publique avec `?repo=<compte>/<dépôt-public>` ; vous, avec
-votre jeton, y voyez aussi la partie privée.
+Anyone can read your public part with `?repo=<account>/<public-repository>`; with your token, you
+also see the private part.
 
-### Publier la partie publique
+### Publish the public part
 
-Chaque push sur le dépôt privé déclenche l'action [`openEugenia/eugenia`](action.yml), qui publie
-les seuls nœuds publics dans le dépôt public, en réécrivant son historique. Voir
-[docs/publication.md](docs/publication.md).
+Every push to the private repository triggers the [`openEugenia/eugenia`](action.yml) action,
+which publishes the public nodes only to the public repository, rewriting its history. Private
+sources are published as their bibliographic record only (title, kind, authors, date, URL), so
+that public knowledge can still cite them. See [docs/publication.md](docs/publication.md).
 
-## Fonctionnalités (v1)
+## Features (v1)
 
 | | |
 |---|---|
-| **Wiki** | Arbre repliable de catégories et de connaissances atomiques, descriptions des sous-wikis (rédigées à la première personne), jauges de maîtrise, connaissances « à sourcer » signalées, rétroliens, recherche plein texte ou par le sens (embeddings Mistral), graphe radial, tableau de bord. |
-| **Bibliothèque** | Sources à plat (livre, article, site, vidéo, audio, document), filtres par nature et étiquette, fichier personnel jamais publié, connaissances qui citent chaque source. |
-| **Édition** | Catégories et sources en Markdown (CodeMirror), connaissances atomiques (énoncé, cible en gras, sources de la bibliothèque avec localisation), flashcards (question, réponse), liens par recherche de titre (`[[`). Renommer ou déplacer une page réécrit ses liens entrants. Toutes les modifications partent en un seul commit. |
-| **Visibilité** | Privé par défaut ; une page publique n'a jamais d'ancêtre privé ; les liens vers le privé deviennent du texte à la publication ; les fichiers personnels et les quiz ne sont jamais publiés. |
-| **Extraction** | Depuis une source, une discussion, une note rapide, un texte collé ou un PDF (qui devient une source) : surlignage par Eugenia et par vous, propositions de connaissances, de leur première flashcard et de catégories, création en un commit. Eugenia propose aussi de nouvelles flashcards pour une connaissance. |
-| **Révision** | Quiz sur les flashcards par maîtrise croissante, évaluation par Eugenia ou auto-évaluation hors ligne, maîtrise recalculée en rejouant les quiz, rappels. |
-| **Discussions** | Une section qui rassemble discussions, questions, quiz et notes rapides, filtrables par sorte ; discussion depuis n'importe quelle page, note rapide à laquelle Eugenia répond aussitôt (connaissances candidates, pistes de sources), résumé de l'échange, extraction ; questions sur tout l'arbre avec citations. |
-| **IA** | Claude (par défaut `claude-opus-5-5`), tout fournisseur compatible OpenAI, Ollama. Option « IA locale pour le privé ». Prompts versionnés et surchargeables. |
-| **Hors ligne** | Copie locale (IndexedDB), file de commits, résolution de conflits nœud par nœud. |
+| **Wiki** | Collapsible tree of categories and atomic knowledge, sub-wiki descriptions (written in the first person), mastery gauges, knowledge that "needs a source" flagged, backlinks, full-text search or search by meaning (Mistral embeddings), radial graph, dashboard. |
+| **Library** | Flat list of sources (book, article, website, video, audio, document), filters by kind and tag, personal file never published, knowledge that cites each source. Private sources show only their bibliographic record in the public part. |
+| **Editing** | Categories and sources in Markdown (CodeMirror), atomic knowledge (statement, bold target, library sources with location), flashcards (question, answer), links by title search (`[[`). Renaming or moving a page rewrites its incoming links. All changes go out in a single commit. |
+| **Visibility** | Private by default; a public page never has a private ancestor; links to private content become text on publication; personal files and quizzes are never published; private sources only publish their bibliographic record. |
+| **Extraction** | From a source, a discussion, a quick note, a pasted text or a PDF (which becomes a source): highlighting by Eugenia and by you, proposals of knowledge and of its first flashcard, then the categories that best group the knowledge of the document, as Wikipedia would (existing ones, or new ones to review), and creation in one commit. Eugenia also proposes new flashcards for a knowledge item. |
+| **Review** | Quizzes on flashcards by increasing mastery, evaluation by Eugenia or offline self-assessment, mastery recomputed by replaying quizzes, reminders. |
+| **Discussions** | A section that gathers discussions, questions, quizzes and quick notes, filterable by kind; discussion from any page, quick note that Eugenia answers right away (candidate knowledge, source leads), summary of the exchange, extraction; questions about the whole tree with citations. |
+| **AI** | Claude (default `claude-opus-5-5`), any OpenAI-compatible provider, Ollama. "Local AI for private content" option. Versioned, overridable prompts. |
+| **Offline** | Local copy (IndexedDB), commit queue, node-by-node conflict resolution. |
 
-Prévu après la v1 (spécification §14) : connexion « avec GitHub » (GitHub App), transcription
-audio et vidéo, notifications, fonctions sociales (similarité entre wikis, discussions publiques,
-fil d'actualité).
+Planned after v1 (specification §14): "Sign in with GitHub" (GitHub App), audio and video
+transcription, notifications, social features (similarity between wikis, public discussions,
+news feed).
 
-## Organisation du dépôt
+## Repository layout
 
 ```
 packages/
-  core/   Modèle de données : trois espaces (wiki, bibliothèque, discussions), format des
-          pages, arbre, nommage, liens, visibilité, publication, descriptions périmées,
-          algorithme de maîtrise. Sans dépendance navigateur ni Node.
-  ai/     Eugenia : fournisseurs (Claude via le SDK officiel, compatible OpenAI, Ollama),
-          prompts (prompts/*.md) et tâches (extraction, flashcards, descriptions,
-          évaluation, discussion, note rapide, questions sur l'arbre).
-  cli/    `eugenia init | validate | publish | summarize`, construite en un seul fichier
-          et utilisée par l'action de publication.
-  web/    Application React (PWA) : vues, synchronisation git, copie hors ligne.
-examples/demo-wiki/   Wiki de démonstration (dépôt privé type).
-docs/                 Format de stockage, publication.
-action.yml            GitHub Action de publication.
-specifications/       Spécifications et documentation fonctionnelle.
+  core/   Data model: three spaces (wiki, library, discussions), page format, tree, naming,
+          links, visibility, publication, stale descriptions, mastery algorithm. No browser
+          or Node dependency.
+  ai/     Eugenia: providers (Claude through the official SDK, OpenAI-compatible, Ollama),
+          prompts (prompts/*.md) and tasks (extraction, categorization, flashcards,
+          descriptions, evaluation, discussion, quick note, questions about the tree).
+  cli/    `eugenia init | validate | publish | summarize | embed`, built into a single file
+          and used by the publication action.
+  web/    React app (PWA): views, git synchronization, offline copy.
+examples/demo-wiki/   Demo wiki (typical private repository).
+docs/                 Storage format, publication.
+action.yml            Publication GitHub Action.
+specifications/       Specification and functional documentation.
 ```
 
-## Développer
+## Development
 
-Prérequis : Node.js 22.12 ou plus, pnpm 10 (`npx pnpm@10` convient).
+Prerequisites: Node.js 22.12 or later, pnpm 10 (`npx pnpm@10` works).
 
 ```sh
 pnpm install
-pnpm dev          # application sur http://localhost:5173/eugenia/
-pnpm test         # tests unitaires (core, ai, cli, web)
-pnpm test:e2e     # tests de bout en bout (Playwright ; GitHub et Claude simulés)
+pnpm dev          # app on http://localhost:5173/eugenia/
+pnpm test         # unit tests (core, ai, cli, web)
+pnpm test:e2e     # end-to-end tests (Playwright; GitHub and Claude simulated)
 pnpm typecheck
-pnpm build        # application (packages/web/dist) et CLI (packages/cli/dist)
+pnpm build        # app (packages/web/dist) and CLI (packages/cli/dist)
 pnpm eugenia validate examples/demo-wiki
 ```
 
-Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les conventions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the conventions.
 
 ## Documentation
 
-- [Format de stockage](docs/format.md) : modifier un wiki à la main, sans l'application.
-- [Publication](docs/publication.md) : dépôts, clé de déploiement, action.
-- [Prompts d'Eugenia](packages/ai/prompts/README.md) : ce qui est demandé à l'IA, et comment le surcharger.
-- [Spécifications](specifications/README.md) et [documentation fonctionnelle](specifications/functional_doc/).
+- [Storage format](docs/format.md): editing a wiki by hand, without the app.
+- [Publication](docs/publication.md): repositories, deploy key, action, private sources.
+- [Eugenia's prompts](packages/ai/prompts/README.md): what the AI is asked, and how to override it.
+- [Specification](specifications/README.md) and [functional documentation](specifications/functional_doc/).
 
-## Licence
+## License
 
-[MIT](LICENSE). La charte graphique openEugenia, incluse dans `packages/web/src/vendor/`, est
-également sous licence MIT.
+[MIT](LICENSE). The openEugenia graphic charter, included in `packages/web/src/vendor/`, is also
+under the MIT license.

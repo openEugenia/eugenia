@@ -1,4 +1,4 @@
-/** Accès aux données du wiki depuis les composants. */
+/** Access to the wiki data from components. */
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { WikiNode } from "@openeugenia/core";
 import { canEdit, useWiki } from "../store/wiki.ts";
@@ -6,7 +6,7 @@ import type { Derived } from "./workspace.ts";
 
 export function useDerived(): Derived {
   const derived = useWiki((s) => s.derived);
-  if (!derived) throw new Error("Wiki non chargé.");
+  if (!derived) throw new Error("Wiki not loaded.");
   return derived;
 }
 
@@ -25,9 +25,9 @@ export function useIsOwner(): boolean {
 }
 
 /**
- * Amène le début de l'élément référencé en haut de la zone visible, après le rendu qui suit
- * chaque appel à `reveal()` : sert à montrer une nouvelle réponse d'Eugenia dès qu'elle
- * apparaît, sans suivre la suite du texte pendant qu'on le lit.
+ * Brings the start of the referenced element to the top of the visible area, after the render
+ * that follows each call to `reveal()`: used to show a new answer from Eugenia as soon as it
+ * appears, without following the rest of the text while it is being read.
  */
 export function useReveal<T extends HTMLElement>(): {
   ref: RefObject<T | null>;
@@ -50,7 +50,7 @@ export interface AsyncState<T> {
   error: string | undefined;
 }
 
-/** Contenu texte d'un fichier de la vue de travail ; se recharge quand le wiki change. */
+/** Text content of a file of the working view; reloads when the wiki changes. */
 export function useText(path: string | undefined): AsyncState<string> {
   const workspace = useWiki((s) => s.workspace);
   const version = useWiki((s) => s.version);
@@ -88,7 +88,7 @@ export function useText(path: string | undefined): AsyncState<string> {
   return state;
 }
 
-/** Adresse locale (objet Blob) d'un fichier joint, libérée au démontage. */
+/** Local URL (Blob object) of an attached file, released on unmount. */
 export function useBinaryUrl(path: string | undefined): AsyncState<string> {
   const workspace = useWiki((s) => s.workspace);
   const [state, setState] = useState<AsyncState<string>>({
@@ -130,7 +130,7 @@ export function useBinaryUrl(path: string | undefined): AsyncState<string> {
   return state;
 }
 
-/** Ouvre un fichier joint dans un nouvel onglet. */
+/** Opens an attached file in a new tab. */
 export async function openAttachment(path: string): Promise<void> {
   const workspace = useWiki.getState().workspace;
   if (!workspace) return;

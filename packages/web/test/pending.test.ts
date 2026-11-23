@@ -17,34 +17,34 @@ async function remote(files: Record<string, string>): Promise<Map<string, RepoFi
   return out;
 }
 
-describe("modifications en attente", async () => {
+describe("pending changes", async () => {
   const base = await remote({
     "wiki/a/index.md": "A",
     "wiki/b/index.md": "B",
     "wiki/a/photo.png": "PNG",
   });
 
-  it("garde le SHA distant de la première modification", async () => {
+  it("keeps the remote SHA of the first change", async () => {
     let state = await stageChanges(
       emptyPending(),
       [{ op: "write", path: "wiki/a/index.md", content: "A1" }],
       base,
-      "Modifier A",
+      "Edit A",
     );
     state = await stageChanges(
       state,
       [{ op: "write", path: "wiki/a/index.md", content: "A2" }],
       base,
-      "Modifier A encore",
+      "Edit A again",
     );
     const change = state.changes["wiki/a/index.md"]!;
     expect(change.baseSha).toBe(base.get("wiki/a/index.md")!.sha);
     expect(change.content).toBe("A2");
     expect(change.sha).toBe(await gitBlobSha("A2"));
-    expect(state.log.map((e) => e.description)).toEqual(["Modifier A", "Modifier A encore"]);
+    expect(state.log.map((e) => e.description)).toEqual(["Edit A", "Edit A again"]);
   });
 
-  it("oublie une modification qui revient au contenu d'origine", async () => {
+  it("forgets a change that goes back to the original content", async () => {
     let state = await stageChanges(
       emptyPending(),
       [{ op: "write", path: "wiki/a/index.md", content: "A1" }],
@@ -61,23 +61,23 @@ describe("modifications en attente", async () => {
     expect(state.log).toEqual([]);
   });
 
-  it("une page créée puis supprimée ne laisse aucune trace", async () => {
+  it("a page created then deleted leaves no trace", async () => {
     let state = await stageChanges(
       emptyPending(),
       [{ op: "write", path: "wiki/c/index.md", content: "C" }],
       base,
-      "Créer C",
+      "Create C",
     );
     state = await stageChanges(
       state,
       [{ op: "delete", path: "wiki/c/index.md" }],
       base,
-      "Supprimer C",
+      "Delete C",
     );
     expect(state.changes).toEqual({});
   });
 
-  it("calcule la vue de travail (déplacement d'un fichier joint)", async () => {
+  it("computes the working view (move of an attached file)", async () => {
     const state = await stageChanges(
       emptyPending(),
       [
@@ -90,7 +90,7 @@ describe("modifications en attente", async () => {
         { op: "delete", path: "wiki/a/photo.png" },
       ],
       base,
-      "Déplacer la photo",
+      "Move the photo",
     );
     const files = workingFiles(base.values(), state);
     expect(files.has("wiki/a/photo.png")).toBe(false);
@@ -98,12 +98,12 @@ describe("modifications en attente", async () => {
     expect(state.changes["wiki/b/photo.png"]!.kind).toBe("copy");
   });
 
-  it("recopie le contenu quand la source d'une copie n'existe pas encore à distance", async () => {
+  it("copies the content when the source of a copy does not exist remotely yet", async () => {
     let state = await stageChanges(
       emptyPending(),
       [{ op: "write", path: "wiki/c/index.md", content: "C" }],
       base,
-      "Créer",
+      "Create",
     );
     state = await stageChanges(
       state,
@@ -117,7 +117,7 @@ describe("modifications en attente", async () => {
         { op: "delete", path: "wiki/c/index.md" },
       ],
       base,
-      "Renommer",
+      "Rename",
     );
     expect(state.changes["wiki/d/index.md"]).toMatchObject({
       kind: "write",
@@ -127,30 +127,28 @@ describe("modifications en attente", async () => {
     expect(state.changes["wiki/c/index.md"]).toBeUndefined();
   });
 
-  it("met en file des commits et génère leur message", async () => {
+  it("queues commits and generates their message", async () => {
     let state = await stageChanges(
       emptyPending(),
       [{ op: "write", path: "wiki/a/index.md", content: "A1" }],
       base,
-      "Modifier « A »",
+      'Edit "A"',
     );
     state = await stageChanges(
       state,
       [{ op: "write", path: "wiki/b/index.md", content: "B1" }],
       base,
-      "Modifier « B »",
+      'Edit "B"',
     );
-    expect(generatedMessage(state)).toBe(
-      "Modifier « A » (+1)\n\n- Modifier « A »\n- Modifier « B »",
-    );
-    state = queueCommit(state, "Premier", ["wiki/a/index.md"]);
+    expect(generatedMessage(state)).toBe('Edit "A" (+1)\n\n- Edit "A"\n- Edit "B"');
+    state = queueCommit(state, "First", ["wiki/a/index.md"]);
     expect(uncommittedPaths(state)).toEqual(["wiki/b/index.md"]);
     state = queueCommit(state, "Second");
     expect(state.queue.map((c) => [c.message, c.paths])).toEqual([
-      ["Premier", ["wiki/a/index.md"]],
+      ["First", ["wiki/a/index.md"]],
       ["Second", ["wiki/b/index.md"]],
     ]);
     state = discardChanges(state, ["wiki/b/index.md"]);
-    expect(state.queue.map((c) => c.message)).toEqual(["Premier"]);
+    expect(state.queue.map((c) => c.message)).toEqual(["First"]);
   });
 });

@@ -1,21 +1,21 @@
 /**
- * Modifications locales en attente (§9.3, §10.3) : regroupées puis commitées en un seul
- * commit, ou placées dans une file quand le réseau manque. Fonctions pures, testées.
+ * Pending local changes (§9.3, §10.3): grouped then committed in a single commit, or queued
+ * when the network is missing. Pure, tested functions.
  */
 import { base64ToBytes, gitBlobSha, ulid, type FileChange, type RepoFile } from "@openeugenia/core";
 
 export interface PendingChange {
   path: string;
   kind: "write" | "delete" | "copy";
-  /** Contenu texte (écriture). */
+  /** Text content (write). */
   content?: string;
-  /** Contenu binaire en base64 (fichier joint). */
+  /** Binary content in base64 (attached file). */
   base64?: string;
-  /** SHA du blob copié (déplacement sans renvoyer le contenu). */
+  /** SHA of the copied blob (a move without re-sending the content). */
   fromSha?: string;
-  /** SHA du blob résultant. */
+  /** SHA of the resulting blob. */
   sha?: string;
-  /** SHA distant au moment de la première modification (`null` : fichier nouveau). */
+  /** Remote SHA at the time of the first change (`null`: new file). */
   baseSha: string | null;
   updatedAt: string;
 }
@@ -36,11 +36,11 @@ export interface QueuedCommit {
 
 export interface Conflict {
   path: string;
-  /** Contenu local (`null` : suppression locale). */
+  /** Local content (`null`: deleted locally). */
   local: string | null;
-  /** Fichier binaire : seules les résolutions « local » ou « distant » sont possibles. */
+  /** Binary file: only the "local" or "remote" resolutions are possible. */
   binary?: boolean;
-  /** SHA et contenu distants (`null` : supprimé à distance). */
+  /** Remote SHA and content (`null`: deleted remotely). */
   remoteSha: string | null;
   remote: string | null;
 }
@@ -59,9 +59,8 @@ export function emptyPending(): PendingState {
 }
 
 /**
- * Ajoute des modifications aux changements en attente. Le SHA distant de référence est
- * celui du premier changement d'un fichier ; une modification qui revient au contenu
- * d'origine disparaît.
+ * Adds changes to the pending changes. The reference remote SHA is the one of the first change
+ * of a file; a change that goes back to the original content disappears.
  */
 export async function stageChanges(
   state: PendingState,
@@ -113,7 +112,7 @@ export async function stageChanges(
         if (change.sha === baseSha) {
           delete next.changes[change.path];
         } else if (source?.kind === "write") {
-          // La source n'existe pas encore à distance : on recopie son contenu.
+          // The source does not exist remotely yet: copy its content.
           const copy: PendingChange = {
             path: change.path,
             kind: "write",
@@ -150,7 +149,7 @@ export async function stageChanges(
   return prune(next);
 }
 
-/** Retire du journal et de la file les chemins qui n'ont plus de modification. */
+/** Removes from the log and the queue the paths that no longer have a change. */
 function prune(state: PendingState): PendingState {
   const has = (p: string): boolean => p in state.changes;
   return {
@@ -164,7 +163,7 @@ function prune(state: PendingState): PendingState {
   };
 }
 
-/** Vue de travail : fichiers distants modifiés par les changements en attente. */
+/** Working view: remote files modified by the pending changes. */
 export function workingFiles(
   remote: Iterable<RepoFile>,
   state: PendingState,
@@ -178,13 +177,13 @@ export function workingFiles(
   return files;
 }
 
-/** Chemins modifiés qui ne font encore partie d'aucun commit en file. */
+/** Changed paths that are not part of any queued commit yet. */
 export function uncommittedPaths(state: PendingState): string[] {
   const queued = new Set(state.queue.flatMap((c) => c.paths));
   return Object.keys(state.changes).filter((p) => !queued.has(p));
 }
 
-/** Met en file un commit portant sur `paths` (par défaut : tout ce qui n'est pas en file). */
+/** Queues a commit on `paths` (by default: everything that is not queued). */
 export function queueCommit(
   state: PendingState,
   message: string,
@@ -205,7 +204,7 @@ export function queueCommit(
   };
 }
 
-/** Annule des modifications locales (toutes si `paths` est absent). */
+/** Discards local changes (all of them if `paths` is absent). */
 export function discardChanges(state: PendingState, paths?: readonly string[]): PendingState {
   if (!paths)
     return { ...emptyPending(), ...(state.lastSyncAt ? { lastSyncAt: state.lastSyncAt } : {}) };
@@ -218,7 +217,7 @@ export function discardChanges(state: PendingState, paths?: readonly string[]): 
   });
 }
 
-/** Message de commit généré à partir du journal des modifications. */
+/** Commit message generated from the log of changes. */
 export function generatedMessage(state: PendingState, paths?: readonly string[]): string {
   const wanted = paths ? new Set(paths) : null;
   const descriptions: string[] = [];
@@ -226,7 +225,7 @@ export function generatedMessage(state: PendingState, paths?: readonly string[])
     if (wanted && !entry.paths.some((p) => wanted.has(p))) continue;
     if (!descriptions.includes(entry.description)) descriptions.push(entry.description);
   }
-  if (descriptions.length === 0) return "Eugenia : mise à jour du wiki";
+  if (descriptions.length === 0) return "Eugenia: wiki update";
   if (descriptions.length === 1) return descriptions[0]!;
   return `${descriptions[0]} (+${descriptions.length - 1})\n\n${descriptions.map((d) => `- ${d}`).join("\n")}`;
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Génère les icônes PNG de la PWA à partir du logo de la charte (public/icons/mark.svg).
-// Nécessite rsvg-convert (librsvg). Les fichiers produits sont versionnés.
+// Generates the PNG icons of the PWA from the charter's logo (public/icons/mark.svg).
+// Requires rsvg-convert (librsvg). The generated files are versioned.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -28,7 +28,7 @@ for (const [size, name] of [
   render(mark, size, name);
 }
 
-// Icône « maskable » : le logo réduit dans la zone sûre, sur le fond de la charte.
+// "Maskable" icon: the logo shrunk into the safe zone, on the charter's background.
 const svg = readFileSync(mark, "utf8");
 const inner = svg.replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
 const maskable = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1208 1208">
@@ -38,4 +38,4 @@ const maskable = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1208 1208
 const maskablePath = join(icons, "maskable.svg");
 writeFileSync(maskablePath, maskable);
 render(maskablePath, 512, "maskable-512.png");
-console.log("Icônes générées dans", icons);
+console.log("Icons generated in", icons);

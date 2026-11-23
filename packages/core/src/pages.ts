@@ -1,6 +1,6 @@
 /**
- * Documents des pages (`index.md`) : catégories, connaissances atomiques, flashcards et
- * sources de la bibliothèque (§5.3, §5.4, §5.7).
+ * Page documents (`index.md`): categories, atomic knowledge, flashcards and library
+ * sources (§5.3, §5.4, §5.7).
  */
 import {
   asNumber,
@@ -22,25 +22,25 @@ export interface PageFields {
   updated?: string;
   tags?: string[];
   order?: number;
-  /** Connaissance : sources citées. */
+  /** Knowledge: cited sources. */
   sources?: SourceRef[];
-  /** Connaissance : source ou discussion d'où elle a été extraite. */
+  /** Knowledge: source or discussion it was extracted from. */
   extracted_from?: string;
-  /** Source : nature (livre, article, site…). */
+  /** Source: kind (book, article, website…). */
   kind?: SourceKind;
-  /** Source : auteurs. */
+  /** Source: authors. */
   authors?: string[];
-  /** Source : adresse. */
+  /** Source: URL. */
   url?: string;
-  /** Source : date ou année de publication (texte libre). */
+  /** Source: publication date or year (free text). */
   published?: string;
-  /** Source : fichier personnel joint (PDF…), relatif au dossier de la page, jamais publié. */
+  /** Source: attached personal file (PDF…), relative to the page folder, never published. */
   file?: string;
 }
 
 export interface PageDocument {
   fields: PageFields;
-  /** Clés de frontmatter non reconnues, conservées telles quelles. */
+  /** Unrecognized frontmatter keys, kept as is. */
   extra: Record<string, unknown>;
   body: string;
   error?: string;
@@ -128,7 +128,7 @@ export function parsePage(text: string): PageDocument {
   for (const [key, value] of Object.entries(d)) if (!PAGE_KEYS.has(key)) extra[key] = value;
   const doc: PageDocument = { fields, extra, body: parsed.body };
   if (parsed.error) doc.error = parsed.error;
-  else if (!parsed.hasFrontmatter) doc.error = "Pas de frontmatter YAML.";
+  else if (!parsed.hasFrontmatter) doc.error = "No YAML frontmatter.";
   return doc;
 }
 
@@ -162,34 +162,34 @@ function serializeSourceRef(s: SourceRef): Record<string, string> {
   return o;
 }
 
-/** Libellé d'une référence libre (sans source de la bibliothèque). */
+/** Label of a free reference (without a library source). */
 export function sourceRefLabel(s: SourceRef): string {
   return s.description || s.url || s.ref || "";
 }
 
 // ---------------------------------------------------------------------------
-// Flashcards : sections « Question » et « Réponse attendue »
+// Flashcards: "Question" and "Expected answer" sections
 // ---------------------------------------------------------------------------
 
 /**
- * Corps d'une flashcard. La connaissance testée est la page parente ; les flashcards du
- * format v1 portaient aussi l'énoncé (section « Connaissance »), lu dans `knowledge`.
+ * Body of a flashcard. The tested knowledge is the parent page; format-v1 flashcards also
+ * carried the statement ("Knowledge" section), read into `knowledge`.
  */
 export interface FlashcardContent {
   question: string;
   answer: string;
-  /** Énoncé (format v1, ou flashcard isolée). */
+  /** Statement (format v1, or standalone flashcard). */
   knowledge?: string;
-  /** Texte avant la première section reconnue. */
+  /** Text before the first recognized section. */
   preamble?: string;
-  /** Sections non reconnues, avec leur titre. */
+  /** Unrecognized sections, with their heading. */
   others?: string;
 }
 
 export const FLASHCARD_HEADINGS = {
-  knowledge: "Connaissance",
+  knowledge: "Knowledge",
   question: "Question",
-  answer: "Réponse attendue",
+  answer: "Expected answer",
 } as const;
 
 function normalizeHeading(heading: string): string {
@@ -202,17 +202,19 @@ function normalizeHeading(heading: string): string {
     .trim();
 }
 
+/** Recognized headings, normalized. The French ones are read for wikis written in French. */
 const HEADING_ALIASES: Record<string, keyof typeof FLASHCARD_HEADINGS> = {
+  knowledge: "knowledge",
+  "atomic knowledge": "knowledge",
+  statement: "knowledge",
+  question: "question",
+  "expected answer": "answer",
+  answer: "answer",
   connaissance: "knowledge",
   "connaissance atomique": "knowledge",
   enonce: "knowledge",
-  knowledge: "knowledge",
-  "atomic knowledge": "knowledge",
-  question: "question",
   "reponse attendue": "answer",
   reponse: "answer",
-  "expected answer": "answer",
-  answer: "answer",
 };
 
 export function parseFlashcardBody(body: string): FlashcardContent {
@@ -269,24 +271,24 @@ export function serializeFlashcardBody(content: FlashcardContent): string {
   return parts.join("\n\n") + "\n";
 }
 
-/** Titre d'une flashcard tiré de sa question. */
+/** Title of a flashcard, taken from its question. */
 export function flashcardTitle(question: string, max = 80): string {
   const text = markdownToText(question).replace(/\s+/g, " ").trim();
   return truncate(text, max) || "Flashcard";
 }
 
 // ---------------------------------------------------------------------------
-// Connaissances atomiques : l'énoncé est le corps de la page
+// Atomic knowledge: the statement is the page body
 // ---------------------------------------------------------------------------
 
 export interface KnowledgeContent {
-  /** Énoncé autonome ; la partie en gras est la cible d'apprentissage. */
+  /** Self-contained statement; the bold part is the learning target. */
   statement: string;
-  /** Sections libres qui suivent l'énoncé (`## Notes`…), avec leur titre. */
+  /** Free sections following the statement (`## Notes`…), with their heading. */
   notes?: string;
 }
 
-/** Corps d'une connaissance : l'énoncé, puis d'éventuelles sections libres. */
+/** Body of a knowledge item: the statement, then optional free sections. */
 export function parseKnowledgeBody(body: string): KnowledgeContent {
   const lines = body.split(/\r?\n/);
   let inFence = false;
@@ -309,12 +311,12 @@ export function serializeKnowledgeBody(content: KnowledgeContent): string {
   return parts.join("\n\n") + "\n";
 }
 
-/** Énoncé d'une connaissance (sans ses notes). */
+/** Statement of a knowledge item (without its notes). */
 export function knowledgeStatement(body: string): string {
   return parseKnowledgeBody(body).statement;
 }
 
-/** Cibles d'apprentissage : parties en gras de l'énoncé. */
+/** Learning targets: bold parts of the statement. */
 export function learningTargets(knowledge: string): string[] {
   return boldParts(knowledge);
 }
@@ -322,8 +324,8 @@ export function learningTargets(knowledge: string): string[] {
 export const DESCRIPTION_LENGTH = 220;
 
 /**
- * Description courte d'une page : énoncé d'une connaissance, question d'une flashcard,
- * premier paragraphe sinon.
+ * Short description of a page: statement of a knowledge item, question of a flashcard,
+ * first paragraph otherwise.
  */
 export function shortDescription(doc: Pick<PageDocument, "fields" | "body">): string | undefined {
   let text: string;
@@ -339,7 +341,7 @@ export function shortDescription(doc: Pick<PageDocument, "fields" | "body">): st
   return short === "" ? undefined : short;
 }
 
-/** Métadonnées d'arbre extraites d'un `index.md`. */
+/** Tree metadata extracted from an `index.md`. */
 export function pageMeta(text: string): PageMeta {
   const doc = parsePage(text);
   const f = doc.fields;
@@ -352,7 +354,7 @@ export function pageMeta(text: string): PageMeta {
   if (f.created) meta.created = f.created;
   if (f.updated) meta.updated = f.updated;
   if (f.extracted_from) meta.extracted_from = f.extracted_from;
-  // Champs de source (lus quel que soit le type : c'est l'espace qui décide).
+  // Source fields (read whatever the type: the space decides).
   if (f.kind) meta.kind = f.kind;
   if (f.authors) meta.authors = f.authors;
   if (f.url) meta.url = f.url;

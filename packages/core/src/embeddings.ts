@@ -1,10 +1,10 @@
 /**
- * Embeddings des pages, pour la recherche sémantique (§14) : un fichier `_embedding.json` par
- * page, à côté de son `index.md`, dans le dépôt privé seulement. La publication ne copie que
- * ce qu'elle a explicitement retenu : ces fichiers ne sont jamais publiés.
+ * Page embeddings, for semantic search (§14): one `_embedding.json` file per page, next to
+ * its `index.md`, in the private repository only. Publication only copies what it explicitly
+ * selected: these files are never published.
  *
- * Le vecteur est quantifié sur 8 bits (un facteur d'échelle par vecteur) : quatre fois moins
- * de place qu'en flottants 32 bits, pour un classement par similarité pratiquement identique.
+ * The vector is quantized to 8 bits (one scale factor per vector): four times less space than
+ * 32-bit floats, for a practically identical similarity ranking.
  */
 import { markdownToText } from "./markdown.ts";
 import type { WikiView } from "./operations.ts";
@@ -15,18 +15,18 @@ import { isoTimestamp } from "./time.ts";
 import { EMBEDDING_FILE, type WikiNode } from "./tree.ts";
 
 export const EMBEDDING_FORMAT = "eugenia-embedding";
-/** Longueur maximale du texte envoyé au modèle (mistral-embed accepte 8 192 jetons). */
+/** Maximum length of the text sent to the model (mistral-embed accepts 8,192 tokens). */
 export const EMBEDDING_MAX_CHARS = 16_000;
 
 export interface EmbeddingDocument {
   model: string;
-  /** Empreinte (SHA de blob git, 7 caractères) du texte envoyé au modèle. */
+  /** Fingerprint (git blob SHA, 7 characters) of the text sent to the model. */
   textSha: string;
   generated: string;
   vector: Float32Array;
 }
 
-/** `stale` : texte ou modèle différent, ou fichier illisible. */
+/** `stale`: different text or model, or unreadable file. */
 export type EmbeddingStatus = "current" | "stale" | "missing";
 
 export function embeddingPath(node: Pick<WikiNode, "path">): string {
@@ -34,9 +34,9 @@ export function embeddingPath(node: Pick<WikiNode, "path">): string {
 }
 
 /**
- * Texte d'une page envoyé au modèle : titre, étiquettes, puis contenu en texte brut. Les
- * adresses des liens et le frontmatter (dates, visibilité…) n'en font pas partie : déplacer
- * ou republier une page ne rend pas son embedding périmé.
+ * Text of a page sent to the model: title, tags, then content as plain text. Link URLs and
+ * the frontmatter (dates, visibility…) are not part of it: moving or republishing a page
+ * does not make its embedding stale.
  */
 export function embeddingText(indexContent: string): string {
   const doc = parsePage(indexContent);
@@ -50,8 +50,8 @@ export function embeddingText(indexContent: string): string {
     parts = [markdownToText(doc.body).trim()];
   }
   const head = [doc.fields.title];
-  if (doc.fields.authors?.length) head.push(`Auteurs : ${doc.fields.authors.join(", ")}`);
-  if (doc.fields.tags?.length) head.push(`Étiquettes : ${doc.fields.tags.join(", ")}`);
+  if (doc.fields.authors?.length) head.push(`Authors: ${doc.fields.authors.join(", ")}`);
+  if (doc.fields.tags?.length) head.push(`Tags: ${doc.fields.tags.join(", ")}`);
   const text = [head.join("\n"), ...parts.filter(Boolean)].join("\n\n").trim();
   return text.length > EMBEDDING_MAX_CHARS ? text.slice(0, EMBEDDING_MAX_CHARS) : text;
 }
@@ -99,7 +99,7 @@ export function serializeEmbedding(doc: EmbeddingDocument): string {
 export function parseEmbedding(text: string): EmbeddingDocument {
   const data = JSON.parse(text) as Record<string, unknown>;
   if (data.format !== EMBEDDING_FORMAT || data.version !== 1 || data.encoding !== "int8") {
-    throw new Error("Format d'embedding inconnu.");
+    throw new Error("Unknown embedding format.");
   }
   const { model, text_sha: textSha, generated, dimensions, scale, vector } = data;
   if (
@@ -109,10 +109,10 @@ export function parseEmbedding(text: string): EmbeddingDocument {
     typeof scale !== "number" ||
     typeof dimensions !== "number"
   ) {
-    throw new Error("Embedding incomplet.");
+    throw new Error("Incomplete embedding.");
   }
   const bytes = base64ToBytes(vector);
-  if (bytes.length !== dimensions) throw new Error("Taille d'embedding incohérente.");
+  if (bytes.length !== dimensions) throw new Error("Inconsistent embedding size.");
   const quantized = new Int8Array(bytes.buffer, bytes.byteOffset, bytes.length);
   return {
     model,
@@ -136,19 +136,19 @@ export interface EmbeddingEntry {
   text: string;
   textSha: string;
   status: EmbeddingStatus;
-  /** Vecteur enregistré par ce même modèle, même périmé (utilisable pour chercher). */
+  /** Vector recorded by the same model, even if stale (usable for searching). */
   vector?: Float32Array;
 }
 
 /**
- * Pages indexées pour la recherche par le sens : catégories, connaissances et sources. Une
- * flashcard reprend sa connaissance : l'indexer doublerait les résultats.
+ * Pages indexed for search by meaning: categories, knowledge and sources. A flashcard
+ * repeats its knowledge item: indexing it would duplicate results.
  */
 export function isEmbeddable(node: Pick<WikiNode, "virtual" | "type">): boolean {
   return !node.virtual && node.type !== "flashcard";
 }
 
-/** État de l'embedding de chaque page indexable pour un modèle. */
+/** Embedding state of each indexable page for a model. */
 export async function embeddingEntries(
   view: WikiView,
   model: string,
@@ -198,7 +198,7 @@ export interface SimilarityHit {
   score: number;
 }
 
-/** Les éléments les plus proches de la requête, du plus au moins similaire. */
+/** The items closest to the query, from most to least similar. */
 export function rankBySimilarity(
   query: ArrayLike<number>,
   items: Iterable<{ id: string; vector: ArrayLike<number> }>,

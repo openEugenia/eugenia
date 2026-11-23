@@ -1,7 +1,7 @@
 /**
- * Descriptions des sous-wikis en mode semi-automatique (§11.2) : détection des
- * descriptions périmées, régénération des plus profondes vers la racine, relecture en
- * différence avant d'entrer dans le commit, modification et verrouillage.
+ * Sub-wiki descriptions in semi-automatic mode (§11.2): detection of stale descriptions,
+ * regeneration from the deepest to the root, review as a diff before entering the commit,
+ * editing and locking.
  */
 import { useMemo, useState } from "react";
 import { Check, Lock, RefreshCw, SkipForward, Square } from "lucide-react";
@@ -54,7 +54,7 @@ export function SummariesView({ rootId }: { rootId?: string }) {
     .filter(([, s]) => s.status === "locked")
     .map(([id]) => derived.tree.nodes.get(id)!);
 
-  /** Génère la description du prochain nœud de la file, avec l'état à jour du wiki. */
+  /** Generates the description of the next node in the queue, with the up-to-date wiki. */
   const generate = async (ids: string[]): Promise<void> => {
     const [nextId, ...rest] = ids;
     setQueue(rest);
@@ -111,31 +111,31 @@ export function SummariesView({ rootId }: { rootId?: string }) {
     });
     await stage(
       [{ op: "write", path, content: serializeSummary(doc) }],
-      `Description de « ${node.title} »`,
+      `Description of "${node.title}"`,
     );
     setAccepted((list) => [...list, path]);
-    // La file est déjà ordonnée des plus profonds vers la racine : les parents suivants
-    // seront générés avec l'empreinte de cette nouvelle description.
+    // The queue is already ordered from the deepest to the root: the next parents will be
+    // generated with the fingerprint of this new description.
     void generate(queue);
   };
 
   const commitAccepted = async (): Promise<void> => {
     await useWiki
       .getState()
-      .commit(`Descriptions des sous-wikis régénérées (${accepted.length})`, accepted);
+      .commit(`Regenerated sub-wiki descriptions (${accepted.length})`, accepted);
     setAccepted([]);
   };
 
   return (
     <div className="page">
-      <h1>Descriptions des sous-wikis</h1>
+      <h1>Sub-wiki descriptions</h1>
       <p className="muted">
-        Chaque sous-wiki est décrit par Eugenia à partir de ce qu'il contient, du plus fin au plus
-        global. Une description devient périmée quand une de ses sources change ; elle est alors
-        proposée à la régénération, relue avant d'être enregistrée, et peut être verrouillée.
+        Eugenia describes each sub-wiki from what it contains, from the most specific to the most
+        general. A description becomes stale when one of its sources changes; it is then offered for
+        regeneration, reviewed before being saved, and can be locked.
       </p>
       <div className="toolbar">
-        <div role="tablist" aria-label="Portée" className="toolbar">
+        <div role="tablist" aria-label="Scope" className="toolbar">
           {(["private", "public"] as const).map((s) => (
             <button
               key={s}
@@ -146,34 +146,34 @@ export function SummariesView({ rootId }: { rootId?: string }) {
               onClick={() => setScope(s)}
               disabled={running}
             >
-              {s === "private" ? "Portée privée (tout)" : "Portée publique"}
+              {s === "private" ? "Private scope (everything)" : "Public scope"}
             </button>
           ))}
         </div>
         {branchId !== derived.tree.rootId && (
           <span className="small muted">
-            Branche : {nodePath(derived.tree, branch)} ·{" "}
-            <a href={href({ name: "summaries" })}>tout le wiki</a>
+            Branch: {nodePath(derived.tree, branch)} ·{" "}
+            <a href={href({ name: "summaries" })}>the whole wiki</a>
           </span>
         )}
       </div>
       {scope === "public" && (
         <InfoBox>
-          Les descriptions publiques sont générées à partir des seuls enfants publics : elles seules
-          sont publiées (§6.3).
+          Public descriptions are generated from the public children only: they are the only ones
+          published (§6.3).
         </InfoBox>
       )}
 
       {draft ? (
         <section className="section oe-card oe-card--featured">
           <span className="oe-eyebrow" style={{ fontSize: "var(--oe-font-size-xs)" }}>
-            Relecture · {queue.length} restante(s)
+            Review · {queue.length} remaining
           </span>
           <h2 style={{ margin: 0 }}>{draft.node.title}</h2>
           <p className="muted small">{nodePath(derived.tree, draft.node)}</p>
           {draft.before && (
             <div>
-              <span className="oe-label">Modifications proposées</span>
+              <span className="oe-label">Proposed changes</span>
               <p className="diff">
                 {wordDiff(draft.before, draft.text).map((part, i) =>
                   part.kind === "added" ? (
@@ -189,7 +189,7 @@ export function SummariesView({ rootId }: { rootId?: string }) {
           )}
           <div className="oe-field">
             <label className="oe-label" htmlFor="draft">
-              Nouvelle description
+              New description
             </label>
             <textarea
               id="draft"
@@ -207,7 +207,7 @@ export function SummariesView({ rootId }: { rootId?: string }) {
             />
             <span>
               <Lock aria-hidden="true" style={{ display: "inline", verticalAlign: "-0.15em" }} />{" "}
-              Verrouiller : ne plus proposer de régénération
+              Lock: no longer offer regeneration
             </span>
           </label>
           <div className="actions">
@@ -220,36 +220,36 @@ export function SummariesView({ rootId }: { rootId?: string }) {
                 setRunning(false);
               }}
             >
-              <Square aria-hidden="true" /> Arrêter
+              <Square aria-hidden="true" /> Stop
             </button>
             <button
               type="button"
               className="oe-button oe-button--ghost"
               onClick={() => void generate(queue)}
             >
-              <SkipForward aria-hidden="true" /> Ignorer
+              <SkipForward aria-hidden="true" /> Skip
             </button>
             <button type="button" className="oe-button" onClick={() => void accept()}>
-              <Check aria-hidden="true" /> Accepter
+              <Check aria-hidden="true" /> Accept
             </button>
           </div>
         </section>
       ) : running ? (
         <section className="section oe-card">
-          <p>Eugenia rédige la description…</p>
+          <p>Eugenia is writing the description…</p>
         </section>
       ) : null}
 
       {accepted.length > 0 && !running && (
         <section className="section oe-alert oe-alert--success">
-          <strong className="oe-alert__title">{accepted.length} description(s) acceptée(s)</strong>
+          <strong className="oe-alert__title">{accepted.length} description(s) accepted</strong>
           <div className="actions actions--start">
             <button
               type="button"
               className="oe-button oe-button--sm"
               onClick={() => void commitAccepted()}
             >
-              Enregistrer dans le dépôt
+              Save to the repository
             </button>
           </div>
         </section>
@@ -258,7 +258,9 @@ export function SummariesView({ rootId }: { rootId?: string }) {
       <section className="section">
         <div className="section__head">
           <h2>
-            {plan.length === 0 ? "Tout est à jour" : `${plan.length} description(s) à régénérer`}
+            {plan.length === 0
+              ? "Everything is up to date"
+              : `${plan.length} description(s) to regenerate`}
           </h2>
           {editable && plan.length > 0 && !running && (
             <button
@@ -266,14 +268,14 @@ export function SummariesView({ rootId }: { rootId?: string }) {
               className="oe-button oe-button--sm"
               onClick={() => start(plan.map((n) => n.id))}
             >
-              <RefreshCw aria-hidden="true" /> Régénérer{" "}
-              {branchId === derived.tree.rootId ? "tout le wiki" : "la branche"}
+              <RefreshCw aria-hidden="true" /> Regenerate{" "}
+              {branchId === derived.tree.rootId ? "the whole wiki" : "the branch"}
             </button>
           )}
         </div>
         {plan.length === 0 ? (
-          <EmptyState title="Aucune description périmée">
-            Les descriptions de cette portée correspondent au contenu actuel.
+          <EmptyState title="No stale description">
+            The descriptions of this scope match the current content.
           </EmptyState>
         ) : (
           <ul className="link-list">
@@ -288,7 +290,7 @@ export function SummariesView({ rootId }: { rootId?: string }) {
                     className="oe-button oe-button--ghost oe-button--sm"
                     onClick={() => start([node.id])}
                   >
-                    Régénérer
+                    Regenerate
                   </button>
                 )}
               </li>
@@ -299,7 +301,7 @@ export function SummariesView({ rootId }: { rootId?: string }) {
 
       {locked.length > 0 && (
         <section className="section">
-          <h2>Descriptions verrouillées</h2>
+          <h2>Locked descriptions</h2>
           <ul className="link-list">
             {locked.map((node) => {
               const file = scope === "public" ? node.summaries.public : node.summaries.private;
@@ -319,12 +321,12 @@ export function SummariesView({ rootId }: { rootId?: string }) {
                           doc.fields.locked = false;
                           return stage(
                             [{ op: "write", path: file.path, content: serializeSummary(doc) }],
-                            `Déverrouiller la description de « ${node.title} »`,
+                            `Unlock the description of "${node.title}"`,
                           );
                         });
                       }}
                     >
-                      Déverrouiller
+                      Unlock
                     </button>
                   )}
                 </li>

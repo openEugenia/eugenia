@@ -1,7 +1,7 @@
 /**
- * Recherche sémantique (§14) : embeddings des pages (`_embedding.json` du dépôt privé),
- * calcul des manquants ou périmés par le fournisseur d'embeddings (Mistral par défaut), et
- * classement des pages par proximité de sens avec une requête.
+ * Semantic search (§14): page embeddings (`_embedding.json` in the private repository),
+ * computation of the missing or stale ones by the embedding provider (Mistral by default), and
+ * ranking of pages by closeness of meaning to a query.
  */
 import {
   isEmbeddable,
@@ -27,10 +27,10 @@ export function pendingEntries(index: SemanticIndex): EmbeddingEntry[] {
   return index.entries.filter((e) => e.status !== "current");
 }
 
-/** Charge les embeddings du wiki (lecture groupée) et compare chaque page à son texte actuel. */
+/** Loads the wiki's embeddings (batched reads) and compares each page with its current text. */
 export async function loadSemanticIndex(model: string): Promise<SemanticIndex> {
   const { workspace, derived } = useWiki.getState();
-  if (!workspace || !derived) throw new Error("Wiki non chargé.");
+  if (!workspace || !derived) throw new Error("Wiki not loaded.");
   const files: RepoFile[] = [];
   for (const node of derived.tree.nodes.values()) {
     if (!isEmbeddable(node)) continue;
@@ -44,11 +44,11 @@ export async function loadSemanticIndex(model: string): Promise<SemanticIndex> {
 
 export interface IndexingResult {
   indexed: number;
-  /** Pages privées non envoyées : le privé est réservé à une IA locale. */
+  /** Private pages not sent: private content is kept for a local AI. */
   skippedPrivate: number;
 }
 
-/** Calcule les embeddings manquants ou périmés et les enregistre en un seul commit. */
+/** Computes the missing or stale embeddings and saves them in a single commit. */
 export async function indexPages(
   index: SemanticIndex,
   options: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {},
@@ -75,7 +75,7 @@ export async function indexPages(
   }));
   if (changes.length > 0) {
     const { stage, commit } = useWiki.getState();
-    const message = `Index sémantique : ${changes.length} page(s)`;
+    const message = `Semantic index: ${changes.length} page(s)`;
     await stage(changes, message);
     await commit(
       message,
@@ -85,7 +85,7 @@ export async function indexPages(
   return { indexed: changes.length, skippedPrivate: todo.length - plan.length };
 }
 
-/** Pages les plus proches d'une requête, d'après leurs embeddings enregistrés. */
+/** Pages closest to a query, according to their recorded embeddings. */
 export async function semanticSearch(
   index: SemanticIndex,
   query: string,

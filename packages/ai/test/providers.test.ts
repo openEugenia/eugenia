@@ -28,7 +28,7 @@ function mockFetch(responses: Response[]): { fetch: typeof fetch; calls: Capture
       body: text ? (JSON.parse(text) as Record<string, unknown>) : {},
     });
     const next = queue.shift();
-    if (!next) throw new Error("Pas de réponse prévue");
+    if (!next) throw new Error("No scripted response");
     return next;
   }) as typeof fetch;
   return { fetch: fetchImpl, calls };
@@ -49,8 +49,8 @@ function message(text: string, stop = "end_turn"): Response {
   });
 }
 
-describe("fournisseur Anthropic", () => {
-  it("utilise Claude Opus 5.5 par défaut, l'effort et le repli côté serveur", async () => {
+describe("Anthropic provider", () => {
+  it("uses Claude Opus 5.5 by default, the effort and the server-side fallback", async () => {
     const { fetch, calls } = mockFetch([message("Bonjour")]);
     const provider = createProvider({ kind: "anthropic", apiKey: "sk-test" }, { fetch });
     const text = await provider.complete({
@@ -75,7 +75,7 @@ describe("fournisseur Anthropic", () => {
     expect(provider.info.local).toBe(false);
   });
 
-  it("transforme un refus en erreur explicite", async () => {
+  it("turns a refusal into an explicit error", async () => {
     const { fetch } = mockFetch([message("", "refusal")]);
     const provider = createProvider({ kind: "anthropic", apiKey: "sk" }, { fetch });
     await expect(
@@ -85,7 +85,7 @@ describe("fournisseur Anthropic", () => {
     });
   });
 
-  it("signale une clé refusée", async () => {
+  it("reports a refused key", async () => {
     const { fetch } = mockFetch([
       Response.json(
         { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } },
@@ -100,7 +100,7 @@ describe("fournisseur Anthropic", () => {
     expect((error as AIError).kind).toBe("auth");
   });
 
-  it("valide une sortie structurée", async () => {
+  it("validates a structured output", async () => {
     const { fetch, calls } = mockFetch([message('{"score": 0.3, "feedback": "Presque"}')]);
     const provider = createProvider({ kind: "anthropic", apiKey: "sk" }, { fetch });
     const result = await provider.json({
@@ -115,7 +115,7 @@ describe("fournisseur Anthropic", () => {
     expect(format.type).toBe("json_schema");
   });
 
-  it("diffuse la réponse au fil de l'eau", async () => {
+  it("streams the answer", async () => {
     const body = sse([
       {
         event: "message_start",
@@ -173,7 +173,7 @@ describe("fournisseur Anthropic", () => {
     expect(text).toBe("Bonjour");
   });
 
-  it("n'envoie le repli et l'effort qu'aux modèles qui les acceptent", async () => {
+  it("only sends the fallback and the effort to models that accept them", async () => {
     const { fetch, calls } = mockFetch([message("ok")]);
     const provider = createProvider(
       { kind: "anthropic", apiKey: "sk", model: "claude-haiku-4-5" },
@@ -189,8 +189,8 @@ describe("fournisseur Anthropic", () => {
   });
 });
 
-describe("fournisseurs compatibles OpenAI et Ollama", () => {
-  it("appelle /chat/completions avec le prompt système", async () => {
+describe("OpenAI-compatible providers and Ollama", () => {
+  it("calls /chat/completions with the system prompt", async () => {
     const { fetch, calls } = mockFetch([
       Response.json({ choices: [{ message: { content: " Salut " } }] }),
     ]);
@@ -207,7 +207,7 @@ describe("fournisseurs compatibles OpenAI et Ollama", () => {
     expect(calls[0]!.headers.get("authorization")).toBeNull();
   });
 
-  it("lit un flux SSE", async () => {
+  it("reads an SSE stream", async () => {
     const body = sse([
       { data: { choices: [{ delta: { content: "Bon" } }] } },
       { data: { choices: [{ delta: { content: "jour" } }] } },
@@ -228,7 +228,7 @@ describe("fournisseurs compatibles OpenAI et Ollama", () => {
     expect(provider.info.local).toBe(false);
   });
 
-  it("se rabat sur le mode JSON simple si le schéma n'est pas pris en charge", async () => {
+  it("falls back on plain JSON mode if the schema is not supported", async () => {
     const { fetch, calls } = mockFetch([
       new Response("response_format json_schema non pris en charge", { status: 400 }),
       Response.json({ choices: [{ message: { content: 'Voici : {"ok": true}' } }] }),
@@ -244,7 +244,7 @@ describe("fournisseurs compatibles OpenAI et Ollama", () => {
     expect((calls[1]!.body.response_format as { type: string }).type).toBe("json_object");
   });
 
-  it("explique comment autoriser l'application quand Ollama est injoignable", async () => {
+  it("explains how to allow the app when Ollama cannot be reached", async () => {
     const fetch = (async () => {
       throw new TypeError("Failed to fetch");
     }) as unknown as typeof globalThis.fetch;
@@ -259,7 +259,7 @@ describe("embeddings", () => {
   const vectors = (n: number, offset = 0): { index: number; embedding: number[] }[] =>
     Array.from({ length: n }, (_, i) => ({ index: i, embedding: [offset + i, 1] }));
 
-  it("appelle /embeddings de Mistral et remet les vecteurs dans l'ordre des textes", async () => {
+  it("calls Mistral's /embeddings and puts the vectors back in the order of the texts", async () => {
     const { fetch, calls } = mockFetch([Response.json({ data: [vectors(2)[1], vectors(2)[0]] })]);
     const provider = createProvider(
       { kind: "openai", model: DEFAULT_EMBEDDING_MODEL, apiKey: "k", baseUrl: DEFAULT_MISTRAL_URL },
@@ -275,7 +275,7 @@ describe("embeddings", () => {
     expect(calls[0]!.headers.get("authorization")).toBe("Bearer k");
   });
 
-  it("découpe en lots par nombre de textes et par taille", async () => {
+  it("splits into batches by number of texts and by size", async () => {
     const { fetch, calls } = mockFetch([
       Response.json({ data: vectors(2) }),
       Response.json({ data: vectors(1, 2) }),
@@ -293,7 +293,7 @@ describe("embeddings", () => {
     expect(progress).toEqual([2, 3, 4]);
   });
 
-  it("refuse un fournisseur sans embeddings et une réponse incomplète", async () => {
+  it("refuses a provider without embeddings and an incomplete answer", async () => {
     const anthropic = createProvider({ kind: "anthropic", apiKey: "sk" });
     await expect(embedTexts(anthropic, ["a"])).rejects.toMatchObject({ kind: "config" });
     const { fetch } = mockFetch([Response.json({ data: vectors(1) })]);

@@ -1,4 +1,4 @@
-/** Application : choix de la vue selon le dépôt ouvert et la route. */
+/** Application: choice of the view according to the open repository and the route. */
 import { lazy, Suspense, useEffect } from "react";
 import { reminders } from "@openeugenia/core";
 import { AppShell } from "./components/AppShell.tsx";
@@ -77,7 +77,7 @@ function WikiRoute({ route }: { route: Route }) {
     case "root":
       return rootId ? <NodeView id={rootId} key={rootId} /> : null;
     case "node":
-      // La racine de la bibliothèque est la liste des sources.
+      // The library root is the list of sources.
       return route.id === libraryId ? <LibraryView /> : <NodeView id={route.id} key={route.id} />;
     case "library":
       return (
@@ -142,9 +142,9 @@ function WikiRoute({ route }: { route: Route }) {
     default:
       return (
         <div className="page">
-          <ErrorBox title="Page introuvable">
-            Cette adresse ne correspond à aucune vue.{" "}
-            <a href={href({ name: "root" })}>Retour au wiki</a>.
+          <ErrorBox title="Page not found">
+            This address does not match any view.{" "}
+            <a href={href({ name: "root" })}>Back to the wiki</a>.
           </ErrorBox>
         </div>
       );
@@ -181,11 +181,11 @@ export function App() {
     if (!loaded) return;
     if (repo) void useWiki.getState().open(repo);
     else useWiki.getState().close();
-    // Rouvrir quand le jeton change : le mode d'accès peut changer.
+    // Reopen when the token changes: the access mode may change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, loaded, token]);
 
-  // Rappels de révision à l'ouverture du wiki (§8.3).
+  // Review reminders when the wiki opens (§8.3).
   useEffect(() => {
     if (!derived || workspace?.mode !== "owner") return;
     const groups = reminders(
@@ -197,10 +197,10 @@ export function App() {
     if (first) {
       const count = first.cards.length;
       toast(
-        `${count} flashcard${count > 1 ? "s" : ""} de « ${first.category.title} » ${count > 1 ? "risquent" : "risque"} d'être oubliée${count > 1 ? "s" : ""}.`,
+        `${count} flashcard${count === 1 ? "" : "s"} in "${first.category.title}" may be forgotten.`,
       );
     }
-    // Une seule fois par ouverture de wiki.
+    // Only once each time a wiki opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace?.key, derived !== null]);
 
@@ -235,24 +235,24 @@ export function App() {
       <div className="main" style={{ height: "100%" }}>
         <div className="page">
           <h1>{repoLabel(repo)}</h1>
-          <ErrorBox title="Impossible d'ouvrir ce wiki">{error}</ErrorBox>
+          <ErrorBox title="Cannot open this wiki">{error}</ErrorBox>
           <div className="actions actions--start" style={{ marginTop: "1rem" }}>
             <button
               type="button"
               className="oe-button"
               onClick={() => void useWiki.getState().open(repo)}
             >
-              Réessayer
+              Try again
             </button>
             <a className="oe-button oe-button--ghost" href={href({ name: "settings" })}>
-              Paramètres
+              Settings
             </a>
             <button
               type="button"
               className="oe-button oe-button--ghost"
               onClick={() => openRepo(null)}
             >
-              Accueil
+              Home
             </button>
           </div>
           {route.name === "settings" && <SettingsView />}
@@ -265,9 +265,9 @@ export function App() {
     content = (
       <AppShell>
         <div className="page">
-          <ErrorBox title="Ce dépôt ne contient pas encore de wiki">
-            Initialisez-le depuis <a href={href({ name: "new-wiki" })}>la création de wiki</a> ou
-            avec <code>eugenia init</code>.
+          <ErrorBox title="This repository does not contain a wiki yet">
+            Initialize it from <a href={href({ name: "new-wiki" })}>the wiki creation page</a> or
+            with <code>eugenia init</code>.
           </ErrorBox>
           {route.name === "new-wiki" && (
             <Suspense fallback={<Loading />}>

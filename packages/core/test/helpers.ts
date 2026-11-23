@@ -15,7 +15,7 @@ export interface MemoryWiki extends LoadedWiki {
   source: Files;
 }
 
-/** Wiki en mémoire : chemin → contenu. */
+/** In-memory wiki: path → content. */
 export async function memoryWiki(source: Files): Promise<MemoryWiki> {
   const files: RepoFile[] = await Promise.all(
     Object.entries(source).map(async ([path, content]) => ({
@@ -25,7 +25,7 @@ export async function memoryWiki(source: Files): Promise<MemoryWiki> {
   );
   const readText = async (path: string): Promise<string> => {
     const content = source[path];
-    if (content === undefined) throw new Error(`Fichier absent : ${path}`);
+    if (content === undefined) throw new Error(`Missing file: ${path}`);
     return content;
   };
   const loaded = await loadWiki({ files, readText });
@@ -37,7 +37,7 @@ export async function memoryWiki(source: Files): Promise<MemoryWiki> {
   };
 }
 
-/** Applique des modifications à un jeu de fichiers en mémoire. */
+/** Applies changes to an in-memory set of files. */
 export function applyChanges(source: Files, changes: readonly FileChange[]): Files {
   const out: Files = { ...source };
   const written = new Set<string>();
@@ -66,4 +66,4 @@ export function page(fields: Record<string, unknown>, body = ""): string {
   return `---\n${lines.join("\n")}\n---\n${body ? `\n${body}\n` : ""}`;
 }
 
-export const CONFIG = "title: Wiki de test\nroot: wiki/\n";
+export const CONFIG = "title: Test wiki\nroot: wiki/\n";

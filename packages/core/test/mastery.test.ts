@@ -15,20 +15,20 @@ import { CONFIG, memoryWiki, page } from "./helpers.ts";
 
 const D0 = dayNumber("2026-11-01T09:00:00Z");
 
-describe("algorithme de maîtrise", () => {
-  it("initialise une flashcard (m = 0,5, β = 0,95)", () => {
+describe("mastery algorithm", () => {
+  it("initializes a flashcard (m = 0.5, β = 0.95)", () => {
     const s = initialCardState(D0);
     expect(s).toMatchObject({ mastery: 0.5, failureDay: D0, lastEvalDay: D0, evaluations: 0 });
     expect(s.decay).toBeCloseTo(0.95);
   });
 
-  it("applique le déclin quotidien m · β^(d − e)", () => {
+  it("applies the daily decay m · β^(d − e)", () => {
     const s = initialCardState(D0);
     expect(currentMastery(s, D0)).toBe(0.5);
     expect(currentMastery(s, D0 + 10)).toBeCloseTo(0.5 * 0.95 ** 10);
   });
 
-  it("met à jour après une réussite puis un échec", () => {
+  it("updates after a success then a failure", () => {
     let s = applyEvaluation(initialCardState(D0), 1, D0 + 2);
     const m1 = (0.5 * 0.95 ** 2 + 1) / 2;
     expect(s.mastery).toBeCloseTo(m1);
@@ -43,11 +43,11 @@ describe("algorithme de maîtrise", () => {
     expect(s.failureDay).toBe(D0 + 5);
   });
 
-  it("un score de 0,5 exactement est un échec", () => {
+  it("a score of exactly 0.5 is a failure", () => {
     expect(applyEvaluation(initialCardState(D0), 0.5, D0 + 1).failureDay).toBe(D0 + 1);
   });
 
-  it("retrouve la moyenne mobile de la documentation fonctionnelle (α = ½, sans déclin)", () => {
+  it("matches the moving average of the functional documentation (α = ½, no decay)", () => {
     const params = { ...DEFAULT_MASTERY, initial: 0, decay_rate: 0 };
     let s = initialCardState(D0, params);
     const xs = [1.0, 0.8, 0.6, 1.0, 0.0, 0.5, 0.9, 0.7, 0.4, 1.0];
@@ -58,7 +58,7 @@ describe("algorithme de maîtrise", () => {
     expect(seen).toEqual([0.5, 0.65, 0.62, 0.81, 0.4, 0.45, 0.67, 0.68, 0.54, 0.77]);
   });
 
-  it("ralentit l'oubli quand les réussites s'enchaînent loin du dernier échec", () => {
+  it("slows forgetting when successes follow one another long after the last failure", () => {
     let s = initialCardState(D0);
     for (const d of [1, 3, 7, 15, 31]) s = applyEvaluation(s, 1, D0 + d);
     expect(s.decay).toBeCloseTo(1 - 0.05 / 32);
@@ -66,11 +66,11 @@ describe("algorithme de maîtrise", () => {
   });
 });
 
-describe("rejeu des quiz", async () => {
+describe("quiz replay", async () => {
   const wiki = await memoryWiki({
     ".notes/config.yml": CONFIG,
-    "wiki/index.md": page({ id: "R", title: "Racine" }),
-    "wiki/philo/index.md": page({ id: "P", title: "Philosophie et pensée" }),
+    "wiki/index.md": page({ id: "R", title: "Root" }),
+    "wiki/philo/index.md": page({ id: "P", title: "Philosophy and thought" }),
     "wiki/philo/a/index.md": page({
       id: "A",
       type: "flashcard",
@@ -94,7 +94,7 @@ describe("rejeu des quiz", async () => {
     { card: "B", score: 1, at: "2026-11-05T10:00:00Z" },
     { card: "A", score: 0.2, at: "2026-11-03T10:00:00Z" },
     { card: "A", score: 0.9, at: "2026-11-04T10:00:00Z" },
-    { card: "inconnue", score: 1, at: "2026-11-04T10:00:00Z" },
+    { card: "unknown", score: 1, at: "2026-11-04T10:00:00Z" },
   ];
   const today = dayNumber("2026-11-06T12:00:00Z");
   const states = replayMastery(
@@ -106,27 +106,27 @@ describe("rejeu des quiz", async () => {
     today,
   );
 
-  it("rejoue les évaluations dans l'ordre chronologique", () => {
+  it("replays evaluations in chronological order", () => {
     let a = initialCardState(D0);
     a = applyEvaluation(a, 0.2, D0 + 2);
     a = applyEvaluation(a, 0.9, D0 + 3);
     expect(states.get("A")!.mastery).toBeCloseTo(a.mastery);
     expect(states.get("A")!.evaluations).toBe(2);
-    expect(states.has("inconnue")).toBe(false);
+    expect(states.has("unknown")).toBe(false);
   });
 
-  it("ordonne le quiz par maîtrise actuelle croissante", () => {
+  it("orders the quiz by increasing current mastery", () => {
     expect(quizOrder(wiki.tree, "P", states, today).map((n) => n.id)).toEqual(["C", "A", "B"]);
   });
 
-  it("signale les connaissances qui risquent d'être oubliées", () => {
+  it("reports knowledge that may be forgotten", () => {
     const groups = reminders(wiki.tree, states, 0.42, today);
     expect(groups.map((g) => [g.category.title, g.cards.map((c) => c.id)])).toEqual([
-      ["Philosophie et pensée", ["C"]],
+      ["Philosophy and thought", ["C"]],
     ]);
   });
 
-  it("trace la courbe de maîtrise jour par jour", () => {
+  it("draws the mastery curve day by day", () => {
     const curve = masteryCurve(
       { id: "B", created: "2026-11-01T09:00:00Z" },
       events,

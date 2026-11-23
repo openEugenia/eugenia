@@ -2,7 +2,7 @@
   "name": "@openeugenia/core",
   "version": "0.1.0",
   "private": true,
-  "description": "Modèle de données d'Eugenia : nœuds, arbre, liens, visibilité, publication, résumés et maîtrise.",
+  "description": "Eugenia's data model: nodes, tree, links, visibility, publication, summaries and mastery.",
   "license": "MIT",
   "type": "module",
   "exports": {

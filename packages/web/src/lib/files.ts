@@ -1,13 +1,13 @@
-/** Lecture de fichiers choisis par l'utilisateur. */
+/** Reading files chosen by the user. */
 import { bytesToBase64 } from "@openeugenia/core";
 
 export async function fileToBase64(file: File): Promise<string> {
   return bytesToBase64(new Uint8Array(await file.arrayBuffer()));
 }
 
-/** Nom de fichier sûr pour le dépôt (sans chemin ni caractères réservés). */
+/** Safe file name for the repository (without path or reserved characters). */
 export function safeFileName(name: string): string {
-  const base = name.split(/[\\/]/).pop() ?? "fichier";
+  const base = name.split(/[\\/]/).pop() ?? "file";
   const dot = base.lastIndexOf(".");
   const stem = (dot > 0 ? base.slice(0, dot) : base)
     .normalize("NFKD")
@@ -22,5 +22,5 @@ export function safeFileName(name: string): string {
           .toLowerCase()
           .replace(/[^.a-z0-9]/g, "")
       : "";
-  return `${stem || "fichier"}${ext}`;
+  return `${stem || "file"}${ext}`;
 }

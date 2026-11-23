@@ -1,8 +1,9 @@
-# GitHub Action « Eugenia — publication » (spécification §6.4, §13).
-# À utiliser dans le dépôt PRIVÉ d'un wiki : à chaque push, publie les seuls nœuds
-# publics dans le dépôt public, en un unique commit qui remplace son historique.
-name: Eugenia — publication
-description: Publie la partie publique d'un wiki Eugenia (dépôt privé) dans son dépôt public, sans aucun contenu privé.
+# GitHub Action "Eugenia — publish" (specification §6.4, §13).
+# To use in the PRIVATE repository of a wiki: on every push, publishes the public nodes only
+# (and the bibliographic records of private sources) to the public repository, in a single
+# commit that replaces its history.
+name: Eugenia — publish
+description: Publishes the public part of an Eugenia wiki (private repository) to its public repository, without any private content.
 author: openEugenia
 branding:
   icon: book-open
@@ -10,27 +11,27 @@ branding:
 
 inputs:
   target:
-    description: Dépôt public cible (owner/name).
+    description: Target public repository (owner/name).
     required: true
   deploy-key:
-    description: Clé SSH privée d'une clé de déploiement autorisée en écriture sur le dépôt public (créée par `eugenia init --github`).
+    description: Private SSH key of a deploy key with write access to the public repository (created by `eugenia init --github`).
     required: false
   token:
-    description: Jeton fine-grained limité au dépôt public (« Contents » en écriture), à la place de la clé de déploiement.
+    description: Fine-grained token limited to the public repository ("Contents" write access), instead of the deploy key.
     required: false
   path:
-    description: Dossier du wiki dans le dépôt privé.
+    description: Folder of the wiki in the private repository.
     required: false
     default: "."
   branch:
-    description: Branche du dépôt public.
+    description: Branch of the public repository.
     required: false
     default: main
   private-repo:
-    description: Dépôt privé à déclarer dans la configuration publique (par défaut, celui de .notes/config.yml).
+    description: Private repository to declare in the public configuration (by default, the one of .notes/config.yml).
     required: false
   dry-run:
-    description: Construit et vérifie la publication sans la pousser.
+    description: Builds and checks the publication without pushing it.
     required: false
     default: "false"
 
@@ -41,14 +42,14 @@ runs:
       with:
         node-version: 24
 
-    - name: Construire la CLI Eugenia
+    - name: Build the Eugenia CLI
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
         npx --yes pnpm@10.34.9 install --frozen-lockfile --filter "@openeugenia/cli..."
         npx --yes pnpm@10.34.9 --filter @openeugenia/cli build
 
-    - name: Publier
+    - name: Publish
       shell: bash
       env:
         EUGENIA_DEPLOY_KEY: ${{ inputs.deploy-key }}
@@ -62,7 +63,7 @@ runs:
       run: |
         set -euo pipefail
         if [ -z "${EUGENIA_DEPLOY_KEY}" ] && [ -z "${EUGENIA_PUBLISH_TOKEN}" ] && [ "${INPUT_DRY_RUN}" != "true" ]; then
-          echo "::error::Fournissez l'entrée deploy-key (recommandé) ou token."
+          echo "::error::Provide the deploy-key (recommended) or token input."
           exit 1
         fi
         if [ -n "${EUGENIA_DEPLOY_KEY}" ]; then
@@ -70,7 +71,7 @@ runs:
           mkdir -p "${ssh_dir}"
           printf '%s\n' "${EUGENIA_DEPLOY_KEY}" > "${ssh_dir}/key"
           chmod 600 "${ssh_dir}/key"
-          # Clé d'hôte publiée par GitHub (https://docs.github.com/fr/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints).
+          # Host key published by GitHub (https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints).
           echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "${ssh_dir}/known_hosts"
           export GIT_SSH_COMMAND="ssh -i ${ssh_dir}/key -o IdentitiesOnly=yes -o UserKnownHostsFile=${ssh_dir}/known_hosts -o StrictHostKeyChecking=yes"
           unset EUGENIA_PUBLISH_TOKEN

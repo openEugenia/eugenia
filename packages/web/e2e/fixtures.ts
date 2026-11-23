@@ -6,7 +6,7 @@ import { FakeRepo, readDirectory } from "./fakes.ts";
 export const DEMO_DIR = join(import.meta.dirname, "..", "..", "..", "examples", "demo-wiki");
 export const TOKEN = "github_pat_test";
 
-/** Dépôt privé (wiki de démonstration) et dépôt public qui en est publié. */
+/** Private repository (demo wiki) and the public repository published from it. */
 export async function demoRepos(): Promise<{ privateRepo: FakeRepo; publicRepo: FakeRepo }> {
   const files = readDirectory(DEMO_DIR);
   const privateRepo = new FakeRepo("alice/eugenia-wiki", files, true);
@@ -22,7 +22,7 @@ export async function demoRepos(): Promise<{ privateRepo: FakeRepo; publicRepo: 
     { config: wiki.config, tree: wiki.tree, files: wiki.files, readText },
     { privateRepo: "alice/eugenia-wiki", publicRepo: "alice/eugenia-wiki-public" },
   );
-  if (!publication.ok) throw new Error("Publication de démonstration invalide");
+  if (!publication.ok) throw new Error("Invalid demo publication");
   const out = new Map<string, Buffer>();
   for (const file of publication.files)
     out.set(file.path, "content" in file ? Buffer.from(file.content) : files.get(file.copyFrom)!);
@@ -34,20 +34,20 @@ export async function saveSettings(
   options: { token?: string; anthropicKey?: string },
 ): Promise<void> {
   await page.goto("#/settings");
-  await expect(page.getByRole("heading", { name: "Paramètres", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
   if (options.token)
-    await page.getByLabel("Jeton d'accès personnel (fine-grained)").fill(options.token);
+    await page.getByLabel("Personal access token (fine-grained)").fill(options.token);
   if (options.anthropicKey) {
     await page.locator("#main-kind").selectOption("anthropic");
     await page.locator("#main-key").fill(options.anthropicKey);
   }
-  await page.getByRole("button", { name: "Enregistrer les paramètres" }).click();
+  await page.getByRole("button", { name: "Save the settings" }).click();
   if (options.anthropicKey) {
-    // Première configuration d'une IA : question sur les nœuds privés.
-    await expect(page.getByText("Connaissances privées et IA")).toBeVisible();
-    await page.getByRole("button", { name: "Non, utiliser mon fournisseur" }).click();
+    // First AI configuration: question about private nodes.
+    await expect(page.getByText("Private knowledge and AI")).toBeVisible();
+    await page.getByRole("button", { name: "No, use my provider" }).click();
   }
-  await expect(page.getByText("Paramètres enregistrés.")).toBeVisible();
+  await expect(page.getByText("Settings saved.")).toBeVisible();
 }
 
 export function sidebar(page: Page) {

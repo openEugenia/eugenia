@@ -1,7 +1,7 @@
 /**
- * Questions sur l'arbre (§8.5) : Eugenia lit d'abord les descriptions du premier niveau
- * du périmètre, choisit les branches pertinentes, descend jusqu'aux contenus, puis répond
- * en citant les pages utilisées.
+ * Questions about the tree (§8.5): Eugenia first reads the top-level descriptions of the
+ * scope, picks the relevant branches, goes down to the contents, then answers citing the
+ * pages she used.
  */
 import { z } from "zod";
 import { excerpt, systemPrompt, withSignal, type TaskContext } from "./context.ts";
@@ -21,7 +21,7 @@ export interface TreeEntry {
   hasChildren: boolean;
 }
 
-/** Accès à l'arbre fourni par l'application (web ou CLI). */
+/** Access to the tree, provided by the application (web or CLI). */
 export interface TreeNavigator {
   entry(id: string): TreeEntry | undefined;
   children(id: string): Promise<TreeEntry[]>;
@@ -49,9 +49,9 @@ function pagesBlock(
     .map((e) => {
       const children = e.hasChildren
         ? expanded.has(e.id)
-          ? "enfants déjà affichés"
-          : "a des enfants"
-        : "sans enfants";
+          ? "children already shown"
+          : "has children"
+        : "no children";
       const description = e.description ? excerpt(e.description, 300).replace(/\n+/g, " ") : "";
       return `- ${e.id} | ${e.title} | ${e.type} | ${children}${description ? ` | ${description}` : ""}`;
     })
@@ -59,7 +59,7 @@ function pagesBlock(
 }
 
 function readBlock(read: ReadonlyMap<string, { title: string; content: string }>): string {
-  if (read.size === 0) return "(rien pour l'instant)";
+  if (read.size === 0) return "(nothing yet)";
   return [...read]
     .map(([id, page]) => `### ${page.title} (${id})\n${excerpt(page.content, 6000)}`)
     .join("\n\n");
@@ -83,10 +83,10 @@ export async function* askTree(context: TaskContext, input: AskInput): AsyncGene
           {
             role: "user" as const,
             content: [
-              "<etape>exploration</etape>",
+              "<step>exploration</step>",
               `<question>\n${input.question}\n</question>`,
               `<pages>\n${pagesBlock(visible, expanded)}\n</pages>`,
-              `<lu>\n${readBlock(read)}\n</lu>`,
+              `<read>\n${readBlock(read)}\n</read>`,
             ].join("\n"),
           },
         ],
@@ -123,10 +123,10 @@ export async function* askTree(context: TaskContext, input: AskInput): AsyncGene
         {
           role: "user" as const,
           content: [
-            "<etape>réponse</etape>",
+            "<step>answer</step>",
             `<question>\n${input.question}\n</question>`,
             `<pages>\n${pagesBlock(visible, expanded)}\n</pages>`,
-            `<lu>\n${readBlock(read)}\n</lu>`,
+            `<read>\n${readBlock(read)}\n</read>`,
           ].join("\n"),
         },
       ],

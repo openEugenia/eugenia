@@ -1,14 +1,14 @@
 /**
- * Visualisations : jauge de maîtrise (meter), tuile de statistique, courbe et
- * histogramme. Traits fins, grille discrète, info-bulle au survol et au clavier, et
- * une vue tableau pour chaque graphique (aucune valeur accessible par la seule couleur).
+ * Visualizations: mastery gauge (meter), stat tile, line chart and bar chart. Thin strokes,
+ * discreet grid, tooltip on hover and with the keyboard, and a table view for each chart (no
+ * value is conveyed by color alone).
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AlertTriangle, Table2 } from "lucide-react";
 import { formatPercent } from "../lib/format.ts";
 
 // ---------------------------------------------------------------------------
-// Jauge de maîtrise
+// Mastery gauge
 // ---------------------------------------------------------------------------
 
 export function MasteryMeter({
@@ -25,7 +25,7 @@ export function MasteryMeter({
   if (value === undefined) return null;
   const low = threshold !== undefined && value < threshold;
   const text = formatPercent(value);
-  const description = `${label ?? "Maîtrise"} : ${text}${low ? ", sous le seuil de rappel" : ""}`;
+  const description = `${label ?? "Mastery"}: ${text}${low ? ", below the reminder threshold" : ""}`;
   return (
     <span
       className={`meter${low ? " is-low" : ""}${compact ? " meter--compact" : ""}`}
@@ -74,7 +74,7 @@ export function StatTile({
 }
 
 // ---------------------------------------------------------------------------
-// Utilitaires
+// Utilities
 // ---------------------------------------------------------------------------
 
 function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
@@ -117,7 +117,7 @@ function ChartFrame({
           aria-pressed={showTable}
           onClick={() => setShowTable((v) => !v)}
         >
-          <Table2 aria-hidden="true" /> {showTable ? "Graphique" : "Tableau"}
+          <Table2 aria-hidden="true" /> {showTable ? "Chart" : "Table"}
         </button>
       </figcaption>
       {showTable ? <div className="table-scroll">{table}</div> : children}
@@ -135,13 +135,13 @@ function ticks(min: number, max: number, count: number): number[] {
 }
 
 // ---------------------------------------------------------------------------
-// Courbes
+// Line charts
 // ---------------------------------------------------------------------------
 
 export interface LineSeries {
   id: string;
   label: string;
-  /** Couleur de la série (variable CSS `--viz-series-n`). */
+  /** Color of the series (CSS variable `--viz-series-n`). */
   color: string;
   points: { x: number; y: number }[];
 }
@@ -156,7 +156,7 @@ interface LineChartProps {
   threshold?: { value: number; label: string };
 }
 
-/** Courbes sur un axe unique [0, 1] (maîtrise). */
+/** Lines on a single [0, 1] axis (mastery). */
 export function LineChart({
   title,
   subtitle,
@@ -183,7 +183,7 @@ export function LineChart({
     margin.left + (maxX === minX ? plotW / 2 : ((x - minX) / (maxX - minX)) * plotW);
   const sy = (y: number): number => margin.top + (1 - Math.min(1, Math.max(0, y))) * plotH;
 
-  // Étiquettes directes en bout de courbe, sauf si elles se chevauchent.
+  // Direct labels at the end of the lines, unless they overlap.
   const ends = series
     .map((s) => ({ s, last: s.points[s.points.length - 1] }))
     .filter((e): e is { s: LineSeries; last: { x: number; y: number } } => e.last !== undefined)
@@ -235,7 +235,7 @@ export function LineChart({
           width={width}
           height={height}
           role="img"
-          aria-label={`${title}. Flèches gauche et droite pour parcourir les valeurs.`}
+          aria-label={`${title}. Left and right arrows to browse the values.`}
           tabIndex={0}
           onKeyDown={onKey}
           onPointerLeave={() => setActive(null)}
@@ -246,7 +246,7 @@ export function LineChart({
               <g key={v}>
                 <line x1={margin.left} x2={margin.left + plotW} y1={sy(v)} y2={sy(v)} />
                 <text x={margin.left - 6} y={sy(v)} dy="0.32em" textAnchor="end">
-                  {Math.round(v * 100)} %
+                  {Math.round(v * 100)}%
                 </text>
               </g>
             ))}
@@ -371,7 +371,7 @@ export function LineChart({
 }
 
 // ---------------------------------------------------------------------------
-// Histogramme (colonnes)
+// Bar chart (columns)
 // ---------------------------------------------------------------------------
 
 export interface ColumnDatum {
@@ -385,7 +385,7 @@ export function ColumnChart({
   subtitle,
   data,
   height = 170,
-  valueLabel = "valeur",
+  valueLabel = "value",
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -419,7 +419,7 @@ export function ColumnChart({
     <table className="chart-table">
       <thead>
         <tr>
-          <th>Jour</th>
+          <th>Day</th>
           <th>{valueLabel}</th>
         </tr>
       </thead>
@@ -462,7 +462,7 @@ export function ColumnChart({
                 key={d.key}
                 tabIndex={0}
                 role="img"
-                aria-label={`${d.label} : ${d.value} ${valueLabel}`}
+                aria-label={`${d.label}: ${d.value} ${valueLabel}`}
                 onPointerEnter={() => setActive(i)}
                 onFocus={() => setActive(i)}
                 onBlur={() => setActive(null)}

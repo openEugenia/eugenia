@@ -1,282 +1,283 @@
-# Spécifications — Eugenia : wiki personnel de connaissances, sur git
+# Specification — Eugenia: a personal knowledge wiki, on git
 
-> Statut : brouillon v0.6 — 2026-11-19 (format v2 : wiki, bibliothèque et discussions séparés)
-> Ce document sert de point de départ au dépôt git du projet. Il traduit en spécifications techniques la documentation fonctionnelle du dossier [`functional_doc/`](functional_doc/), qui reste la référence pour le « quoi » et le « pourquoi ». Les points encore ouverts sont listés en §16.
+> Status: draft v0.7 — 2026-11-20 (English throughout; bibliographic records of private sources in the public part; categories proposed for all the knowledge of a document)
+> This document is the starting point of the project's git repository. It turns the functional documentation of the [`functional_doc/`](functional_doc/) folder into a technical specification; the functional documentation remains the reference for the "what" and the "why". Open points are listed in §16.
 
 ---
 
 ## 1. Vision
 
-**Eugenia** aide chacun à **extraire, structurer et mémoriser durablement** les connaissances de son quotidien, puis à les partager ([pitch](functional_doc/pitch.qmd)). Eugenia est à la fois le nom du projet et celui de l'**assistante IA** qui accompagne l'utilisateur ([intro](functional_doc/0_intro.qmd)).
+**Eugenia** helps everyone **extract, structure and durably remember** the knowledge of their daily life, then share it ([pitch](functional_doc/pitch.qmd)). Eugenia is both the name of the project and of the **AI assistant** that accompanies the user ([intro](functional_doc/0_intro.qmd)).
 
-Ce projet en est l'implémentation **décentralisée et open source** :
+This project is its **decentralized and open-source** implementation:
 
-- Les connaissances de l'utilisateur sont des **fichiers Markdown dans ses propres dépôts git** (un privé, un public) : il est seul propriétaire de ses données, aucune base de données centrale. Un compte GitHub gratuit suffit.
-- Elles forment un **arbre** : le **wiki personnel**. Chaque nœud parent (sous-wiki) est **résumé par Eugenia** à partir de ce qui se trouve plus bas.
-- Eugenia propose des **connaissances atomiques** (flashcards) extraites des notes et sources de l'utilisateur, puis l'aide à les **renforcer** par des quiz conversationnels avec un score de maîtrise et un mécanisme de déclin.
-- Les connaissances sont **publiques ou privées** : n'importe qui peut parcourir la partie publique d'un wiki, le propriétaire voit aussi sa partie privée.
-- **Une seule instance** de l'application, publiée sur GitHub Pages par le compte **openEugenia**, sert tous les utilisateurs : chacun l'ouvre sur son propre dépôt.
-- L'application fonctionne **hors ligne** (PWA) et se synchronise au retour du réseau.
+- The user's knowledge is **Markdown files in their own git repositories** (one private, one public): they are the sole owner of their data, with no central database. A free GitHub account is enough.
+- It forms a **tree**: the **personal wiki**. Each parent node (sub-wiki) is **summarized by Eugenia** from what lies below.
+- Eugenia proposes **atomic knowledge** (flashcards) extracted from the user's notes and sources, then helps them **reinforce** it through conversational quizzes, with a mastery score and a decay mechanism.
+- Knowledge is **public or private**: anyone can browse the public part of a wiki; the owner also sees the private part.
+- **A single instance** of the app, published on GitHub Pages by the **openEugenia** account, serves every user: each one opens it on their own repository.
+- The app works **offline** (PWA) and synchronizes when the network is back.
 
-L'utilisateur **ne manipule jamais les fichiers** : il ne voit qu'une hiérarchie de nœuds. Le format de stockage (§5) est un détail d'implémentation, mais il reste lisible et modifiable sans l'application.
+The user **never handles files**: they only see a hierarchy of nodes. The storage format (§5) is an implementation detail, but it stays readable and editable without the app.
 
-## 2. Objectifs et non-objectifs
+## 2. Goals and non-goals
 
-### Objectifs (v1)
-1. Naviguer dans un wiki personnel hiérarchique à partir d'un dépôt git donné.
-2. Créer, éditer, déplacer et supprimer des nœuds depuis l'interface, avec commit dans le dépôt.
-3. Extraire des connaissances atomiques à partir de textes (notes, documents importés) avec l'aide d'Eugenia.
-4. Générer et maintenir les descriptions des sous-wikis (résumés) en mode semi-automatique.
-5. Renforcer les connaissances par des quiz conversationnels, avec suivi de la maîtrise et du déclin.
-6. Discuter avec Eugenia à partir de n'importe quel nœud, et l'interroger sur tout l'arbre.
-7. Séparer de façon fiable les connaissances publiques et privées.
-8. Travailler hors ligne.
+### Goals (v1)
+1. Browse a hierarchical personal wiki from a given git repository.
+2. Create, edit, move and delete nodes from the interface, with a commit to the repository.
+3. Extract atomic knowledge from texts (notes, imported documents) with Eugenia's help, and file it into categories.
+4. Generate and maintain the sub-wiki descriptions (summaries) in semi-automatic mode.
+5. Reinforce knowledge through conversational quizzes, tracking mastery and decay.
+6. Discuss with Eugenia from any node, and ask her about the whole tree.
+7. Reliably separate public and private knowledge.
+8. Work offline.
 
-### Non-objectifs (v1)
-Les fonctions **sociales** décrites dans la doc fonctionnelle ([§4](functional_doc/4_toward_social_network.qmd), [§5](functional_doc/5_discussion.qmd), [§6](functional_doc/6_other_sn_tools.qmd)) sont hors du périmètre v1, mais l'architecture doit les permettre plus tard (§14) :
-- similarité entre wikis, suggestions de connexions, fil d'actualité, capsules (« reals ») ;
-- discussions publiques à plusieurs participants (les discussions v1 sont **personnelles** : l'utilisateur et Eugenia) ;
-- badges, trophées, classements ;
-- portée automatique selon la maîtrise (une connaissance mal maîtrisée qui redevient privée).
+### Non-goals (v1)
+The **social** features described in the functional documentation ([§4](functional_doc/4_toward_social_network.qmd), [§5](functional_doc/5_discussion.qmd), [§6](functional_doc/6_other_sn_tools.qmd)) are out of the v1 scope, but the architecture must allow them later (§14):
+- similarity between wikis, connection suggestions, news feed, capsules ("reals");
+- public discussions with several participants (v1 discussions are **personal**: the user and Eugenia);
+- badges, trophies, rankings;
+- automatic scope according to mastery (a poorly mastered knowledge item that becomes private again).
 
-Également hors périmètre : édition collaborative en temps réel, backend applicatif (hors éventuel micro-service d'authentification, §7), forges autres que GitHub, application mobile native (la PWA couvre l'usage mobile).
+Also out of scope: real-time collaborative editing, an application backend (except a possible authentication micro-service, §7), forges other than GitHub, a native mobile app (the PWA covers mobile use).
 
-## 3. Glossaire
+## 3. Glossary
 
-Les définitions fonctionnelles viennent de `functional_doc/`. Ce tableau précise leur traduction dans le modèle de données.
+The functional definitions come from `functional_doc/`. This table states how they translate into the data model.
 
-| Terme | Définition | Dans le modèle |
+| Term | Definition | In the model |
 |---|---|---|
-| **Eugenia** | L'assistante, interface vers les algorithmes d'IA. | Couche `packages/ai` + prompts. |
-| **Connaissance atomique** | Énoncé simple, précis, compréhensible sans contexte implicite ([§1](functional_doc/1_knowledge_extraction.qmd)). Feuille du wiki. | Nœud de type `knowledge`. |
-| **Flashcard** | Question et réponse attendue qui testent une connaissance atomique ; une connaissance peut en avoir plusieurs. | Nœud de type `flashcard`, enfant d'une `knowledge`. |
-| **Catégorie / sous-wiki** | Ensemble de connaissances regroupées ; niveau de l'arbre ([§2](functional_doc/2_wiki.qmd)). | Nœud de type `category`. |
-| **Description de sous-wiki** | Texte qui résume ce que contient un sous-wiki. | Nœud de type `summary` rattaché au parent. |
-| **Wiki personnel** | Interface de navigation dans l'arbre des connaissances. | L'application elle-même. |
-| **Base de connaissances** | Ensemble des connaissances atomiques et de leur état de maîtrise. | Toutes les `knowledge` et `flashcard` du dépôt + historique des quiz. |
-| **Source** | Origine d'une connaissance (publication, site…) ([§1](functional_doc/1_knowledge_extraction.qmd)). | Nœud de type `source` de la **bibliothèque**, cité par les connaissances (`sources[].ref`). |
-| **Bibliothèque** | Ensemble des sources de l'utilisateur, séparé du wiki. | Dossier `library/`, liste à plat. |
-| **Discussions** | Tous les échanges avec Eugenia : discussions libres, questions, quiz, notes rapides. | Dossier `discussions/`, un fichier par discussion (§5.6). |
-| **Note rapide** | Idée ou fait noté à la volée, à quoi Eugenia répond par des connaissances candidates et des pistes de sources. | Nœud `discussion` de sorte `note`. |
-| **Maîtrise (mastery)** | Valeur dans [0, 1] de maîtrise d'une flashcard, 0,5 par défaut ([§3](functional_doc/3_reinforcement.qmd)) ; celle d'une connaissance ou d'une catégorie est la moyenne de ses flashcards. | Calculée à partir de l'historique des quiz (§8.3). |
-| **Déclin (decay)** | Facteur quotidien de diminution de la maîtrise. | Calculé à partir de l'historique des quiz (§8.3). |
-| **Quiz** | Conversation où Eugenia interroge l'utilisateur sur une catégorie. | Nœud `discussion` de sorte `quiz`. |
-| **Dépôt privé** | Dépôt git privé contenant **tout** le wiki. Source de vérité, seul dépôt édité. | — |
-| **Dépôt public** | Dépôt git public généré à partir des seuls nœuds publics. Jamais édité à la main. | — |
-| **Branche de l'arbre** | Un nœud et tous ses descendants (à ne pas confondre avec une branche git). | — |
-| **Périmé (stale)** | Résumé dont au moins une source a changé depuis sa génération. | — |
+| **Eugenia** | The assistant, an interface to the AI algorithms. | `packages/ai` layer + prompts. |
+| **Atomic knowledge** | A simple, precise statement, understandable without implicit context ([§1](functional_doc/1_knowledge_extraction.qmd)). Leaf of the wiki. | Node of type `knowledge`. |
+| **Flashcard** | A question and an expected answer that test an atomic knowledge item; a knowledge item can have several. | Node of type `flashcard`, child of a `knowledge`. |
+| **Category / sub-wiki** | A set of grouped knowledge; a level of the tree ([§2](functional_doc/2_wiki.qmd)). | Node of type `category`. |
+| **Sub-wiki description** | A text that summarizes what a sub-wiki contains. | Node of type `summary` attached to the parent. |
+| **Personal wiki** | The navigation interface of the knowledge tree. | The app itself. |
+| **Knowledge base** | All the atomic knowledge and its mastery state. | All the `knowledge` and `flashcard` of the repository + quiz history. |
+| **Source** | Origin of a knowledge item (publication, website…) ([§1](functional_doc/1_knowledge_extraction.qmd)). | Node of type `source` of the **library**, cited by knowledge (`sources[].ref`). |
+| **Bibliographic record** | The descriptive fields of a source (title, kind, authors, date, URL), as opposed to its content. | The only part of a private source that is published (§6.2). |
+| **Library** | All the user's sources, separate from the wiki. | `library/` folder, flat list. |
+| **Discussions** | All the exchanges with Eugenia: free discussions, questions, quizzes, quick notes. | `discussions/` folder, one file per discussion (§5.6). |
+| **Quick note** | An idea or a fact noted on the fly, which Eugenia answers with candidate knowledge and source leads. | `discussion` node of kind `note`. |
+| **Mastery** | Value in [0, 1] of the mastery of a flashcard, 0.5 by default ([§3](functional_doc/3_reinforcement.qmd)); the mastery of a knowledge item or a category is the average of its flashcards. | Computed from the quiz history (§8.3). |
+| **Decay** | Daily factor by which mastery decreases. | Computed from the quiz history (§8.3). |
+| **Quiz** | A conversation in which Eugenia questions the user on a category. | `discussion` node of kind `quiz`. |
+| **Private repository** | Private git repository holding the **whole** wiki. Source of truth, the only one edited. | — |
+| **Public repository** | Public git repository generated from the public nodes only. Never edited by hand. | — |
+| **Branch of the tree** | A node and all its descendants (not to be confused with a git branch). | — |
+| **Stale** | A summary at least one of whose sources changed since it was generated. | — |
 
-## 4. Architecture générale
+## 4. General architecture
 
 ```
 ┌──────────────────────────────┐            ┌──────────────────────────────┐
-│ Dépôt PRIVÉ (source vérité)  │──CI───────▶│ Dépôt PUBLIC (généré)        │
-│ ex. user/eugenia-wiki        │  publish   │ ex. user/eugenia-wiki-public │
-│ wiki public + privé          │            │ nœuds publics + index.json   │
+│ PRIVATE repo (source of truth)│──CI──────▶│ PUBLIC repo (generated)      │
+│ e.g. user/eugenia-wiki       │  publish   │ e.g. user/eugenia-wiki-public│
+│ public + private wiki        │            │ public nodes + index.json    │
 └───────────────▲──────────────┘            └──────────────────▲───────────┘
-                │ GitHub API (token propriétaire)              │ HTTP anonyme
+                │ GitHub API (owner token)                     │ anonymous HTTP
                 │                                              │ (raw.githubusercontent.com)
                 │                                              │
         ┌───────┴───────────────────────────────────────────────────────┴───┐
-        │  Application Eugenia — PWA statique                               │
+        │  Eugenia app — static PWA                                         │
         │  https://openeugenia.github.io/eugenia/                           │
-        │  - wiki / édition / extraction / quiz                             │
-        │  - copie locale (IndexedDB) + file de sync                        │
-        │  - appels IA directs depuis le navigateur                         │
+        │  - wiki / editing / extraction / quiz                             │
+        │  - local copy (IndexedDB) + sync queue                            │
+        │  - AI calls straight from the browser                             │
         └─────────────────────────────────┬─────────────────────────────────┘
                                           │
                            ┌──────────────┴──────────────┐
-                           │ Fournisseur IA configurable │
-                           │ (API Claude, Ollama local…) │
+                           │ Configurable AI provider    │
+                           │ (Claude API, local Ollama…) │
                            └─────────────────────────────┘
 ```
 
-### 4.1 Composants (monorepo)
+### 4.1 Components (monorepo)
 
-| Paquet | Rôle |
+| Package | Role |
 |---|---|
-| `packages/core` | Bibliothèque TypeScript sans dépendance navigateur : parsing des nœuds, frontmatter, construction de l'arbre, nommage des dossiers, réécriture des liens, règles de visibilité, filtrage public, calcul des résumés périmés, **algorithme de maîtrise** (§8.3). Réutilisée par le web et la CLI. |
-| `packages/web` | Application React (SPA + PWA) déployée sur GitHub Pages par le compte openEugenia. |
-| `packages/cli` | Outil en ligne de commande / GitHub Action : validation du format, publication vers le dépôt public, génération de résumés en lot, initialisation d'un nouveau wiki. |
-| `packages/ai` | Abstraction des fournisseurs IA et prompts d'Eugenia (extraction, résumé, évaluation de réponse, discussion). |
+| `packages/core` | TypeScript library without browser dependency: node parsing, frontmatter, tree building, folder naming, link rewriting, visibility rules, public filtering, stale summary detection, **mastery algorithm** (§8.3). Reused by the web app and the CLI. |
+| `packages/web` | React app (SPA + PWA) deployed on GitHub Pages by the openEugenia account. |
+| `packages/cli` | Command-line tool / GitHub Action: format validation, publication to the public repository, batch summary generation, initialization of a new wiki. |
+| `packages/ai` | AI provider abstraction and Eugenia's prompts (extraction, categorization, summary, answer evaluation, discussion). |
 
 ### 4.2 Stack
-- Langage : **TypeScript** partout.
-- UI : **React**.
-- Build : **Vite** (+ `vite-plugin-pwa`), monorepo **pnpm workspaces**.
-- Markdown : **unified / remark / rehype** (parsing, frontmatter, rendu, réécriture des liens).
-- Éditeur : **CodeMirror 6**.
-- Visualisation : arbre repliable + vue graphe (d3-hierarchy) ; graphiques de progression.
-- Stockage local : **IndexedDB** (Dexie ou idb).
-- Import de documents : **pdf.js** pour les PDF (audio et vidéo : plus tard, §14).
-- Tests : **Vitest** (core), **Playwright** (web).
-- Accès git : **API GitHub** (Octokit). Alternative à étudier : `isomorphic-git`.
+- Language: **TypeScript** everywhere.
+- UI: **React**.
+- Build: **Vite** (+ `vite-plugin-pwa`), **pnpm workspaces** monorepo.
+- Markdown: **unified / remark / rehype** (parsing, frontmatter, rendering, link rewriting).
+- Editor: **CodeMirror 6**.
+- Visualization: collapsible tree + graph view (d3-hierarchy); progress charts.
+- Local storage: **IndexedDB** (Dexie or idb).
+- Document import: **pdf.js** for PDFs (audio and video: later, §14).
+- Tests: **Vitest** (core), **Playwright** (web).
+- Git access: **GitHub API** (Octokit). Alternative to study: `isomorphic-git`.
 
-## 5. Modèle de données
+## 5. Data model
 
-### 5.1 Arborescence
+### 5.1 Tree
 
-Le dépôt a **trois espaces**, chacun dans son dossier (§5.9) :
+The repository has **three spaces**, each in its own folder (§5.9):
 
-- le **wiki** (`wiki/`) : un arbre de catégories qui contient les connaissances atomiques, elles-mêmes étendues **uniquement** par leurs flashcards ;
-- la **bibliothèque** (`library/`) : les sources d'où viennent les connaissances, en liste à plat ;
-- les **discussions** (`discussions/`) : tous les échanges avec Eugenia (discussions, questions, quiz, notes rapides), un fichier par échange.
+- the **wiki** (`wiki/`): a tree of categories holding atomic knowledge, itself extended **only** by its flashcards;
+- the **library** (`library/`): the sources the knowledge comes from, as a flat list;
+- the **discussions** (`discussions/`): all the exchanges with Eugenia (discussions, questions, quizzes, quick notes), one file per exchange.
 
-**Toute page** (`category`, `knowledge`, `flashcard`, `source`) **est un dossier contenant un `index.md`**, qu'elle ait des enfants ou non. Les pages enfants sont des sous-dossiers. Les fichiers rattachés à une page sans en être une (descriptions, embeddings) sont préfixés par `_`, dans le dossier de la page :
+**Every page** (`category`, `knowledge`, `flashcard`, `source`) **is a folder containing an `index.md`**, whether it has children or not. Child pages are subfolders. Files attached to a page without being pages themselves (descriptions, embeddings) start with `_`, in the page's folder:
 
 ```
 wiki/
-├── index.md                              # racine : le wiki global (type: category)
-├── _summary.md                           # description du wiki global (portée privée)
-├── _summary.public.md                    # description du wiki global (portée publique)
-├── religion-et-croyances/
-│   ├── index.md                          # catégorie (type: category)
-│   ├── _summary.md                       # description du sous-wiki
+├── index.md                              # root: the global wiki (type: category)
+├── _summary.md                           # description of the global wiki (private scope)
+├── _summary.public.md                    # description of the global wiki (public scope)
+├── religion-and-beliefs/
+│   ├── index.md                          # category (type: category)
+│   ├── _summary.md                       # description of the sub-wiki
 │   └── lilith/
-│       ├── index.md                      # connaissance atomique (type: knowledge)
-│       └── quel-est-le-nom-du-demon/
+│       ├── index.md                      # atomic knowledge (type: knowledge)
+│       └── what-is-the-name-of-the-female/
 │           └── index.md                  # flashcard (type: flashcard)
 └── science/
     ├── index.md
-    └── astronomie/
+    └── astronomy/
         └── ...
 library/
-└── article-sur-lilith/
+└── article-on-lilith/
     ├── index.md                          # source (type: source)
-    └── article.pdf                       # fichier personnel de la source
+    └── article.pdf                       # personal file of the source
 discussions/
-├── 2026-11-12-1800-lilith-et-la-lune-noire.md   # discussion libre
-├── 2026-11-14-0830-51-pegasi-b.md                # note rapide (kind: note)
-└── 2026-11-17-1030-quiz-religion-et-croyances.md # quiz (kind: quiz)
+├── 2026-11-12-1800-lilith-and-the-black-moon.md   # free discussion
+├── 2026-11-14-0830-51-pegasi-b.md                  # quick note (kind: note)
+└── 2026-11-17-1030-quiz-religion-and-beliefs.md   # quiz (kind: quiz)
 ```
 
-- Structure du wiki : une **catégorie** contient des catégories et des connaissances ; une **connaissance** ne contient que des **flashcards** ; une flashcard n'a pas d'enfant. La bibliothèque est **à plat**. `validate` signale les pages mal rangées, et l'interface refuse de les déplacer ailleurs.
-- L'ordre des enfants est défini par le champ `order`, sinon alphabétique sur le titre.
-- Les fichiers et dossiers préfixés par `_` ou `.` sont réservés à l'application et n'apparaissent pas comme des enfants dans l'arbre.
-- **Pas de limite** de profondeur ni de largeur des catégories.
-- Les fichiers joints (PDF, images, audio) sont rangés dans le dossier du nœud concerné.
-- Le format v1 (tout sous `wiki/`, notes libres, discussions dans `_discussions/` et `_quizzes/`) n'est pas migré automatiquement ; `validate` signale ses fichiers.
+- Structure of the wiki: a **category** contains categories and knowledge items; a **knowledge item** only contains **flashcards**; a flashcard has no child. The library is **flat**. `validate` reports misplaced pages, and the interface refuses to move them elsewhere.
+- The order of the children is set by the `order` field, otherwise alphabetical by title.
+- Files and folders starting with `_` or `.` are reserved for the app and do not appear as children in the tree.
+- **No limit** on the depth or width of categories.
+- Attached files (PDFs, images, audio) are stored in the folder of the node concerned.
+- The v1 format (everything under `wiki/`, free notes, discussions in `_discussions/` and `_quizzes/`) is not migrated automatically; `validate` reports its files.
 
-### 5.2 Nommage des dossiers
+### 5.2 Folder naming
 
-Le nom du dossier est dérivé du titre, sans que l'utilisateur le voie :
-1. passage en minuscules, suppression des accents, caractères non alphanumériques remplacés par `-` ;
-2. **troncature aux premiers caractères** (32 par défaut, sans couper au milieu d'un mot si possible) ;
-3. en cas de collision avec un frère, ajout d'un suffixe `-2`, `-3`…
+The folder name is derived from the title, without the user seeing it:
+1. lowercase, accents removed, non-alphanumeric characters replaced with `-`;
+2. **truncation to the first characters** (32 by default, without cutting in the middle of a word when possible);
+3. on collision with a sibling, a `-2`, `-3`… suffix is added.
 
-**Quand le titre change, le dossier est renommé** selon la même règle, et les liens entrants sont réécrits dans le même commit (§5.8). L'`id` du nœud ne change jamais.
+**When the title changes, the folder is renamed** following the same rule, and incoming links are rewritten in the same commit (§5.8). The node's `id` never changes.
 
-### 5.3 Frontmatter commun
+### 5.3 Common frontmatter
 
 ```yaml
 ---
-id: 01JD3K8Z9X...          # ULID stable, généré à la création
+id: 01JD3K8Z9X...          # stable ULID, generated on creation
 type: category             # category | knowledge | flashcard | source | summary | discussion
-title: Religion et croyances
-visibility: private        # public | private (hérité du parent si absent)
+title: Religion and beliefs
+visibility: private        # public | private (inherited from the parent if absent)
 created: 2026-11-17T10:30:00Z
 updated: 2026-11-17T11:00:00Z
 tags: []
-order: 10                  # optionnel
+order: 10                  # optional
 ---
 ```
 
-### 5.4 Types de nœuds
+### 5.4 Node types
 
-| Type | Espace | Rôle |
+| Type | Space | Role |
 |---|---|---|
-| `category` | wiki | **Catégorie** (sous-wiki), avec un texte d'introduction facultatif. Type par défaut dans le wiki (`note`, type du format v1, est lu ainsi). |
-| `knowledge` | wiki | **Connaissance atomique** : un énoncé, ses sources (§5.7). Feuille de l'arbre des catégories. |
-| `flashcard` | wiki | Question et réponse attendue sur la connaissance parente (§5.7). |
-| `source` | bibliothèque | Source d'une connaissance : notice, fichier personnel, contenu (§5.7). Type par défaut dans la bibliothèque. |
-| `summary` | wiki | Description d'un sous-wiki, générée par Eugenia (§5.5). |
-| `discussion` | discussions | Échange personnel entre l'utilisateur et Eugenia (§5.6). |
+| `category` | wiki | **Category** (sub-wiki), with an optional introduction text. Default type in the wiki (`note`, the v1 type, is read this way). |
+| `knowledge` | wiki | **Atomic knowledge**: a statement, its sources (§5.7). Leaf of the category tree. |
+| `flashcard` | wiki | Question and expected answer on the parent knowledge item (§5.7). |
+| `source` | library | Source of a knowledge item: bibliographic record, personal file, content (§5.7). Default type in the library. |
+| `summary` | wiki | Description of a sub-wiki, generated by Eugenia (§5.5). |
+| `discussion` | discussions | Personal exchange between the user and Eugenia (§5.6). |
 
-Un type inconnu est signalé et traité comme le type par défaut de l'espace.
+An unknown type is reported and treated as the default type of the space.
 
-### 5.5 Résumés (descriptions de sous-wikis)
+### 5.5 Summaries (sub-wiki descriptions)
 
-Stockés dans le fichier `_summary.md` du dossier de la **catégorie** décrite, ils sont affichés **en tête de la catégorie**, et non comme un enfant. Seules les catégories ont une description : une connaissance et ses flashcards ne forment pas un sous-wiki.
+Stored in the `_summary.md` file of the folder of the described **category**, they are shown **at the top of the category**, not as a child. Only categories have a description: a knowledge item and its flashcards do not form a sub-wiki.
 
 ```yaml
 ---
 id: 01JD3M...
 type: summary
-scope: private             # private = tous les enfants ; public = enfants publics seuls
+scope: private             # private = all children; public = public children only
 model: claude-sonnet-5-5
 generated: 2026-11-17T11:05:00Z
-locked: false              # true = ne plus proposer de régénération
-sources:                   # empreinte des sources au moment de la génération
-  01JD3K8Z9X...: 3f2a9c1   # id enfant → SHA du blob git (contenu ou résumé de l'enfant)
+locked: false              # true = no longer offer regeneration
+sources:                   # fingerprint of the sources at generation time
+  01JD3K8Z9X...: 3f2a9c1   # child id → git blob SHA (content or summary of the child)
 ---
-Texte de la description…
+Text of the description…
 ```
 
-- Construction **ascendante** : la description d'une catégorie est faite à partir des descriptions de ses sous-catégories et de l'énoncé de ses connaissances. On va ainsi du plus fin au plus global ([§2](functional_doc/2_wiki.qmd)).
-- Une catégorie peut avoir deux descriptions : `_summary.md` (portée privée) et `_summary.public.md` (portée publique), cf. §6.3.
+- **Bottom-up** construction: the description of a category is made from the descriptions of its subcategories and the statements of its knowledge items. It thus goes from the most specific to the most general ([§2](functional_doc/2_wiki.qmd)).
+- A category can have two descriptions: `_summary.md` (private scope) and `_summary.public.md` (public scope), see §6.3.
 
 ### 5.6 Discussions
 
-Tous les échanges avec Eugenia sont rangés **au même endroit**, `discussions/<date>-<heure>-<titre>.md` (UTC), et réunis dans la section Discussions de l'interface. Une discussion est un fichier unique : les messages y sont stockés, une section par message. Des métadonnées par message sont portées par un commentaire HTML invisible au rendu.
+All the exchanges with Eugenia are stored **in the same place**, `discussions/<date>-<time>-<title>.md` (UTC), and gathered in the Discussions section of the interface. A discussion is a single file: the messages are stored in it, one section per message. Per-message metadata is carried by an HTML comment invisible when rendered.
 
-| `kind` | Sorte | Rattachement |
+| `kind` | Kind | Attachment |
 |---|---|---|
-| absent (`discussion`) | Discussion libre (« tout est discussion », [§5](functional_doc/5_discussion.qmd)). | `about` : page d'où elle a été ouverte (facultatif). |
-| `question` | Question sur l'arbre enregistrée (§8.5). | `scope_node` : périmètre de la question. |
-| `quiz` | Session de révision (§8.3). | `scope_node` : catégorie interrogée. |
-| `note` | Note rapide (§8.4). | `about` facultatif. |
+| absent (`discussion`) | Free discussion ("everything is a discussion", [§5](functional_doc/5_discussion.qmd)). | `about`: page it was opened from (optional). |
+| `question` | Saved question about the tree (§8.5). | `scope_node`: scope of the question. |
+| `quiz` | Review session (§8.3). | `scope_node`: quizzed category. |
+| `note` | Quick note (§8.4). | `about` optional. |
 
-Une discussion apparaît aussi sur la page de ses nœuds `about` et `scope_node`.
+A discussion also appears on the page of its `about` and `scope_node` nodes.
 
 ```markdown
 ---
 id: 01JD3P...
 type: discussion
-title: Lilith et la Lune noire
-about: 01JD3R...           # page à l'origine de la discussion (optionnel)
+title: Lilith and the Black Moon
+about: 01JD3R...           # page the discussion started from (optional)
 ---
 
 ## user · 2026-11-17T10:00:00Z
-Quel lien entre Lilith et la Lune noire ?
+What is the link between Lilith and the Black Moon?
 
 ## eugenia · 2026-11-17T10:00:12Z
-En astrologie, la « Lune noire » désigne…
+In astrology, the "Black Moon" refers to…
 ```
 
-**Le quiz est la trace qui stocke l'état de révision** : la maîtrise de chaque flashcard est recalculée en rejouant les quiz (§8.3).
+**The quiz is the trace that stores the review state**: the mastery of each flashcard is recomputed by replaying the quizzes (§8.3).
 
 ```markdown
 ---
 id: 01JD3Q...
 type: discussion
 kind: quiz
-title: Quiz — Religion et croyances
-scope_node: 01JD3K8Z9X...  # catégorie choisie
+title: Quiz — Religion and beliefs
+scope_node: 01JD3K8Z9X...  # chosen category
 visibility: private
 ---
 
 ## eugenia · 2026-11-17T10:30:00Z
 <!-- eugenia: {"card": "01JD3R...", "role": "question"} -->
-Quel est le nom du démon féminin de la tradition juive, inspiré d'une divinité mésopotamienne ?
+What is the name of the female demon of Jewish tradition, inspired by a Mesopotamian deity?
 
 ## user · 2026-11-17T10:30:20Z
-Je pense que c'est Lilite la Pépite
+I think it is Lilita the Pita
 
 ## eugenia · 2026-11-17T10:30:24Z
 <!-- eugenia: {"card": "01JD3R...", "role": "feedback", "score": 0.3} -->
-La réponse est incorrecte : Lilith était attendue. L'orthographe est fausse et l'ajout n'existe pas.
+The answer is incorrect: Lilith was expected. The spelling is wrong and the addition does not exist.
 ```
 
-- Rôles : `user`, `eugenia`.
-- Seuls les quiz comptent pour la maîtrise ; `card` désigne une **flashcard**.
-- Une discussion est **privée par défaut** ; un quiz n'est jamais publié.
-- Le quiz est commité **en une fois, à la fin de la session** (ou à la fermeture, via la file hors ligne).
+- Roles: `user`, `eugenia`.
+- Only quizzes count for mastery; `card` refers to a **flashcard**.
+- A discussion is **private by default**; a quiz is never published.
+- The quiz is committed **in one go, at the end of the session** (or when the page closes, through the offline queue).
 
-### 5.7 Connaissances atomiques, flashcards et sources
+### 5.7 Atomic knowledge, flashcards and sources
 
-Le tuple *(connaissance, titre, catégorie, question)* de la doc fonctionnelle ([§1](functional_doc/1_knowledge_extraction.qmd)) se répartit entre la **connaissance** (énoncé, titre ; la **catégorie est sa position dans l'arbre**) et ses **flashcards** (question, réponse attendue). La seule chose qui étend une connaissance est une flashcard.
+The tuple *(knowledge, title, category, question)* of the functional documentation ([§1](functional_doc/1_knowledge_extraction.qmd)) is split between the **knowledge item** (statement, title; the **category is its position in the tree**) and its **flashcards** (question, expected answer). The only thing that extends a knowledge item is a flashcard.
 
-**Connaissance atomique** :
+**Atomic knowledge**:
 
 ```markdown
 ---
@@ -285,330 +286,341 @@ type: knowledge
 title: Lilith
 visibility: public
 created: 2026-11-17T10:30:00Z
-extracted_from: 01JD3S...  # source ou discussion d'origine (optionnel)
+extracted_from: 01JD3S...  # originating source or discussion (optional)
 sources:
-  - ref: 01JD3S...         # source de la bibliothèque
-    locator: p. 12         # localisation dans la source (optionnel)
-  - description: Conférence au Collège de France   # référence libre (optionnel)
+  - ref: 01JD3S...         # library source
+    locator: p. 12         # location in the source (optional)
+  - description: Lecture at the Royal Institution   # free reference (optional)
     url: https://example.org
 ---
 
-**Lilith** est un démon féminin de la tradition juive, inspiré d'une divinité d'origine mésopotamienne.
+**Lilith** is a female demon of Jewish tradition, inspired by a deity of Mesopotamian origin.
 
 ## Notes
-Voir aussi la [Lune noire](../../science/astronomie/lune-noire/index.md).
+See also the [Black Moon](../../science/astronomy/black-moon/index.md).
 ```
 
-- Le corps commence par l'**énoncé** ; sa partie en **gras** est la **cible d'apprentissage**. Des sections libres (`## Notes`) peuvent suivre.
-- Une connaissance **sans source** est autorisée (par exemple issue d'une note rapide) mais signalée **« à sourcer »** : l'interface invite à la rattacher à une source extérieure.
+- The body starts with the **statement**; its **bold** part is the **learning target**. Free sections (`## Notes`) may follow.
+- A knowledge item **without a source** is allowed (for example from a quick note) but flagged **"needs a source"**: the interface invites the user to attach it to an external source.
 
-**Flashcard**, enfant d'une connaissance :
+**Flashcard**, child of a knowledge item:
 
 ```markdown
 ---
 id: 01JD3T...
 type: flashcard
-title: Quel est le nom du démon féminin de la tradition juive…
+title: What is the name of the female demon of Jewish tradition…
 created: 2026-11-17T10:31:00Z
 ---
 
 ## Question
-Quel est le nom du démon féminin de la tradition juive, inspiré d'une divinité d'origine mésopotamienne ?
+What is the name of the female demon of Jewish tradition, inspired by a deity of Mesopotamian origin?
 
-## Réponse attendue
+## Expected answer
 Lilith
 ```
 
-- Le titre est tiré de la question. Une flashcard n'a pas de `visibility` propre : elle suit sa connaissance.
-- La maîtrise, la date du dernier échec et le déclin **ne sont pas stockés** : ils sont dérivés des quiz (§8.3), **par flashcard**.
+- The title is taken from the question. A flashcard has no `visibility` of its own: it follows its knowledge item.
+- Mastery, the date of the last failure and decay **are not stored**: they are derived from quizzes (§8.3), **per flashcard**.
+- The French headings (`## Réponse attendue`, `## Connaissance`) of wikis written in French are also read.
 
-**Source**, dans la bibliothèque :
+**Source**, in the library:
 
 ```yaml
 ---
 id: 01JD3S...
 type: source
 kind: article              # book | article | web | video | audio | document | other
-title: Article sur Lilith
-authors: [Jeanne Dupont]
+title: Article on Lilith
+authors: [Jane Doe]
 published: "2019"
 url: https://example.org/lilith
-file: article.pdf          # fichier personnel, jamais publié
+file: article.pdf          # personal file, never published
 visibility: private
 ---
 ```
 
-- Le corps (extraits, résumé, notes de lecture) sert de texte source à l'extraction.
-- **Visibilité** : chaque source a la sienne. Une connaissance publique qui cite une source privée est publiée sans cette référence ; le **fichier personnel** n'est jamais publié.
-- Supprimer une source transforme ses citations en références libres (titre, adresse, localisation).
+- The body (excerpts, summary, reading notes) is the source text for extraction.
+- **Visibility**: each source has its own. A **private source** is published as its **bibliographic record** only (`id`, `type`, `kind`, `title`, `authors`, `published`, `url`, `visibility: private`): its content, personal file, tags and any other key stay private. A public knowledge item that cites a private source therefore keeps its citation in the public part, which leads to the record. The **personal file** is never published.
+- Deleting a source turns its citations into free references (title, URL, location).
 
-### 5.8 Liens entre nœuds
+### 5.8 Links between nodes
 
-- Syntaxe : **liens Markdown relatifs** vers le `index.md` cible, ex. `[Lilith](../lilith/index.md)`.
-- Dans l'éditeur, l'utilisateur insère un lien en cherchant un nœud par son titre ; le chemin est généré automatiquement.
-- Quand un nœud est déplacé ou renommé, **tous les liens entrants sont réécrits** dans le même commit.
-- L'interface affiche les **rétroliens** (nœuds qui pointent vers le nœud courant).
+- Syntax: **relative Markdown links** to the target `index.md`, e.g. `[Lilith](../lilith/index.md)`.
+- In the editor, the user inserts a link by searching a node by its title; the path is generated automatically.
+- When a node is moved or renamed, **all incoming links are rewritten** in the same commit.
+- The interface shows **backlinks** (nodes that point to the current node).
 
-### 5.9 Configuration du wiki
+### 5.9 Wiki configuration
 
 ```yaml
 # .notes/config.yml
-title: Mon wiki
-root: wiki/                             # le wiki
-library: library/                       # la bibliothèque des sources
-discussions: discussions/               # les discussions
-private_repo: user/eugenia-wiki        # recopié dans le dépôt public, optionnel (§7)
+title: My wiki
+root: wiki/                             # the wiki
+library: library/                       # the source library
+discussions: discussions/               # the discussions
+private_repo: user/eugenia-wiki        # copied to the public repository, optional (§7)
 default_visibility: private
 folder_name_max_length: 32
-mastery:                                # paramètres de l'algorithme (§8.3)
+mastery:                                # algorithm parameters (§8.3)
   initial: 0.5
   alpha: 0.5
   decay_rate: 0.05
-  success_threshold: 0.5               # réussite si x > 0.5
+  success_threshold: 0.5               # success if x > 0.5
 ```
 
-Les réglages personnels (clés API, fournisseur IA, préférence IA locale) ne sont **pas** dans le dépôt : ils restent dans le navigateur.
+Personal settings (API keys, AI provider, local AI preference) are **not** in the repository: they stay in the browser.
 
-## 6. Visibilité public / privé
+## 6. Public / private visibility
 
-### 6.1 Principe : deux dépôts
+### 6.1 Principle: two repositories
 
-- **Dépôt privé** (ex. `user/eugenia-wiki`) : contient tout, c'est le seul que l'on édite.
-- **Dépôt public** (ex. `user/eugenia-wiki-public`) : généré par une GitHub Action à chaque push sur le dépôt privé, il ne contient que les nœuds `visibility: public`.
+- **Private repository** (e.g. `user/eugenia-wiki`): contains everything; it is the only one edited.
+- **Public repository** (e.g. `user/eugenia-wiki-public`): generated by a GitHub Action on every push to the private repository, it only contains the `visibility: public` nodes and the bibliographic records of private sources.
 
-> **Pourquoi pas un seul dépôt avec deux branches ?** Sur GitHub, l'accès en lecture s'applique au dépôt entier, pas à une branche : une branche privée dans un dépôt public serait lisible par tous. Et exposer la partie publique d'un dépôt privé (via GitHub Pages) exige un compte payant. Deux dépôts fonctionnent avec un compte gratuit.
+> **Why not a single repository with two branches?** On GitHub, read access applies to the whole repository, not to a branch: a private branch in a public repository would be readable by everyone. And exposing the public part of a private repository (through GitHub Pages) requires a paid account. Two repositories work with a free account.
 
-### 6.2 Règles de visibilité
-1. Un nouveau nœud est **privé par défaut**.
-2. Un nœud sans champ `visibility` hérite de son parent.
-3. **Un nœud public ne peut pas avoir d'ancêtre privé.** Quand l'utilisateur rend public un nœud dont un ancêtre est privé, l'application **propose de rendre publique toute la branche** jusqu'à la racine, en affichant les ancêtres concernés et en demandant une confirmation explicite. S'il refuse, le nœud reste privé.
-4. Rendre public un nœud ne rend **pas** automatiquement publics ses descendants : l'application propose de les inclure (cases à cocher). Les flashcards, elles, suivent toujours leur connaissance.
-5. Rendre privé un nœud rend privés tous ses descendants, après confirmation.
-6. Lors de la publication, un lien d'un nœud public vers un nœud privé est réécrit en texte simple.
-7. Les fichiers personnels des sources ne sont jamais publiés ; les autres fichiers joints suivent la visibilité de leur nœud. Chaque source de la bibliothèque a sa propre visibilité ; une référence à une source privée disparaît d'une connaissance publiée.
-8. Les quiz ne sont pas publiés en v1.
-9. La CLI de publication refuse toute arborescence qui viole la règle 3, par exemple si le dépôt a été modifié hors application.
+### 6.2 Visibility rules
+1. A new node is **private by default**.
+2. A node without a `visibility` field inherits from its parent.
+3. **A public node cannot have a private ancestor.** When the user makes public a node one of whose ancestors is private, the app **offers to make the whole branch public** up to the root, showing the ancestors concerned and asking for an explicit confirmation. If the user refuses, the node stays private.
+4. Making a node public does **not** automatically make its descendants public: the app offers to include them (checkboxes). Flashcards, however, always follow their knowledge item.
+5. Making a node private makes all its descendants private, after confirmation.
+6. On publication, a link from a public node to a private node is rewritten as plain text.
+7. The personal files of sources are never published; the other attached files follow the visibility of their node. Each library source has its own visibility; a private source is published as its **bibliographic record** only (title, kind, authors, date, URL), so that the knowledge that cites it keeps its citation and the links to it in the public part.
+8. Quizzes are not published in v1.
+9. The publication CLI refuses any tree that breaks rule 3, for example if the repository was edited outside the app.
 
-### 6.3 Fuites par les résumés
-Une description générée à partir d'enfants privés **ne doit jamais** être publiée. Le dépôt public reçoit uniquement `_summary.public.md` (renommé en `_summary.md`), généré à partir des seuls enfants publics. La CLI de publication vérifie ce point et échoue en cas d'incohérence.
+### 6.3 Leaks through summaries
+A description generated from private children **must never** be published. The public repository only receives `_summary.public.md` (renamed `_summary.md`), generated from the public children only. The publication CLI checks this and fails on inconsistency.
 
 ### 6.4 Publication
-GitHub Action dans le dépôt privé, déclenchée par chaque push :
-1. `cli publish --target user/eugenia-wiki-public` construit l'arborescence filtrée (règles §6.2 et §6.3) et la valide.
-2. Il génère `.notes/index.json` (arbre, titres, types, descriptions courtes) et `.notes/config.yml` (sans les paramètres personnels).
-3. Il pousse le résultat dans le dépôt public en **réécrivant son historique** (un seul commit par publication) : aucun historique privé n'est exposé, et le message de commit ne reprend pas ceux du dépôt privé.
-4. L'écriture dans le dépôt public utilise un secret du dépôt privé : une *deploy key* ou un jeton fine-grained limité au dépôt public, créé par `cli init`.
+GitHub Action in the private repository, triggered by every push:
+1. `cli publish --target user/eugenia-wiki-public` builds the filtered tree (rules §6.2 and §6.3) and validates it.
+2. It generates `.notes/index.json` (tree, titles, types, short descriptions, bibliographic records of private sources marked `visibility: private`) and `.notes/config.yml` (without personal settings).
+3. It pushes the result to the public repository **rewriting its history** (a single commit per publication): no private history is exposed, and the commit message repeats nothing from the private repository.
+4. Writing to the public repository uses a secret of the private repository: a *deploy key* or a fine-grained token limited to the public repository, created by `cli init`.
 
-## 7. Authentification et accès
+## 7. Authentication and access
 
-L'instance unique `openeugenia.github.io/eugenia/` n'a ni secret serveur ni compte propre : l'identité est celle de GitHub.
+The single instance `openeugenia.github.io/eugenia/` has no server secret and no account of its own: identity is GitHub's.
 
-| Mode | Usage |
+| Mode | Use |
 |---|---|
-| **Anonyme** | Lecture du dépôt public en HTTP simple via `raw.githubusercontent.com` (`index.json` puis fichiers Markdown), sans API GitHub ni limite de débit. |
-| **Propriétaire — v1** | Jeton GitHub *fine-grained* (lecture/écriture limitées au dépôt privé) saisi dans les paramètres, stocké dans le navigateur (IndexedDB). |
-| **Propriétaire — v2** | « Se connecter avec GitHub » via une GitHub App openEugenia + un micro-service d'échange de jeton (ex. Cloudflare Worker). |
+| **Anonymous** | Reading the public repository over plain HTTP through `raw.githubusercontent.com` (`index.json`, then the Markdown files), without the GitHub API or rate limit. |
+| **Owner — v1** | Fine-grained GitHub token (read/write limited to the private repository) entered in the settings, stored in the browser (IndexedDB). |
+| **Owner — v2** | "Sign in with GitHub" through an openEugenia GitHub App + a token-exchange micro-service (e.g. Cloudflare Worker). |
 
-**Détection du propriétaire** : pour `?repo=owner/name`, l'application charge la partie publique du dépôt public `owner/name`. Si son `.notes/config.yml` déclare un `private_repo` et que l'utilisateur connecté y a accès, elle bascule sur le dépôt privé via l'API GitHub et affiche tout le wiki, avec un badge public/privé sur chaque nœud. Le propriétaire peut aussi ouvrir directement son dépôt privé (`?repo=owner/eugenia-wiki`).
+**Owner detection**: for `?repo=owner/name`, the app loads the public part of the public repository `owner/name`. If its `.notes/config.yml` declares a `private_repo` and the signed-in user can access it, the app switches to the private repository through the GitHub API and shows the whole wiki, with a public/private badge on each node. The owner can also open their private repository directly (`?repo=owner/eugenia-wiki`).
 
-## 8. Parcours fonctionnels
+## 8. Functional flows
 
-### 8.1 Extraction de connaissances ([§1](functional_doc/1_knowledge_extraction.qmd))
+### 8.1 Knowledge extraction ([§1](functional_doc/1_knowledge_extraction.qmd))
 
-1. **Entrée** : un texte. Il peut venir d'une source de la bibliothèque, d'une discussion ou d'une note rapide, d'un texte collé, ou d'un document importé (PDF converti par pdf.js ; audio et vidéo transcrits en texte, en v2). Un texte collé ou importé devient une **source** de la bibliothèque, avec le fichier original joint si l'utilisateur le souhaite.
-2. **Surlignage** : Eugenia surligne dans le texte les connaissances atomiques candidates.
-3. **Ajustement** : l'utilisateur ajoute ses propres surlignages, ou découpe et affine ceux qu'Eugenia propose.
-4. **Proposition** : pour chaque connaissance retenue, Eugenia reformule un énoncé autonome (en réintroduisant le contexte, ex. « Lilith ») et propose une cible d'apprentissage, un **titre**, la **question** et la **réponse attendue** d'une première flashcard, et une **catégorie** (existante, ou nouvelle à créer). L'utilisateur choisit les **sources** que citeront les connaissances (la source d'origine par défaut ; aucune pour une discussion, qui les rend « à sourcer » tant qu'il n'en ajoute pas).
-5. **Validation** : l'utilisateur sélectionne, modifie et valide. Les connaissances sont créées dans leurs catégories, avec leur première flashcard, leurs sources et un lien `extracted_from` vers la source ou la discussion d'origine. Le tout fait l'objet d'un seul commit.
-6. **Flashcards supplémentaires** : depuis une connaissance, Eugenia propose de nouvelles flashcards (autres angles, sans sortir de l'énoncé), que l'utilisateur relit avant de les ajouter.
+1. **Input**: a text. It can come from a library source, a discussion or a quick note, a pasted text, or an imported document (PDF converted by pdf.js; audio and video transcribed to text, in v2). A pasted or imported text becomes a **source** of the library, with the original file attached if the user wishes.
+2. **Highlighting**: Eugenia highlights the candidate atomic knowledge in the text.
+3. **Adjustment**: the user adds their own highlights, or splits and refines the ones Eugenia proposes.
+4. **Proposal**: for each knowledge item kept, Eugenia rewrites a self-contained statement (reintroducing the context, e.g. "Lilith") and proposes a learning target, a **title**, and the **question** and **expected answer** of a first flashcard. The user chooses the **sources** the knowledge will cite (the originating source by default; none for a discussion, which makes them "need a source" until the user adds one).
+5. **Categorization**: Eugenia then looks at the existing categories (path and description) and at **all the knowledge items of the document together**, and files them the way Wikipedia files its articles: an existing category when it names exactly the topic of an item; otherwise, **one or more new categories** that best group the items of the document sharing a topic, placed under the most specific existing category, possibly nested (at most two new levels). New categories are named like Wikipedia categories (short topic, plural noun for a set of things, proper name for a subject), never duplicate an existing sibling, and are only created if they end up holding knowledge. The user reviews these proposals: renames, re-parents, removes or adds categories, and changes the category of each knowledge item.
+6. **Validation**: the user selects, edits and validates. The new categories are created, then the knowledge items in their categories, with their first flashcard, their sources and an `extracted_from` link to the originating source or discussion. Everything goes into a single commit.
+7. **Additional flashcards**: from a knowledge item, Eugenia proposes new flashcards (other angles, without going beyond the statement), which the user reviews before adding them.
 
-**Catégories par défaut** : à l'initialisation d'un nouveau wiki (`cli init` ou assistant web), l'application propose de créer les catégories de premier niveau de la doc fonctionnelle : Arts et culture, Économie et finance, Géographie, Histoire, Langues et linguistique, Médecine et santé, Militaire et défense, Nature et environnement, Philosophie et pensée, Religion et croyances, Science, Société et sciences sociales, Sports et loisirs, Technologie, Transports. L'utilisateur peut en ajouter, en renommer ou en supprimer, et Eugenia peut lui suggérer des sous-catégories. Il n'y a pas de limite de profondeur ni de largeur.
+**Default categories**: when a new wiki is initialized (`cli init` or the web wizard), the app offers to create the top-level categories of the functional documentation: Arts and culture, Economy and finance, Geography, History, Languages and linguistics, Medicine and health, Military and defense, Nature and environment, Philosophy and thought, Religion and beliefs, Science, Society and social sciences, Sports and leisure, Technology, Transport. The user can add, rename or delete some, and Eugenia can suggest subcategories. There is no limit on depth or width.
 
-### 8.2 Wiki personnel ([§2](functional_doc/2_wiki.qmd))
+### 8.2 Personal wiki ([§2](functional_doc/2_wiki.qmd))
 
-- Navigation dans l'arbre : chaque sous-wiki affiche sa **description** (§5.5), ses enfants avec leurs descriptions courtes, et une **jauge de maîtrise**.
-- Maîtrise d'une catégorie : moyenne de la maîtrise actuelle des flashcards qu'elle contient (descendants compris).
-- Les descriptions sont maintenues en mode **semi-automatique** (§11.2).
+- Navigation in the tree: each sub-wiki shows its **description** (§5.5), its children with their short descriptions, and a **mastery gauge**.
+- Mastery of a category: average current mastery of the flashcards it contains (descendants included).
+- Descriptions are maintained in **semi-automatic** mode (§11.2).
 
-### 8.3 Quiz et renforcement ([§3](functional_doc/3_reinforcement.qmd))
+### 8.3 Quiz and reinforcement ([§3](functional_doc/3_reinforcement.qmd))
 
-**Déroulement** :
-1. L'utilisateur choisit une catégorie (n'importe quel nœud de l'arbre).
-2. Eugenia trie les flashcards de cette branche par **maîtrise actuelle croissante**.
-3. Pour chaque flashcard : Eugenia pose la question, l'utilisateur répond librement, puis Eugenia compare la réponse à la réponse attendue et renvoie un **retour détaillé** (éléments manquants et superflus) et un **score** $x \in [0, 1]$.
-4. La maîtrise est mise à jour après chaque réponse (calcul local, immédiat).
-5. L'utilisateur peut arrêter à tout moment ou relancer un quiz, qui suit alors le nouvel ordre.
-6. En fin de session, le quiz est enregistré comme discussion (§5.6) et commité.
+**Flow**:
+1. The user chooses a category (any node of the tree).
+2. Eugenia sorts the flashcards of this branch by **increasing current mastery**.
+3. For each flashcard: Eugenia asks the question, the user answers freely, then Eugenia compares the answer with the expected answer and returns **detailed feedback** (missing and superfluous elements) and a **score** $x \in [0, 1]$.
+4. Mastery is updated after each answer (local, immediate computation).
+5. The user can stop at any time or start a new quiz, which then follows the new order.
+6. At the end of the session, the quiz is saved as a discussion (§5.6) and committed.
 
-**État d'une flashcard** (dérivé, jamais saisi) :
+**State of a flashcard** (derived, never entered):
 
-| Champ | Initialisation |
+| Field | Initialization |
 |---|---|
-| `mastery` $m$ | 0,5 |
-| `failure_date` $f$ | date de création de la flashcard |
-| `decay` $\beta$ | $1 - \frac{0{,}05}{1 + 0} = 0{,}95$ |
-| `last_eval` $e$ | date de création de la flashcard |
+| `mastery` $m$ | 0.5 |
+| `failure_date` $f$ | creation date of the flashcard |
+| `decay` $\beta$ | $1 - \frac{0.05}{1 + 0} = 0.95$ |
+| `last_eval` $e$ | creation date of the flashcard |
 
-**Maîtrise actuelle** au jour $d$ (déclin quotidien, en jours entiers) :
+**Current mastery** on day $d$ (daily decay, in whole days):
 
-$$m_{\text{actuelle}}(d) = m \cdot \beta^{\,(d - e)}$$
+$$m_{\text{current}}(d) = m \cdot \beta^{\,(d - e)}$$
 
-**Mise à jour après une évaluation** de score $x$ au jour $d$ :
-1. $m \gets m_{\text{actuelle}}(d)$ (le déclin est d'abord appliqué)
-2. $m \gets \frac{m + x}{2}$ dans tous les cas (moyenne mobile exponentielle, $\alpha = \tfrac{1}{2}$) : un échec (score faible, jusqu'à $x = 0$) fait donc baisser la maîtrise naturellement
-3. **Si réussite** ($x > 0{,}5$) :
-   - $t \gets d - f$ (jours depuis le dernier échec)
-   - $\beta \gets 1 - \frac{0{,}05}{1 + t}$ : plus les réussites s'enchaînent longtemps après le dernier échec, plus l'oubli ralentit
-4. **Sinon (échec, $x \leq 0{,}5$)** : $f \gets d$ et $\beta \gets 0{,}95$, c'est-à-dire que le déclin repart à son rythme le plus rapide
+**Update after an evaluation** with score $x$ on day $d$:
+1. $m \gets m_{\text{current}}(d)$ (decay is applied first)
+2. $m \gets \frac{m + x}{2}$ in every case (exponential moving average, $\alpha = \tfrac{1}{2}$): a failure (low score, down to $x = 0$) thus lowers mastery naturally
+3. **If success** ($x > 0.5$):
+   - $t \gets d - f$ (days since the last failure)
+   - $\beta \gets 1 - \frac{0.05}{1 + t}$: the longer successes follow one another after the last failure, the slower forgetting gets
+4. **Otherwise (failure, $x \leq 0.5$)**: $f \gets d$ and $\beta \gets 0.95$, i.e. decay restarts at its fastest pace
 5. $e \gets d$
 
-**Stockage par rejeu** : `core` reconstruit l'état de chaque flashcard en rejouant chronologiquement tous les scores trouvés dans les quiz (`discussions/`, `kind: quiz`) du dépôt. Conséquences :
-- aucune donnée de maîtrise n'est dupliquée ou désynchronisée ;
-- un changement des paramètres (§5.9) s'applique rétroactivement à tout l'historique ;
-- l'état calculé est mis en cache dans IndexedDB et invalidé quand un quiz change (SHA).
+**Storage by replay**: `core` rebuilds the state of each flashcard by replaying in chronological order all the scores found in the quizzes (`discussions/`, `kind: quiz`) of the repository. Consequences:
+- no mastery data is duplicated or out of sync;
+- a change of the parameters (§5.9) applies retroactively to the whole history;
+- the computed state is cached in IndexedDB and invalidated when a quiz changes (SHA).
 
-**Rappels de révision** ([§5](functional_doc/5_discussion.qmd)) : à l'ouverture, l'application signale les catégories dont des flashcards passent sous un seuil de maîtrise (ex. « 3 connaissances de *Philosophie et pensée* risquent d'être oubliées »). Les notifications push sont prévues en v2 (§14).
+**Review reminders** ([§5](functional_doc/5_discussion.qmd)): when the app opens, it reports the categories whose flashcards drop below a mastery threshold (e.g. "3 flashcards in *Philosophy and thought* may be forgotten"). Push notifications are planned for v2 (§14).
 
-**Tableau de bord** ([§6](functional_doc/6_other_sn_tools.qmd)) : nombre de connaissances, taux de révision, courbe de maîtrise dans le temps par catégorie.
+**Dashboard** ([§6](functional_doc/6_other_sn_tools.qmd)): number of knowledge items, review rate, mastery curve over time per category.
 
 ### 8.4 Discussions ([§5](functional_doc/5_discussion.qmd))
 
-- La section **Discussions** rassemble tous les échanges (discussions, questions, quiz, notes rapides), filtrables par sorte et par texte, avec la page à laquelle chacun se rattache.
-- Depuis n'importe quelle page (catégorie, connaissance, flashcard, source), l'utilisateur peut ouvrir une discussion avec Eugenia. Elle est enregistrée dans `discussions/` et affichée aussi dans la vue de la page.
-- **Note rapide** : l'utilisateur note une idée ou un fait ; Eugenia répond **aussitôt** par les connaissances atomiques candidates, ce qui mérite vérification, et des pistes de **sources extérieures** (une source de la bibliothèque si elle convient). La note se poursuit comme une discussion et peut être extraite (§8.1).
-- Eugenia peut : clarifier ou reformuler une notion, suggérer des liens vers des nœuds existants, résumer l'échange, et **proposer d'extraire de nouvelles connaissances** de la discussion (retour au parcours §8.1), en invitant à les appuyer sur une source.
-- Un quiz enregistré se relit dans la section Discussions, sans se prolonger.
-- Les discussions v1 sont **personnelles** et privées par défaut (§6.2).
+- The **Discussions** section gathers all the exchanges (discussions, questions, quizzes, quick notes), filterable by kind and text, with the page each one is attached to.
+- From any page (category, knowledge item, flashcard, source), the user can open a discussion with Eugenia. It is saved in `discussions/` and also shown on the page's view.
+- **Quick note**: the user notes an idea or a fact; Eugenia answers **right away** with the candidate atomic knowledge, what deserves checking, and leads to **external sources** (a library source if one fits). The note continues as a discussion and can be extracted (§8.1).
+- Eugenia can: clarify or rephrase a notion, suggest links to existing nodes, summarize the exchange, and **offer to extract new knowledge** from the discussion (back to flow §8.1), inviting the user to back it with a source.
+- A saved quiz can be read again in the Discussions section, without being continued.
+- v1 discussions are **personal** and private by default (§6.2).
 
-### 8.5 Questions sur l'arbre
+### 8.5 Questions about the tree
 
-L'utilisateur pose une question sur un périmètre donné (wiki entier ou branche) :
-1. Eugenia reçoit d'abord les descriptions du premier niveau du périmètre.
-2. Elle choisit les branches pertinentes et **descend** dans l'arbre (descriptions → descriptions enfants → contenu des nœuds).
-3. Sa réponse cite les nœuds utilisés, sous forme de liens cliquables.
-4. L'échange peut être enregistré comme discussion de sorte `question` dans `discussions/`, rattachée au périmètre.
+The user asks a question about a given scope (whole wiki or branch):
+1. Eugenia first receives the top-level descriptions of the scope.
+2. She chooses the relevant branches and **goes down** the tree (descriptions → child descriptions → node contents).
+3. Her answer cites the nodes used, as clickable links.
+4. The exchange can be saved as a discussion of kind `question` in `discussions/`, attached to the scope.
 
-## 9. Interface web
+## 9. Web interface
 
-### 9.1 Point d'entrée
-- `https://openeugenia.github.io/eugenia/?repo=owner/name` : ouvre n'importe quel wiki compatible.
-- Sans paramètre : page d'accueil (présentation d'Eugenia, saisie d'un dépôt, derniers wikis consultés, création d'un nouveau wiki).
+### 9.1 Entry point
+- `https://openeugenia.github.io/eugenia/?repo=owner/name`: opens any compatible wiki.
+- Without a parameter: home page (presentation of Eugenia, repository input, recently viewed wikis, creation of a new wiki).
 
-### 9.2 Vues
-1. **Panneau latéral** à trois onglets, qui suivent la page ouverte : **Wiki** (arbre repliable des catégories et connaissances, icône par type, badge public/privé, jauge de maîtrise, badges « description périmée » et « à sourcer », indicateur « modifié hors ligne »), **Bibliothèque** (sources par titre), **Discussions** (échanges récents).
-2. **Catégorie** : description en tête, introduction, sous-catégories et connaissances avec leurs descriptions courtes, rétroliens, discussions liées.
-3. **Connaissance** : énoncé (cible en gras), sources (avec localisation), flashcards et leur maîtrise, origine (source ou discussion) ; **flashcard** : question, réponse attendue, connaissance testée, courbe de maîtrise.
-3 bis. **Bibliothèque** : liste des sources filtrable (nature, étiquette, texte), tri, connaissances à sourcer ; **source** : notice, fichier personnel, contenu, connaissances qui la citent.
-3 ter. **Discussions** : liste de tous les échanges, filtrable par sorte, accès direct à la note rapide, à la question, au quiz.
-4. **Extraction** : texte source avec surlignages, panneau des connaissances proposées (§8.1).
-5. **Quiz** : conversation avec Eugenia, score et retour après chaque réponse, progression de la session.
-6. **Discussion** : messages chronologiques, réponse d'Eugenia en streaming ; note rapide ; quiz en lecture.
-7. **Graphe** : visualisation de l'arbre (zoom, focus sur une branche).
-8. **Tableau de bord** : indicateurs et courbes de progression.
-9. **Recherche** : plein texte (index côté client) avec filtres par type, tag, visibilité et maîtrise.
-10. **Éditeur** : Markdown, métadonnées sous forme de formulaire (le frontmatter brut n'est jamais affiché).
-11. **Paramètres** : jeton GitHub, fournisseur IA, clé API, modèle, IA locale pour le privé, données hors ligne.
+### 9.2 Views
+1. **Side panel** with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title), **Discussions** (recent exchanges).
+2. **Category**: description at the top, introduction, subcategories and knowledge items with their short descriptions, backlinks, related discussions.
+3. **Knowledge item**: statement (target in bold), sources (with location), flashcards and their mastery, origin (source or discussion); **flashcard**: question, expected answer, tested knowledge, mastery curve.
+3a. **Library**: list of sources filterable by kind, tag and text, sorting, knowledge that needs a source; **source**: bibliographic record, personal file, content, knowledge that cites it. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
+3b. **Discussions**: list of all the exchanges, filterable by kind, direct access to the quick note, the question, the quiz.
+4. **Extraction**: source text with highlights, panel of proposed knowledge and of the new categories proposed for the document (§8.1).
+5. **Quiz**: conversation with Eugenia, score and feedback after each answer, session progress.
+6. **Discussion**: chronological messages, Eugenia's answer streamed; quick note; quiz read-only.
+7. **Graph**: visualization of the tree (zoom, focus on a branch).
+8. **Dashboard**: indicators and progress curves.
+9. **Search**: full text (client-side index) with filters by type, tag, visibility and mastery.
+10. **Editor**: Markdown, metadata as a form (the raw frontmatter is never shown).
+11. **Settings**: GitHub token, AI provider, API key, model, local AI for private content, offline data.
 
-### 9.3 Opérations d'édition
-- Créer un nœud enfant ou frère, changer son type.
-- Renommer (le dossier est renommé, §5.2) ou déplacer par glisser-déposer : l'`id` est conservé et les liens entrants sont réécrits.
-- Supprimer, avec confirmation (la suppression récursive est explicite).
-- Changer la visibilité, avec les propositions décrites en §6.2.
-- **Enregistrement** : les modifications sont regroupées localement puis commitées en un seul commit (message généré, modifiable).
+### 9.3 Editing operations
+- Create a child or sibling node, change its type.
+- Rename (the folder is renamed, §5.2) or move by drag and drop: the `id` is kept and incoming links are rewritten.
+- Delete, with confirmation (recursive deletion is explicit).
+- Change the visibility, with the proposals described in §6.2.
+- **Saving**: changes are grouped locally then committed in a single commit (generated, editable message).
 
-## 10. Synchronisation git et mode hors ligne
+## 10. Git synchronization and offline mode
 
-### 10.1 Lecture
-- Propriétaire : arbre complet du dépôt privé récupéré via l'API Git Trees (`recursive=1`) ; un appel donne tous les chemins et SHA.
-- Anonyme : `index.json` puis fichiers Markdown chargés depuis `raw.githubusercontent.com`.
-- Contenus chargés à la demande et mis en cache par SHA (immuables, donc cache permanent).
+### 10.1 Reading
+- Owner: complete tree of the private repository fetched through the Git Trees API (`recursive=1`); one call gives all the paths and SHAs.
+- Anonymous: `index.json`, then Markdown files loaded from `raw.githubusercontent.com`.
+- Contents loaded on demand and cached by SHA (immutable, so a permanent cache).
 
-### 10.2 Écriture
-- Commit multi-fichiers via l'API Git Data (blobs → tree → commit → mise à jour de la ref).
-- Toujours dans le dépôt privé (branche par défaut) ; le dépôt public n'est écrit que par la CI.
+### 10.2 Writing
+- Multi-file commit through the Git Data API (blobs → tree → commit → ref update).
+- Always to the private repository (default branch); the public repository is only written by the CI.
 
-### 10.3 Mode hors ligne (PWA)
-- Le service worker met l'application en cache : elle s'ouvre sans réseau.
-- Une **copie locale** des wikis consultés (arbre + contenus) est conservée dans IndexedDB.
-- Hors ligne, on peut lire, éditer, créer, déplacer. Les quiz restent possibles si un fournisseur IA local est joignable ; sinon, un **mode d'auto-évaluation** permet de révéler la réponse et de noter soi-même sa réponse (0 / 0,5 / 1).
-- Les modifications sont placées dans une **file de changements en attente**, visible dans l'interface.
-- Au retour du réseau :
-  1. récupération de l'état distant ;
-  2. si aucun fichier modifié localement n'a changé à distance → commit direct ;
-  3. sinon → résolution de conflit nœud par nœud (version locale, version distante, ou fusion manuelle côte à côte). Aucune résolution automatique silencieuse.
-- Les quiz étant des fichiers distincts horodatés, ils n'entrent jamais en conflit entre appareils.
+### 10.3 Offline mode (PWA)
+- The service worker caches the app: it opens without a network.
+- A **local copy** of the viewed wikis (tree + contents) is kept in IndexedDB.
+- Offline, one can read, edit, create and move. Quizzes remain possible if a local AI provider is reachable; otherwise, a **self-assessment mode** lets the user reveal the answer and grade their own answer (0 / 0.5 / 1).
+- Changes are placed in a **queue of pending changes**, visible in the interface.
+- When the network is back:
+  1. the remote state is fetched;
+  2. if no locally changed file changed remotely → direct commit;
+  3. otherwise → node-by-node conflict resolution (local version, remote version, or side-by-side manual merge). No silent automatic resolution.
+- Quizzes being separate timestamped files, they never conflict between devices.
 
-## 11. Intelligence artificielle (Eugenia)
+## 11. Artificial intelligence (Eugenia)
 
-### 11.1 Fournisseurs
-Interface commune `AIProvider` (`complete`, `stream`, `countTokens`, et `embed` pour la recherche sémantique, chez les fournisseurs compatibles OpenAI : Mistral `mistral-embed` par défaut) avec adaptateurs :
-- **Anthropic (Claude)** : appel direct depuis le navigateur avec la clé de l'utilisateur.
-- **Ollama / serveur local** : nécessite d'autoriser l'origine `openeugenia.github.io` en CORS.
-- **Compatible OpenAI** : tout autre fournisseur.
+### 11.1 Providers
+Common `AIProvider` interface (`complete`, `stream`, `countTokens`, and `embed` for semantic search, with OpenAI-compatible providers: Mistral `mistral-embed` by default) with adapters:
+- **Anthropic (Claude)**: direct call from the browser with the user's key.
+- **Ollama / local server**: requires allowing the `openeugenia.github.io` origin in CORS.
+- **OpenAI-compatible**: any other provider.
 
-**IA locale pour le privé** : lors de la première configuration (puis dans les paramètres), l'application **demande à l'utilisateur** s'il souhaite réserver les nœuds privés à une IA locale.
-- Si oui : tout traitement impliquant un nœud privé (description, extraction, quiz, discussion, question sur l'arbre) passe obligatoirement par le fournisseur local. À défaut, l'action est bloquée avec une explication.
-- Si non : un avertissement s'affiche la première fois qu'un contenu privé est envoyé à un fournisseur distant.
+**Local AI for private content**: on first setup (then in the settings), the app **asks the user** whether they want to keep private nodes for a local AI.
+- If so: any task involving a private node (description, extraction, categorization, quiz, discussion, question about the tree) must go through the local provider. Otherwise, the action is blocked with an explanation.
+- If not: a warning is shown the first time private content is sent to a remote provider.
 
-Les clés API ne sont jamais commitées ; elles sont stockées uniquement dans le navigateur.
+API keys are never committed; they are only stored in the browser.
 
-### 11.2 Descriptions de sous-wikis (mode semi-automatique)
-1. **Détection** : `core` compare les `sources` de chaque résumé aux SHA actuels des enfants. Un écart → description **périmée**, propagée aux ancêtres.
-2. **Signalement** : badge dans l'arbre et compteur global « N descriptions périmées ».
-3. **Régénération** : à la demande, sur un nœud, une branche ou tout le wiki, des nœuds les plus profonds vers la racine.
-4. **Relecture** : chaque description régénérée est présentée en diff avant d'entrer dans le commit ; elle peut être éditée puis verrouillée (`locked`).
-5. **Lot** : `cli summarize --stale`, en local ou en CI.
+### 11.2 Sub-wiki descriptions (semi-automatic mode)
+1. **Detection**: `core` compares the `sources` of each summary with the current SHAs of the children. A difference → the description is **stale**, which propagates to the ancestors.
+2. **Reporting**: badge in the tree and global counter "N stale descriptions".
+3. **Regeneration**: on demand, on a node, a branch or the whole wiki, from the deepest nodes to the root.
+4. **Review**: each regenerated description is shown as a diff before entering the commit; it can be edited then locked (`locked`).
+5. **Batch**: `cli summarize --stale`, locally or in CI.
 
 ### 11.3 Prompts
-Les prompts d'Eugenia sont versionnés dans le dépôt de l'application et peuvent être surchargés dans le wiki (`.notes/prompts/`) :
-- `extract.md` : surlignage et proposition de connaissances atomiques ;
-- `summarize.md` : description d'un sous-wiki (variante pour les discussions : décisions + questions ouvertes) ;
-- `evaluate.md` : comparaison réponse / réponse attendue, avec un retour et un score dans [0, 1] en **sortie structurée** (JSON validé) ;
-- `discuss.md` : rôle d'Eugenia dans une discussion.
+Eugenia's prompts are versioned in the app's repository, written in English, and can be overridden in the wiki (`.notes/prompts/`); Eugenia answers in the language of the content or of the user:
+- `extract.md`: highlighting and proposal of atomic knowledge;
+- `categorize.md`: categories of all the knowledge of a document, Wikipedia-style (§8.1);
+- `categories.md`: subcategory suggestions for a category;
+- `flashcards.md`: new flashcards on a knowledge item;
+- `summarize.md`: description of a sub-wiki (variant for discussions: decisions + open questions);
+- `evaluate.md`: comparison of the answer with the expected answer, with feedback and a score in [0, 1] as **structured output** (validated JSON);
+- `discuss.md`: Eugenia's role in a discussion;
+- `note.md`: answer to a quick note;
+- `ask.md`: questions about the tree.
 
-## 12. Sécurité et confidentialité
-- Données détenues par l'utilisateur dans ses propres dépôts, sans serveur central.
-- Nœuds privés par défaut ; validation CI bloquante avant publication (§6).
-- Le dépôt source doit être privé : l'application refuse d'y écrire s'il est public.
-- Aucun contenu privé dans le dépôt public : ni dans son historique, ni dans les descriptions, ni via les fichiers personnels des sources.
-- Jetons et clés stockés localement, jamais transmis ailleurs qu'à leur service respectif.
-- Copie hors ligne effaçable depuis les paramètres (« oublier ce wiki sur cet appareil »).
-- CSP stricte ; rendu Markdown assaini (aucun HTML/JS arbitraire exécuté).
-- Instance partagée : aucune donnée d'un utilisateur n'est accessible à un autre au-delà de ce que GitHub autorise.
+## 12. Security and privacy
+- Data held by the user in their own repositories, without a central server.
+- Nodes private by default; blocking CI validation before publication (§6).
+- The source repository must be private: the app refuses to write to it if it is public.
+- No private content in the public repository: neither in its history, nor in the descriptions, nor through the personal files of sources. Of a private source, only the bibliographic record (an allow-list of fields) is published: the user must not put in it anything they want to keep private.
+- Tokens and keys stored locally, never sent anywhere other than their own service.
+- Offline copy erasable from the settings ("forget this wiki on this device").
+- Strict CSP; sanitized Markdown rendering (no arbitrary HTML/JS executed).
+- Shared instance: no user's data is accessible to another beyond what GitHub allows.
 
-## 13. Hébergement et dépôts du projet
-- Code source : dépôt public **`openEugenia/eugenia`**, sous licence **MIT** (pour le moment).
-- Application : déployée sur **`https://openeugenia.github.io/eugenia/`** par une GitHub Action à chaque tag de version.
-- GitHub Action de publication (§6.4) : publiée sur le Marketplace par openEugenia, pour être utilisée dans les dépôts privés des utilisateurs.
-- La documentation fonctionnelle (`functional_doc/`) reste dans le dépôt et pourra être publiée avec Quarto.
+## 13. Project hosting and repositories
+- Source code: public repository **`openEugenia/eugenia`**, under the **MIT** license (for now).
+- App: deployed to **`https://openeugenia.github.io/eugenia/`** by a GitHub Action on every version tag.
+- Publication GitHub Action (§6.4): published on the Marketplace by openEugenia, to be used in users' private repositories.
+- The functional documentation (`functional_doc/`) stays in the repository and may be published with Quarto.
 
-## 14. Évolutions prévues (hors v1)
+## 14. Planned evolutions (beyond v1)
 
-Le format git reste la base de ces évolutions : un wiki public est déjà une donnée ouverte et indexable.
-- **Réseau social** ([§4](functional_doc/4_toward_social_network.qmd)) : registre (opt-in) des wikis publics, vecteurs d'embeddings par wiki, similarité sémantique entre utilisateurs, suggestions de connexions.
-- **Portée automatique selon la maîtrise** : proposer de rendre privée une connaissance publique qui passe sous un seuil de maîtrise, puis de la republier quand elle remonte.
-- **Ajout de connaissances d'autrui** : copier une flashcard publique d'un autre wiki dans le sien (avec source d'origine).
-- **Discussions publiques** à plusieurs participants (ex. via GitHub Discussions ou issues du dépôt public).
-- **Fil d'actualité, capsules, gamification** (badges, trophées) ([§6](functional_doc/6_other_sn_tools.qmd)).
-- **Notifications** push et e-mail.
-- **Transcription audio/vidéo** pour l'extraction.
+The git format remains the basis of these evolutions: a public wiki is already open, indexable data.
+- **Social network** ([§4](functional_doc/4_toward_social_network.qmd)): (opt-in) registry of public wikis, embedding vectors per wiki, semantic similarity between users, connection suggestions.
+- **Automatic scope according to mastery**: offer to make private a public knowledge item whose mastery drops below a threshold, then to republish it when it rises again.
+- **Adding other people's knowledge**: copy a public flashcard from another wiki into one's own (with its original source).
+- **Public discussions** with several participants (e.g. through GitHub Discussions or issues of the public repository).
+- **News feed, capsules, gamification** (badges, trophies) ([§6](functional_doc/6_other_sn_tools.qmd)).
+- **Notifications**, push and e-mail.
+- **Audio/video transcription** for extraction.
+- **Hidden private sources**: an option to leave a private source out of the public part entirely, record included.
 
-## 15. Feuille de route
+## 15. Roadmap
 
-| Jalon | Contenu |
+| Milestone | Content |
 |---|---|
-| **M0 — Fondations** | Monorepo, `core` (parsing, arbre, nommage, liens, visibilité), format documenté, tests. |
-| **M1 — Lecteur public** | Application React, lecture anonyme d'un wiki public, arbre, rendu, recherche, déploiement sur openEugenia. |
-| **M2 — Propriétaire** | Jeton fine-grained, dépôt privé, édition, renommage, déplacement, commit, `cli init` avec catégories par défaut. |
-| **M3 — Publication** | CLI + GitHub Action dépôt privé → dépôt public, validations, `index.json`. |
-| **M4 — Hors ligne** | PWA, copie IndexedDB, file de changements, résolution de conflits. |
-| **M5 — Eugenia : descriptions** | Abstraction fournisseurs, choix IA locale pour le privé, descriptions périmées, régénération et relecture. |
-| **M6 — Extraction** | Parcours §8.1 depuis une note ou un texte collé, import PDF. |
-| **M7 — Quiz** | Quiz conversationnel, évaluation par Eugenia, algorithme de maîtrise par rejeu, jauges, rappels, auto-évaluation hors ligne. |
-| **M8 — Discussions & questions** | Discussions depuis un nœud, extraction depuis une discussion, questions sur l'arbre. |
-| **M9 — Confort** | Vue graphe, tableau de bord, connexion GitHub App, transcription audio/vidéo. |
+| **M0 — Foundations** | Monorepo, `core` (parsing, tree, naming, links, visibility), documented format, tests. |
+| **M1 — Public reader** | React app, anonymous reading of a public wiki, tree, rendering, search, deployment on openEugenia. |
+| **M2 — Owner** | Fine-grained token, private repository, editing, renaming, moving, commit, `cli init` with default categories. |
+| **M3 — Publication** | CLI + GitHub Action private repository → public repository, validations, `index.json`. |
+| **M4 — Offline** | PWA, IndexedDB copy, change queue, conflict resolution. |
+| **M5 — Eugenia: descriptions** | Provider abstraction, local AI choice for private content, stale descriptions, regeneration and review. |
+| **M6 — Extraction** | Flow §8.1 from a note or a pasted text, PDF import, document-level categorization. |
+| **M7 — Quiz** | Conversational quiz, evaluation by Eugenia, mastery algorithm by replay, gauges, reminders, offline self-assessment. |
+| **M8 — Discussions & questions** | Discussions from a node, extraction from a discussion, questions about the tree. |
+| **M9 — Comfort** | Graph view, dashboard, GitHub App sign-in, audio/video transcription. |
 
-## 16. Questions ouvertes
-Aucune pour le moment. Décisions récentes :
-- deux dépôts (privé + public) pour rester compatible avec un compte GitHub gratuit ;
-- catégories par défaut de la doc fonctionnelle conservées telles quelles.
+## 16. Open questions
+None for now. Recent decisions:
+- two repositories (private + public) to stay compatible with a free GitHub account;
+- default categories of the functional documentation kept as they are;
+- the whole project (interface, prompts, documentation, demo wiki) is in English, for an English-speaking audience; Eugenia answers in the language of the content or of the user;
+- the bibliographic record of a private source (title, kind, authors, date, URL) is public, so that public knowledge can cite it;
+- the knowledge extracted from a document is categorized together, Wikipedia-style, possibly in new categories reviewed by the user.

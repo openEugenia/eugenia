@@ -2,7 +2,7 @@
   "name": "@openeugenia/ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Eugenia, l'assistante : abstraction des fournisseurs d'IA et prompts (extraction, descriptions, évaluation, discussion).",
+  "description": "Eugenia, the assistant: AI provider abstraction and prompts (extraction, descriptions, evaluation, discussion).",
   "license": "MIT",
   "type": "module",
   "exports": {

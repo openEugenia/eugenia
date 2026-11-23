@@ -1,7 +1,7 @@
 /**
- * Accès au dépôt selon le mode (§7, §10) :
- * - propriétaire : dépôt privé via l'API GitHub (lecture et écriture) ;
- * - anonyme : dépôt public via `index.json` puis les fichiers Markdown (lecture seule).
+ * Repository access according to the mode (§7, §10):
+ * - owner: private repository through the GitHub API (read and write);
+ * - anonymous: public repository through `index.json`, then the Markdown files (read only).
  */
 import {
   CONFIG_PATH,
@@ -21,14 +21,14 @@ export type Mode = "owner" | "anonymous";
 
 export interface ResolvedSource {
   mode: Mode;
-  /** Dépôt lu. */
+  /** Repository read. */
   source: RepoRef;
-  /** Dépôt public associé (mode propriétaire ouvert depuis le dépôt public). */
+  /** Associated public repository (owner mode opened from the public repository). */
   publicRepo?: RepoRef;
   branch: string;
   isPrivate: boolean;
   canWrite: boolean;
-  /** Raison de l'absence d'écriture. */
+  /** Why writing is not possible. */
   readOnlyReason?: string;
 }
 
@@ -37,9 +37,9 @@ export class SourceError extends Error {
 }
 
 /**
- * Détecte le mode d'accès (§7) : un dépôt privé accessible avec le jeton est ouvert en
- * propriétaire ; un dépôt public est lu anonymement, sauf si sa configuration déclare un
- * `private_repo` accessible avec le jeton, auquel cas l'application bascule sur celui-ci.
+ * Detects the access mode (§7): a private repository accessible with the token is opened as
+ * owner; a public repository is read anonymously, unless its configuration declares a
+ * `private_repo` accessible with the token, in which case the app switches to it.
  */
 export async function resolveSource(
   requested: RepoRef,
@@ -54,7 +54,7 @@ export async function resolveSource(
       info = await gh.getRepo(requested);
     } catch (error) {
       if (error instanceof GitHubError && error.code === "not_found") {
-        // Peut-être un dépôt public : on tente la lecture anonyme.
+        // Maybe a public repository: try reading it anonymously.
         return {
           mode: "anonymous",
           source: requested,
@@ -74,10 +74,10 @@ export async function resolveSource(
         canWrite: info.canPush,
         ...(info.canPush
           ? {}
-          : { readOnlyReason: "Votre jeton ne permet pas d'écrire dans ce dépôt." }),
+          : { readOnlyReason: "Your token does not allow writing to this repository." }),
       };
     }
-    // Dépôt public : dépôt généré (index.json) ou dépôt source public.
+    // Public repository: generated repository (index.json) or public source repository.
     let config: string | null = null;
     try {
       config = await raw.getText(requested, CONFIG_PATH);
@@ -98,11 +98,11 @@ export async function resolveSource(
             canWrite: privateInfo.canPush,
             ...(privateInfo.canPush
               ? {}
-              : { readOnlyReason: "Votre jeton ne permet pas d'écrire dans ce dépôt." }),
+              : { readOnlyReason: "Your token does not allow writing to this repository." }),
           };
         }
       } catch {
-        // pas d'accès au dépôt privé : lecture anonyme
+        // no access to the private repository: anonymous reading
       }
     }
     const hasIndex = await raw.getResponse(requested, INDEX_JSON_PATH).then(
@@ -117,7 +117,7 @@ export async function resolveSource(
         isPrivate: false,
         canWrite: false,
         readOnlyReason:
-          "Ce dépôt est public : l'application refuse d'y écrire. Le dépôt source d'un wiki doit être privé.",
+          "This repository is public: the app refuses to write to it. The source repository of a wiki must be private.",
       };
     }
   }
@@ -130,16 +130,16 @@ export async function resolveSource(
   };
 }
 
-/** Lecture et écriture d'un dépôt pour un mode donné. */
+/** Reading and writing of a repository for a given mode. */
 export interface Backend {
   readonly mode: Mode;
   readonly source: RepoRef;
   fetchSnapshot(previous?: Snapshot): Promise<Snapshot>;
-  /** Contenus texte, par SHA. */
+  /** Text contents, by SHA. */
   readBlobs(files: readonly RepoFile[]): Promise<Map<string, string>>;
-  /** Contenu binaire (images, PDF). */
+  /** Binary content (images, PDF). */
   readBinary(file: RepoFile): Promise<Blob>;
-  /** Adresse directe d'un fichier (mode anonyme). */
+  /** Direct URL of a file (anonymous mode). */
   directUrl?(path: string): string;
 }
 
@@ -212,7 +212,7 @@ export class AnonymousBackend implements Backend {
     } catch (error) {
       if (error instanceof GitHubError && error.code === "not_found") {
         throw new SourceError(
-          `Aucun wiki public dans ${repoLabel(this.source)} (fichier ${INDEX_JSON_PATH} absent). S'il s'agit de votre dépôt privé, ajoutez un jeton GitHub dans les paramètres.`,
+          `No public wiki in ${repoLabel(this.source)} (no ${INDEX_JSON_PATH} file). If this is your private repository, add a GitHub token in the settings.`,
         );
       }
       throw error;
@@ -221,10 +221,9 @@ export class AnonymousBackend implements Backend {
     try {
       index = JSON.parse(text);
     } catch {
-      throw new SourceError(`${INDEX_JSON_PATH} est illisible dans ${repoLabel(this.source)}.`);
+      throw new SourceError(`${INDEX_JSON_PATH} is unreadable in ${repoLabel(this.source)}.`);
     }
-    if (!isWikiIndex(index))
-      throw new SourceError(`${INDEX_JSON_PATH} n'est pas un index Eugenia.`);
+    if (!isWikiIndex(index)) throw new SourceError(`${INDEX_JSON_PATH} is not an Eugenia index.`);
     return {
       repo: repoKey(this.source),
       mode: "anonymous",
@@ -274,7 +273,7 @@ export function mimeType(path: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Écriture : un commit multi-fichiers via l'API Git Data (§10.2)
+// Writing: a multi-file commit through the Git Data API (§10.2)
 // ---------------------------------------------------------------------------
 
 export type PushOutcome =
@@ -282,8 +281,8 @@ export type PushOutcome =
   | { status: "conflicts"; conflicts: Conflict[]; snapshot: Snapshot };
 
 /**
- * Pousse un commit de la file. Si un fichier modifié localement a changé à distance,
- * rien n'est écrit et les conflits sont renvoyés (aucune résolution silencieuse, §10.3).
+ * Pushes a queued commit. If a file changed locally has changed remotely, nothing is written
+ * and the conflicts are returned (no silent resolution, §10.3).
  */
 export async function pushCommit(
   backend: OwnerBackend,
@@ -294,18 +293,18 @@ export async function pushCommit(
   const { gh, source } = backend;
   const branch = backend.resolved.branch;
   for (let attempt = 0; attempt < 3; attempt++) {
-    // 1. État distant.
+    // 1. Remote state.
     const remote = await backend.fetchSnapshot(snapshot);
     const remoteFiles = new Map(remote.files.map((f) => [f.path, f]));
 
-    // 2. Conflits : fichier modifié des deux côtés.
+    // 2. Conflicts: file changed on both sides.
     const conflicts: Conflict[] = [];
     const effective = commit.paths.filter((path) => {
       const change = state.changes[path];
       if (!change) return false;
       const remoteSha = remoteFiles.get(path)?.sha ?? null;
       if (remoteSha === change.baseSha) return true;
-      if (change.kind === "delete" ? remoteSha === null : remoteSha === change.sha) return false; // déjà à jour
+      if (change.kind === "delete" ? remoteSha === null : remoteSha === change.sha) return false; // already up to date
       const conflict: Conflict = {
         path,
         local: change.kind === "delete" ? null : (change.content ?? null),
@@ -329,7 +328,7 @@ export async function pushCommit(
     if (effective.length === 0)
       return { status: "committed", snapshot: remote, committed: new Map() };
 
-    // 3. Dépôt vide : premier fichier par l'API Contents.
+    // 3. Empty repository: first file through the Contents API.
     let head = remote.headSha ?? null;
     const paths = [...effective];
     const committed = new Map<string, string>();
@@ -339,7 +338,7 @@ export async function pushCommit(
       );
       if (firstIndex < 0)
         throw new GitHubError(
-          "Impossible d'initialiser un dépôt vide sans fichier texte.",
+          "Cannot initialize an empty repository without a text file.",
           "other",
         );
       const first = state.changes[paths[firstIndex]!]!;
@@ -353,7 +352,7 @@ export async function pushCommit(
     const baseTree =
       head === remote.headSha ? (remote.treeSha ?? null) : await gh.getCommitTree(source, head);
 
-    // 4. Arbre, commit, avance de la branche.
+    // 4. Tree, commit, branch update.
     const entries: TreeEntryInput[] = [];
     for (const path of paths) {
       const change = state.changes[path]!;
@@ -378,7 +377,7 @@ export async function pushCommit(
     try {
       await gh.updateRef(source, branch, commitSha);
     } catch (error) {
-      // La branche a bougé entre-temps : on recommence avec le nouvel état distant.
+      // The branch moved in the meantime: start again with the new remote state.
       if (error instanceof GitHubError && error.code === "unprocessable") {
         snapshot = remote;
         continue;
@@ -404,5 +403,5 @@ export async function pushCommit(
       },
     };
   }
-  throw new GitHubError("La branche distante change trop souvent : réessayez.", "other");
+  throw new GitHubError("The remote branch changes too often: try again.", "other");
 }

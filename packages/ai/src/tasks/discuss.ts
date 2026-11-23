@@ -1,6 +1,6 @@
 /**
- * Discussions avec Eugenia (§8.4) : discussion libre à partir d'une page, ou note rapide
- * (Eugenia répond aussitôt par des connaissances candidates et des pistes de sources).
+ * Discussions with Eugenia (§8.4): free discussion from a page, or quick note (Eugenia
+ * immediately answers with candidate knowledge and source leads).
  */
 import type { DiscussionKind } from "@openeugenia/core";
 import type { ChatMessage, GenerateRequest } from "../types.ts";
@@ -10,7 +10,7 @@ export interface DiscussionPage {
   id: string;
   title: string;
   type: string;
-  /** Titres des ancêtres. */
+  /** Titles of the ancestors. */
   path: readonly string[];
   content: string;
 }
@@ -27,12 +27,12 @@ export interface DiscussionTurn {
 }
 
 export interface DiscussionInput {
-  /** Sorte de discussion : une note rapide a son propre prompt (`note`). */
+  /** Discussion kind: a quick note has its own prompt (`note`). */
   kind?: DiscussionKind;
-  /** Page d'où la discussion a été ouverte, s'il y en a une. */
+  /** Page the discussion was opened from, if any. */
   page?: DiscussionPage;
   related: readonly RelatedPage[];
-  /** Sources de la bibliothèque, que l'assistante peut recommander. */
+  /** Library sources, which the assistant may recommend. */
   sources?: readonly RelatedPage[];
   history: readonly DiscussionTurn[];
 }
@@ -54,18 +54,18 @@ export function discussionRequest(context: TaskContext, input: DiscussionInput):
   if (page) {
     parts.push(
       "<page>",
-      `Identifiant : ${page.id}`,
-      `Titre : ${page.title}`,
-      `Type : ${page.type}`,
-      `Chemin : ${[...page.path, page.title].join(" > ")}`,
+      `Identifier: ${page.id}`,
+      `Title: ${page.title}`,
+      `Type: ${page.type}`,
+      `Path: ${[...page.path, page.title].join(" > ")}`,
       "",
       excerpt(page.content, 30000),
       "</page>",
     );
   }
-  parts.push(`<pages_liees>\n${pagesList(input.related) || "(aucune)"}\n</pages_liees>`);
+  parts.push(`<related_pages>\n${pagesList(input.related) || "(none)"}\n</related_pages>`);
   if (input.sources) {
-    parts.push(`<bibliotheque>\n${pagesList(input.sources) || "(aucune source)"}\n</bibliotheque>`);
+    parts.push(`<library>\n${pagesList(input.sources) || "(no source)"}\n</library>`);
   }
   const messages: ChatMessage[] = input.history.map((turn) => ({
     role: turn.role === "user" ? "user" : "assistant",
@@ -86,7 +86,7 @@ export function streamDiscussion(
   return context.provider.stream(discussionRequest(context, input));
 }
 
-/** Identifiants cités par Eugenia (`eugenia:ID`) dans un texte. */
+/** Identifiers cited by Eugenia (`eugenia:ID`) in a text. */
 export function citedIds(text: string): string[] {
   const ids = new Set<string>();
   for (const match of text.matchAll(/\]\(eugenia:([^)\s]+)\)/g)) ids.add(match[1]!);

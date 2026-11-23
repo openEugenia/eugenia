@@ -1,4 +1,4 @@
-/** Outils communs aux discussions et quiz : contexte, pages liées, liens `eugenia:`. */
+/** Tools shared by discussions and quizzes: context, related pages, `eugenia:` links. */
 import {
   ancestors,
   children,
@@ -12,7 +12,7 @@ import type { RelatedPage } from "@openeugenia/ai";
 import { EUGENIA_LINK_PREFIX } from "@openeugenia/ai/constants";
 import { normalizeTerm } from "./text.ts";
 
-/** Pages proposées à Eugenia pour ses suggestions de liens. */
+/** Pages offered to Eugenia for her link suggestions. */
 export function relatedPages(
   tree: WikiTree,
   node: WikiNode | undefined,
@@ -20,7 +20,7 @@ export function relatedPages(
   limit = 24,
 ): RelatedPage[] {
   const out = new Map<string, WikiNode>();
-  // Les flashcards se lisent depuis leur connaissance : on propose les connaissances.
+  // Flashcards are read from their knowledge item: offer the knowledge items.
   const add = (n: WikiNode | undefined): void => {
     if (n && !n.virtual && n.type !== "flashcard" && n.id !== node?.id && out.size < limit)
       out.set(n.id, n);
@@ -49,7 +49,7 @@ export function pathTitles(tree: WikiTree, node: WikiNode): string[] {
   return ancestors(tree, node.id).map((a) => a.title);
 }
 
-/** Remplace les liens `eugenia:ID` par des liens relatifs, lisibles hors de l'application. */
+/** Replaces `eugenia:ID` links with relative links, readable outside the app. */
 export function portableLinks(text: string, fromFile: string, tree: WikiTree): string {
   return text.replace(/\]\(eugenia:([^)\s]+)\)/g, (match, id: string) => {
     const target = tree.nodes.get(id);
@@ -64,9 +64,9 @@ export function isEugeniaLink(url: string): boolean {
 }
 
 /**
- * Clé de la vue d'une discussion. Une nouvelle discussion change d'adresse à son premier
- * message (elle reçoit son fichier) : elle garde sa clé pour ne pas être remontée, ce qui
- * interromprait la réponse en cours.
+ * Key of a discussion view. A new discussion changes address on its first message (it gets
+ * its file): it keeps its key so as not to be remounted, which would interrupt the answer in
+ * progress.
  */
 const adopted = new Map<string, string>();
 

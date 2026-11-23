@@ -1,4 +1,4 @@
-/** `eugenia validate` : vérifie le format du wiki. */
+/** `eugenia validate`: checks the format of the wiki. */
 import { hasErrors, validateWiki } from "@openeugenia/core";
 import { loadDiskWiki } from "../fs-source.ts";
 import { green, reportProblems, type Logger } from "../output.ts";
@@ -19,9 +19,9 @@ export async function validateCommand(options: ValidateOptions, log: Logger): Pr
     const count = (type: string): number => pages.filter((n) => n.type === type).length;
     const unsourced = pages.filter((n) => n.type === "knowledge" && !n.sourced).length;
     log.info(
-      `${count("knowledge")} connaissance(s) dont ${unsourced} à sourcer, ${count("flashcard")} flashcard(s), ${count("category")} catégorie(s), ${count("source")} source(s), ${wiki.tree.discussions.length} discussion(s) ; ${pages.filter((n) => n.isPublic).length} page(s) publique(s).`,
+      `${count("knowledge")} knowledge item(s), ${unsourced} of which need a source, ${count("flashcard")} flashcard(s), ${count("category")} category(ies), ${count("source")} source(s), ${wiki.tree.discussions.length} discussion(s); ${pages.filter((n) => n.isPublic).length} public page(s).`,
     );
-    if (problems.length === 0) log.info(green("Aucun problème détecté."));
+    if (problems.length === 0) log.info(green("No problem found."));
     else reportProblems(log, problems);
   }
   return hasErrors(problems) ? 1 : 0;

@@ -1,14 +1,14 @@
 /**
- * Construction de l'arbre à partir de la liste des fichiers (§5.1). Le dépôt a trois espaces :
- * le wiki (catégories, connaissances atomiques et leurs flashcards), la bibliothèque (sources,
- * à plat) et les discussions (un fichier par discussion, question, quiz ou note rapide).
+ * Builds the tree from the list of files (§5.1). The repository has three spaces: the wiki
+ * (categories, atomic knowledge and its flashcards), the library (sources, flat) and the
+ * discussions (one file per discussion, question, quiz or quick note).
  */
 import type { WikiConfig } from "./config.ts";
 import { basename, dirname, isReservedName, isUnder, joinPath, segmentsUnder } from "./paths.ts";
 import { humanize } from "./slug.ts";
 import type { PageType, Problem, RepoFile, SourceKind, Space, Visibility } from "./types.ts";
 
-/** Métadonnées d'une page, lues dans son `index.md` ou dans `index.json`. */
+/** Metadata of a page, read from its `index.md` or from `index.json`. */
 export interface PageMeta {
   id?: string;
   type?: string;
@@ -19,81 +19,81 @@ export interface PageMeta {
   created?: string;
   updated?: string;
   extracted_from?: string;
-  /** Description courte (premier paragraphe, énoncé d'une connaissance, question d'une flashcard). */
+  /** Short description (first paragraph, statement of a knowledge item, question of a flashcard). */
   description?: string;
-  /** Source : nature, auteurs, adresse, date de publication, fichier personnel. */
+  /** Source: kind, authors, URL, publication date, personal file. */
   kind?: SourceKind;
   authors?: string[];
   url?: string;
   published?: string;
   file?: string;
-  /** Connaissance : sources de la bibliothèque citées. */
+  /** Knowledge: cited library sources. */
   refs?: string[];
-  /** Connaissance : au moins une source est indiquée (bibliothèque ou référence libre). */
+  /** Knowledge: at least one source is given (library or free reference). */
   sourced?: boolean;
-  /** Erreur de lecture du frontmatter. */
+  /** Error while reading the frontmatter. */
   error?: string;
 }
 
 export interface WikiNode {
   id: string;
-  /** Dossier de la page. */
+  /** Folder of the page. */
   path: string;
-  /** Chemin de son `index.md`. */
+  /** Path of its `index.md`. */
   indexPath: string;
-  /** Nom du dossier. */
+  /** Folder name. */
   name: string;
-  /** Espace de la page : wiki ou bibliothèque. */
+  /** Space of the page: wiki or library. */
   space: Space;
   type: PageType;
   title: string;
-  /** Visibilité écrite dans le frontmatter. */
+  /** Visibility written in the frontmatter. */
   declaredVisibility?: Visibility;
-  /** Visibilité effective (héritée du parent si absente). */
+  /** Effective visibility (inherited from the parent if absent). */
   visibility: Visibility;
-  /** Vrai si la page et tous ses ancêtres sont publics. */
+  /** True if the page and all its ancestors are public. */
   isPublic: boolean;
   order?: number;
   tags: string[];
   created?: string;
   updated?: string;
-  /** Source ou discussion d'où la connaissance a été extraite. */
+  /** Source or discussion the knowledge was extracted from. */
   extractedFrom?: string;
   description?: string;
   parentId: string | null;
   childIds: string[];
   depth: number;
-  /** SHA du blob de `index.md`. */
+  /** Blob SHA of `index.md`. */
   sha?: string;
-  /** Dossier sans `index.md`, ancêtre d'autres pages. */
+  /** Folder without `index.md`, ancestor of other pages. */
   virtual: boolean;
   summaries: { private?: RepoFile; public?: RepoFile };
-  /** Embedding de la page pour la recherche sémantique (`_embedding.json`), jamais publié. */
+  /** Embedding of the page for semantic search (`_embedding.json`), never published. */
   embedding?: RepoFile;
-  /** Fichiers joints (PDF, images…), y compris dans des sous-dossiers qui ne sont pas des pages. */
+  /** Attached files (PDF, images…), including in subfolders that are not pages. */
   attachments: RepoFile[];
-  /** Source : nature, auteurs, adresse, date de publication et fichier personnel. */
+  /** Source: kind, authors, URL, publication date and personal file. */
   sourceKind?: SourceKind;
   authors: string[];
   url?: string;
   published?: string;
   file?: string;
-  /** Connaissance : identifiants des sources de la bibliothèque citées. */
+  /** Knowledge: identifiers of the cited library sources. */
   refs: string[];
-  /** Connaissance : au moins une source est indiquée (sinon « à sourcer »). */
+  /** Knowledge: at least one source is given (otherwise "needs a source"). */
   sourced: boolean;
 }
 
 export interface WikiTree {
   config: WikiConfig;
-  /** Racine du wiki. */
+  /** Root of the wiki. */
   rootId: string;
-  /** Racine de la bibliothèque (dossier des sources, le plus souvent virtuel). */
+  /** Root of the library (the sources folder, usually virtual). */
   libraryId: string;
   nodes: Map<string, WikiNode>;
-  /** Dossier → page. */
+  /** Folder → page. */
   byPath: Map<string, WikiNode>;
-  /** Fichiers des discussions, du plus récent au plus ancien (nom horodaté). */
+  /** Discussion files, from newest to oldest (timestamped name). */
   discussions: RepoFile[];
   problems: Problem[];
 }
@@ -101,19 +101,19 @@ export interface WikiTree {
 export interface TreeInput {
   config: WikiConfig;
   files: Iterable<RepoFile>;
-  /** Métadonnées indexées par chemin de `index.md`. */
+  /** Metadata indexed by `index.md` path. */
   metas: ReadonlyMap<string, PageMeta>;
 }
 
 export const SUMMARY_FILE = "_summary.md";
 export const PUBLIC_SUMMARY_FILE = "_summary.public.md";
 export const EMBEDDING_FILE = "_embedding.json";
-/** Dossiers de discussions par page du format v1, ignorés (signalés par `validate`). */
+/** Per-page discussion folders of format v1, ignored (reported by `validate`). */
 export const LEGACY_DISCUSSION_DIRS: readonly string[] = ["_discussions", "_quizzes"];
 
-export const LIBRARY_TITLE = "Bibliothèque";
+export const LIBRARY_TITLE = "Library";
 
-const collator = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
+const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
 
 export function compareNodes(a: WikiNode, b: WikiNode): number {
   const oa = a.order ?? Number.POSITIVE_INFINITY;
@@ -126,31 +126,31 @@ function depthOf(path: string): number {
   return path === "" ? 0 : path.split("/").length;
 }
 
-/** Espace d'un chemin du dépôt, ou `null` s'il n'appartient ni au wiki ni à la bibliothèque. */
+/** Space of a repository path, or `null` if it belongs to neither the wiki nor the library. */
 export function spaceOf(config: WikiConfig, path: string): Space | null {
   if (isUnder(config.library, path)) return "library";
   if (isUnder(config.discussions, path)) return null;
   return isUnder(config.root, path) ? "wiki" : null;
 }
 
-/** Racine d'un espace. */
+/** Root of a space. */
 export function spaceRootPath(config: WikiConfig, space: Space): string {
   return space === "library" ? config.library : config.root;
 }
 
-/** Chemins dont le contenu Markdown peut contenir des liens vers des pages. */
+/** Paths whose Markdown content may contain links to pages. */
 export function isContentPath(config: WikiConfig, path: string): boolean {
   return spaceOf(config, path) !== null || isUnder(config.discussions, path);
 }
 
-/** Vrai si `path` est un fichier de discussion. */
+/** True if `path` is a discussion file. */
 export function isDiscussionPath(config: WikiConfig, path: string): boolean {
   return (
     dirname(path) === config.discussions && path.endsWith(".md") && !isReservedName(basename(path))
   );
 }
 
-/** Type effectif d'une page selon son espace et son frontmatter. */
+/** Effective type of a page given its space and frontmatter. */
 function resolveType(
   space: Space,
   declared: string | undefined,
@@ -161,7 +161,7 @@ function resolveType(
     }
     return {
       type: "source",
-      problem: `Type « ${declared} » dans la bibliothèque : la page est traitée comme une source.`,
+      problem: `Type "${declared}" in the library: the page is treated as a source.`,
     };
   }
   switch (declared) {
@@ -175,12 +175,12 @@ function resolveType(
     case "source":
       return {
         type: "category",
-        problem: "Une source est rangée dans le wiki : déplacez-la dans la bibliothèque.",
+        problem: "A source is stored in the wiki: move it to the library.",
       };
     default:
       return {
         type: "category",
-        problem: `Type « ${declared} » inconnu pour une page : traité comme une catégorie.`,
+        problem: `Unknown page type "${declared}": treated as a category.`,
       };
   }
 }
@@ -191,7 +191,7 @@ export function buildTree(input: TreeInput): WikiTree {
   const all = [...input.files];
   const spaceRoots: Record<Space, string> = { wiki: config.root, library: config.library };
 
-  // 1. Pages : dossiers (hors noms réservés) contenant un index.md, dans un des deux espaces.
+  // 1. Pages: folders (except reserved names) containing an index.md, in one of the two spaces.
   const pageDirs = new Map<string, { file: RepoFile; space: Space }>();
   for (const file of all) {
     if (basename(file.path) !== "index.md") continue;
@@ -203,7 +203,7 @@ export function buildTree(input: TreeInput): WikiTree {
     pageDirs.set(dir, { file, space });
   }
 
-  // 2. Dossiers à représenter : pages, leurs ancêtres et les deux racines.
+  // 2. Folders to represent: pages, their ancestors and the two roots.
   const dirs = new Map<string, Space>([
     [config.root, "wiki"],
     [config.library, "library"],
@@ -217,7 +217,7 @@ export function buildTree(input: TreeInput): WikiTree {
     }
   }
 
-  // 3. Nœuds, des moins profonds aux plus profonds (les parents d'abord).
+  // 3. Nodes, from shallowest to deepest (parents first).
   const nodes = new Map<string, WikiNode>();
   const byPath = new Map<string, WikiNode>();
   const sortedDirs = [...dirs.keys()].sort((a, b) => depthOf(a) - depthOf(b) || a.localeCompare(b));
@@ -236,7 +236,7 @@ export function buildTree(input: TreeInput): WikiTree {
         problems.push({
           level: "warning",
           code: "missing-index",
-          message: `Le dossier « ${dir} » contient des pages mais pas de index.md.`,
+          message: `The folder "${dir}" contains pages but no index.md.`,
           path: dir,
         });
       }
@@ -247,7 +247,7 @@ export function buildTree(input: TreeInput): WikiTree {
       problems.push({
         level: "error",
         code: "missing-id",
-        message: `La page « ${indexPath} » n'a pas d'identifiant (id).`,
+        message: `The page "${indexPath}" has no identifier (id).`,
         path: indexPath,
       });
     }
@@ -255,7 +255,7 @@ export function buildTree(input: TreeInput): WikiTree {
       problems.push({
         level: "error",
         code: "duplicate-id",
-        message: `L'identifiant ${id} est utilisé par plusieurs pages (dont « ${indexPath} »).`,
+        message: `The identifier ${id} is used by several pages (including "${indexPath}").`,
         path: indexPath,
         nodeId: id,
       });
@@ -269,13 +269,13 @@ export function buildTree(input: TreeInput): WikiTree {
         path: indexPath,
       });
     }
-    // La racine de la bibliothèque est un simple conteneur.
+    // The library root is a plain container.
     const resolved = isSpaceRoot ? { type: "category" as const } : resolveType(space, meta?.type);
     if (resolved.problem) {
       problems.push({
         level: "warning",
         code: "unknown-type",
-        message: `« ${indexPath} » : ${resolved.problem}`,
+        message: `"${indexPath}": ${resolved.problem}`,
         path: indexPath,
       });
     }
@@ -284,7 +284,7 @@ export function buildTree(input: TreeInput): WikiTree {
       problems.push({
         level: "warning",
         code: "missing-title",
-        message: `La page « ${indexPath} » n'a pas de titre.`,
+        message: `The page "${indexPath}" has no title.`,
         path: indexPath,
       });
     }
@@ -335,7 +335,7 @@ export function buildTree(input: TreeInput): WikiTree {
     }
   }
 
-  // 4. Fichiers rattachés : descriptions, embeddings, pièces jointes ; discussions.
+  // 4. Related files: descriptions, embeddings, attachments; discussions.
   const discussions: RepoFile[] = [];
   for (const file of all) {
     if (isDiscussionPath(config, file.path)) {
@@ -364,7 +364,7 @@ export function buildTree(input: TreeInput): WikiTree {
         problems.push({
           level: "warning",
           code: "legacy-discussion",
-          message: `« ${file.path} » suit l'ancien format : les discussions et quiz sont désormais rangés dans « ${config.discussions}/ ».`,
+          message: `"${file.path}" follows the old format: discussions and quizzes are now stored in "${config.discussions}/".`,
           path: file.path,
           nodeId: owner.id,
         });
@@ -377,11 +377,11 @@ export function buildTree(input: TreeInput): WikiTree {
   }
   discussions.sort((a, b) => b.path.localeCompare(a.path));
 
-  // 5. Tri des enfants, profondeur, visibilité effective (§6.2) et structure.
+  // 5. Child order, depth, effective visibility (§6.2) and structure.
   const visit = (node: WikiNode, parent: WikiNode | undefined, depth: number): void => {
     node.depth = depth;
     node.visibility = node.declaredVisibility ?? parent?.visibility ?? config.default_visibility;
-    // La racine de la bibliothèque est un conteneur : chaque source a sa propre visibilité.
+    // The library root is a container: each source has its own visibility.
     node.isPublic =
       node.space === "library" && !parent
         ? true
@@ -390,7 +390,7 @@ export function buildTree(input: TreeInput): WikiTree {
       problems.push({
         level: "error",
         code: "public-under-private",
-        message: `« ${node.title} » est public mais un de ses ancêtres est privé.`,
+        message: `"${node.title}" is public but one of its ancestors is private.`,
         path: node.indexPath,
         nodeId: node.id,
       });
@@ -416,7 +416,7 @@ export function buildTree(input: TreeInput): WikiTree {
   };
 }
 
-/** Règles de structure : flashcards sous une connaissance, sources à plat. */
+/** Structure rules: flashcards under a knowledge item, flat sources. */
 function structureProblems(node: WikiNode, parent: WikiNode, problems: Problem[]): void {
   const warn = (code: string, message: string): void => {
     problems.push({ level: "warning", code, message, path: node.indexPath, nodeId: node.id });
@@ -425,7 +425,7 @@ function structureProblems(node: WikiNode, parent: WikiNode, problems: Problem[]
     if (parent.parentId !== null) {
       warn(
         "nested-source",
-        `La source « ${node.title} » est rangée dans « ${parent.title} » : la bibliothèque est une liste à plat.`,
+        `The source "${node.title}" is stored in "${parent.title}": the library is a flat list.`,
       );
     }
     return;
@@ -433,21 +433,21 @@ function structureProblems(node: WikiNode, parent: WikiNode, problems: Problem[]
   if (node.type === "flashcard" && parent.type !== "knowledge") {
     warn(
       "flashcard-parent",
-      `La flashcard « ${node.title} » devrait être rangée sous une connaissance atomique.`,
+      `The flashcard "${node.title}" should be stored under an atomic knowledge item.`,
     );
   } else if (parent.type === "knowledge" && node.type !== "flashcard") {
     warn(
       "knowledge-child",
-      `« ${node.title} » est rangé sous la connaissance « ${parent.title} », qui ne peut contenir que des flashcards.`,
+      `"${node.title}" is stored under the knowledge item "${parent.title}", which can only contain flashcards.`,
     );
   } else if (parent.type === "flashcard") {
-    warn("flashcard-child", `La flashcard « ${parent.title} » ne peut pas avoir de sous-page.`);
+    warn("flashcard-child", `The flashcard "${parent.title}" cannot have a subpage.`);
   }
 }
 
 export function getNode(tree: WikiTree, id: string): WikiNode {
   const node = tree.nodes.get(id);
-  if (!node) throw new Error(`Nœud introuvable : ${id}`);
+  if (!node) throw new Error(`Node not found: ${id}`);
   return node;
 }
 
@@ -455,7 +455,7 @@ export function children(tree: WikiTree, id: string): WikiNode[] {
   return (tree.nodes.get(id)?.childIds ?? []).map((c) => tree.nodes.get(c)!);
 }
 
-/** Ancêtres de la racine jusqu'au parent (exclu : le nœud lui-même). */
+/** Ancestors from the root down to the parent (the node itself is excluded). */
 export function ancestors(tree: WikiTree, id: string): WikiNode[] {
   const out: WikiNode[] = [];
   let node = tree.nodes.get(id);
@@ -466,7 +466,7 @@ export function ancestors(tree: WikiTree, id: string): WikiNode[] {
   return out;
 }
 
-/** Descendants en profondeur (préfixe), sans le nœud lui-même. */
+/** Descendants, depth-first (pre-order), without the node itself. */
 export function descendants(tree: WikiTree, id: string): WikiNode[] {
   const out: WikiNode[] = [];
   const visit = (nodeId: string): void => {
@@ -483,69 +483,69 @@ export function isAncestorOf(tree: WikiTree, ancestorId: string, id: string): bo
   return ancestors(tree, id).some((n) => n.id === ancestorId);
 }
 
-/** Flashcards de la branche (le nœud et ses descendants). */
+/** Flashcards of the branch (the node and its descendants). */
 export function flashcardsUnder(tree: WikiTree, id: string): WikiNode[] {
   const self = tree.nodes.get(id);
   return [...(self ? [self] : []), ...descendants(tree, id)].filter((n) => n.type === "flashcard");
 }
 
-/** Connaissances atomiques de la branche (le nœud et ses descendants). */
+/** Atomic knowledge of the branch (the node and its descendants). */
 export function knowledgeUnder(tree: WikiTree, id: string): WikiNode[] {
   const self = tree.nodes.get(id);
   return [...(self ? [self] : []), ...descendants(tree, id)].filter((n) => n.type === "knowledge");
 }
 
-/** Catégorie du wiki (sous-wiki) : seul type qui accueille catégories et connaissances. */
+/** Wiki category (sub-wiki): the only type that holds categories and knowledge. */
 export function isCategory(node: Pick<WikiNode, "space" | "type">): boolean {
   return node.space === "wiki" && node.type === "category";
 }
 
-/** Sources de la bibliothèque. */
+/** Library sources. */
 export function librarySources(tree: WikiTree): WikiNode[] {
   return [...tree.nodes.values()].filter((n) => n.type === "source");
 }
 
-/** Connaissance d'une flashcard (son parent), ou la connaissance elle-même. */
+/** Knowledge item of a flashcard (its parent), or the knowledge item itself. */
 export function knowledgeOf(tree: WikiTree, node: WikiNode): WikiNode | undefined {
   if (node.type === "knowledge") return node;
   const parent = node.parentId ? tree.nodes.get(node.parentId) : undefined;
   return node.type === "flashcard" && parent?.type === "knowledge" ? parent : undefined;
 }
 
-/** Type d'enfant accepté par un parent, ou `null` si le déplacement est interdit (§5.1). */
+/** Why a node cannot be placed under a parent, or `null` if the placement is allowed (§5.1). */
 export function placementProblem(
   tree: WikiTree,
   node: Pick<WikiNode, "type" | "space">,
   parentId: string,
 ): string | null {
   const parent = tree.nodes.get(parentId);
-  if (!parent) return "Destination introuvable.";
+  if (!parent) return "Destination not found.";
   if (node.type === "source") {
     return parent.id === tree.libraryId
       ? null
-      : "Une source se range dans la bibliothèque, qui est une liste à plat.";
+      : "A source belongs in the library, which is a flat list.";
   }
-  if (parent.space !== "wiki") return "La bibliothèque ne contient que des sources.";
+  if (parent.space !== "wiki") return "The library only contains sources.";
   if (node.type === "flashcard") {
     return parent.type === "knowledge"
       ? null
-      : "Une flashcard se range sous une connaissance atomique.";
+      : "A flashcard belongs under an atomic knowledge item.";
   }
   if (parent.type !== "category") {
     return parent.type === "knowledge"
-      ? "Une connaissance atomique ne contient que des flashcards."
-      : "Une flashcard ne peut pas avoir de sous-page.";
+      ? "An atomic knowledge item only contains flashcards."
+      : "A flashcard cannot have a subpage.";
   }
   return null;
 }
 
-/** Page correspondant à un chemin (dossier, `index.md` ou fichier interne à la page). */
+/** Page matching a path (folder, `index.md` or file inside the page). */
 export function nodeForPath(tree: WikiTree, path: string): WikiNode | undefined {
   if (basename(path) === "index.md") return tree.byPath.get(dirname(path));
   return tree.byPath.get(path);
 }
 
-/** Noms des entrées (fichiers et dossiers) directement contenues dans `dir`. */
+/** Names of the entries (files and folders) directly inside `dir`. */
 export function directoryEntries(paths: Iterable<string>, dir: string): Set<string> {
   const names = new Set<string>();
   for (const path of paths) {
@@ -557,7 +557,7 @@ export function directoryEntries(paths: Iterable<string>, dir: string): Set<stri
   return names;
 }
 
-/** Fichiers de la branche (dossier de la page, sous-pages comprises). */
+/** Files of the branch (page folder, subpages included). */
 export function filesUnder(paths: Iterable<string>, dir: string): string[] {
   return [...paths].filter((p) => isUnder(dir, p));
 }

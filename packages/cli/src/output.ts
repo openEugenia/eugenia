@@ -1,4 +1,4 @@
-/** Sortie console : couleurs sobres (désactivées hors terminal ou avec NO_COLOR). */
+/** Console output: sober colors (disabled outside a terminal or with NO_COLOR). */
 import type { Problem } from "@openeugenia/core";
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -24,7 +24,7 @@ export const consoleLogger: Logger = {
 };
 
 export function formatProblem(problem: Problem): string {
-  const tag = problem.level === "error" ? red("erreur") : yellow("attention");
+  const tag = problem.level === "error" ? red("error") : yellow("warning");
   const where = problem.path ? dim(` (${problem.path})`) : "";
   return `  ${tag} ${problem.message}${where}`;
 }
@@ -35,11 +35,11 @@ export function reportProblems(log: Logger, problems: readonly Problem[]): void 
   for (const p of [...errors, ...warnings])
     (p.level === "error" ? log.error : log.warn)(formatProblem(p));
   if (problems.length > 0) {
-    log.info(`${errors.length} erreur(s), ${warnings.length} avertissement(s).`);
+    log.info(`${errors.length} error(s), ${warnings.length} warning(s).`);
   }
 }
 
-/** Erreur d'usage ou d'exécution : message pour l'utilisateur, code de sortie. */
+/** Usage or execution error: message for the user, exit code. */
 export class CliError extends Error {
   override name = "CliError";
   constructor(

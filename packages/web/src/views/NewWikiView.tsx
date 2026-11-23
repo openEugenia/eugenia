@@ -1,6 +1,6 @@
 /**
- * Création d'un wiki depuis l'application (§8.1, §9.1) : initialise un dépôt GitHub privé
- * (vide ou sans wiki) avec la configuration, la racine et les catégories par défaut.
+ * Creating a wiki from the app (§8.1, §9.1): initializes a private GitHub repository (empty or
+ * without a wiki) with the configuration, the root and the default categories.
  */
 import { useState, type FormEvent } from "react";
 import { CheckCircle2 } from "lucide-react";
@@ -21,7 +21,7 @@ import { useWiki } from "../store/wiki.ts";
 export function NewWikiView() {
   const token = useSettings((s) => s.settings.githubToken);
   const [repo, setRepo] = useState("");
-  const [title, setTitle] = useState("Mon wiki");
+  const [title, setTitle] = useState("My wiki");
   const [categories, setCategories] = useState(true);
   const [workflow, setWorkflow] = useState(true);
   const [publicRepo, setPublicRepo] = useState("");
@@ -34,34 +34,34 @@ export function NewWikiView() {
   const create = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     setError(null);
-    if (!token) return setError("Ajoutez d'abord un jeton GitHub dans les paramètres.");
-    if (!ref) return setError("Indiquez le dépôt sous la forme propriétaire/nom.");
+    if (!token) return setError("First add a GitHub token in the settings.");
+    if (!ref) return setError("Give the repository as owner/name.");
     const gh = new GitHubClient(token);
     try {
-      setBusy("Vérification du dépôt…");
+      setBusy("Checking the repository…");
       const info = await gh.getRepo(ref);
       if (!info.private)
         throw new Error(
-          "Ce dépôt est public : un wiki Eugenia doit être créé dans un dépôt privé.",
+          "This repository is public: an Eugenia wiki must be created in a private one.",
         );
-      if (!info.canPush) throw new Error("Votre jeton ne permet pas d'écrire dans ce dépôt.");
+      if (!info.canPush) throw new Error("Your token does not allow writing to this repository.");
       const branch = info.defaultBranch || "main";
       let head = await gh.getBranchHead(ref, branch);
       if (head) {
         const files = await gh.getTree(ref, await gh.getCommitTree(ref, head));
         if (files.some((f) => f.path === CONFIG_PATH))
-          throw new Error("Ce dépôt contient déjà un wiki Eugenia : ouvrez-le directement.");
+          throw new Error("This repository already contains an Eugenia wiki: open it directly.");
       }
       const target = parseRepo(publicRepo || defaultPublic);
       const files = scaffoldWiki({
-        title: title.trim() || "Mon wiki",
+        title: title.trim() || "My wiki",
         categories: categories ? DEFAULT_CATEGORIES : [],
         privateRepo: repoLabel(ref),
         ...(workflow && target ? { publicRepo: repoLabel(target) } : {}),
         branch,
       });
-      const message = "Initialisation du wiki Eugenia";
-      setBusy("Création des fichiers…");
+      const message = "Initialize the Eugenia wiki";
+      setBusy("Creating the files…");
       if (!head) {
         head = await gh.createFile(ref, CONFIG_PATH, files.get(CONFIG_PATH)!, message, branch);
         files.delete(CONFIG_PATH);
@@ -85,20 +85,20 @@ export function NewWikiView() {
       try {
         await commitFiles(files);
       } catch (err) {
-        // Sans la permission « Workflows », GitHub refuse le fichier de workflow.
+        // Without the "Workflows" permission, GitHub refuses the workflow file.
         if (err instanceof GitHubError && files.has(PUBLISH_WORKFLOW_PATH)) {
           files.delete(PUBLISH_WORKFLOW_PATH);
           await commitFiles(files);
           toast(
-            "Le workflow de publication n'a pas pu être créé (permission « Workflows » du jeton) : ajoutez-le avec la CLI.",
+            'The publication workflow could not be created (the token lacks the "Workflows" permission): add it with the CLI.',
             "error",
           );
         } else {
           throw err;
         }
       }
-      toast("Wiki créé.", "success");
-      // Le dépôt déjà ouvert (vide) doit être relu ; sinon on l'ouvre.
+      toast("Wiki created.", "success");
+      // The repository already open (empty) must be read again; otherwise open it.
       if (sameRepo(currentRepo(), ref)) {
         navigate({ name: "root" });
         await useWiki.getState().open(ref);
@@ -122,40 +122,39 @@ export function NewWikiView() {
           openRepo(null);
         }}
       >
-        ← Accueil
+        ← Home
       </a>
-      <h1>Nouveau wiki</h1>
+      <h1>New wiki</h1>
       <p className="muted">
-        Le wiki est créé dans un dépôt GitHub <strong>privé</strong> que vous possédez : créez-le
-        d'abord sur{" "}
+        The wiki is created in a <strong>private</strong> GitHub repository that you own: first
+        create it on{" "}
         <a href="https://github.com/new" target="_blank" rel="noopener noreferrer">
           github.com/new
         </a>{" "}
-        (privé, sans fichier), puis donnez accès à ce dépôt à votre jeton.
+        (private, without files), then give your token access to this repository.
       </p>
       {!token && (
-        <InfoBox kind="warning" title="Jeton GitHub requis">
-          Ajoutez un jeton fine-grained dans les <a href={href({ name: "settings" })}>paramètres</a>
-          .
+        <InfoBox kind="warning" title="GitHub token required">
+          Add a fine-grained token in the <a href={href({ name: "settings" })}>settings</a>.
         </InfoBox>
       )}
       <form className="form-grid section" onSubmit={(e) => void create(e)}>
         <div className="oe-field">
           <label className="oe-label" htmlFor="repo">
-            Dépôt privé
+            Private repository
           </label>
           <input
             id="repo"
             className="oe-input"
             value={repo}
             onChange={(e) => setRepo(e.target.value)}
-            placeholder="votre-compte/eugenia-wiki"
+            placeholder="your-account/eugenia-wiki"
             required
           />
         </div>
         <div className="oe-field">
           <label className="oe-label" htmlFor="title">
-            Titre du wiki
+            Wiki title
           </label>
           <input
             id="title"
@@ -171,7 +170,7 @@ export function NewWikiView() {
             onChange={(e) => setCategories(e.target.checked)}
           />
           <span>
-            Créer les {DEFAULT_CATEGORIES.length} catégories par défaut (
+            Create the {DEFAULT_CATEGORIES.length} default categories (
             {DEFAULT_CATEGORIES.slice(0, 4).join(", ")}…)
           </span>
         </label>
@@ -181,24 +180,23 @@ export function NewWikiView() {
             checked={workflow}
             onChange={(e) => setWorkflow(e.target.checked)}
           />
-          <span>Ajouter la publication automatique vers un dépôt public</span>
+          <span>Add automatic publication to a public repository</span>
         </label>
         {workflow && (
           <div className="oe-field">
             <label className="oe-label" htmlFor="public">
-              Dépôt public
+              Public repository
             </label>
             <input
               id="public"
               className="oe-input"
               value={publicRepo}
               onChange={(e) => setPublicRepo(e.target.value)}
-              placeholder={defaultPublic || "votre-compte/eugenia-wiki-public"}
+              placeholder={defaultPublic || "your-account/eugenia-wiki-public"}
             />
             <span className="oe-help">
-              La publication a besoin d'une clé de déploiement et d'un secret :{" "}
-              <code>eugenia init --github</code> les crée, ou suivez la documentation de
-              publication.
+              Publication needs a deploy key and a secret: <code>eugenia init --github</code>{" "}
+              creates them, or follow the publication documentation.
             </span>
           </div>
         )}
@@ -213,7 +211,7 @@ export function NewWikiView() {
             </span>
           )}
           <button type="submit" className="oe-button" disabled={Boolean(busy) || !token}>
-            <CheckCircle2 aria-hidden="true" /> Créer le wiki
+            <CheckCircle2 aria-hidden="true" /> Create the wiki
           </button>
         </div>
       </form>

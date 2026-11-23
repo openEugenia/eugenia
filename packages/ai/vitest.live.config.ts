@@ -1,6 +1,6 @@
 /**
- * Tests contre de vraies API d'IA (`pnpm test:live`), hors de `pnpm test` : lents, soumis aux
- * quotas des fournisseurs. Les clés sont lues dans le `.env` de la racine du dépôt, s'il existe.
+ * Tests against real AI APIs (`pnpm test:live`), outside `pnpm test`: slow, subject to the
+ * providers' quotas. Keys are read from the `.env` file at the repository root, if it exists.
  */
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
@@ -22,7 +22,7 @@ export default defineConfig({
     name: "ai-live",
     include: ["test/live/**/*.test.ts"],
     env: rootDotEnv(),
-    // Une requête refusée par le quota (429) est rejouée jusqu'à quatre fois, à 20 s d'écart.
+    // A request refused by the quota (429) is replayed up to four times, 20 s apart.
     testTimeout: 150_000,
   },
 });

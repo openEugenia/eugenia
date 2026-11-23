@@ -2,84 +2,104 @@ import { expect, test } from "@playwright/test";
 import { installFakeGitHub } from "./fakes.ts";
 import { demoRepos, sidebar } from "./fixtures.ts";
 
-test.describe("lecture publique (anonyme)", () => {
-  test("affiche la partie publique du wiki, sans contenu privé", async ({ page }) => {
+test.describe("public reading (anonymous)", () => {
+  test("shows the public part of the wiki, without private content", async ({ page }) => {
     const { publicRepo } = await demoRepos();
-    await installFakeGitHub(page, { token: "inutile", repos: [publicRepo], raw: [publicRepo] });
+    await installFakeGitHub(page, { token: "unused", repos: [publicRepo], raw: [publicRepo] });
     await page.goto("?repo=alice/eugenia-wiki-public");
 
+    await expect(page.getByRole("heading", { name: "Demo wiki", level: 1 })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Wiki de démonstration", level: 1 }),
+      page.getByText("about the figure of Lilith in Jewish tradition", { exact: false }),
     ).toBeVisible();
-    await expect(
-      page
-        .getByText("La partie publique", { exact: false })
-        .or(page.getByText("Ce wiki de démonstration rassemble")),
-    ).toBeVisible();
-    await expect(sidebar(page).getByRole("link", { name: "Religion et croyances" })).toBeVisible();
-    await expect(sidebar(page)).not.toContainText("Philosophie");
-    await expect(sidebar(page)).not.toContainText("Première exoplanète");
+    await expect(sidebar(page).getByRole("link", { name: "Religion and beliefs" })).toBeVisible();
+    await expect(sidebar(page)).not.toContainText("Philosophy");
+    await expect(sidebar(page)).not.toContainText("First exoplanet");
     await expect(page.locator(".app-bar")).toContainText("Public");
 
-    await sidebar(page).getByRole("link", { name: "Religion et croyances" }).click();
+    await sidebar(page).getByRole("link", { name: "Religion and beliefs" }).click();
     await expect(
-      page.getByRole("heading", { name: "Religion et croyances", level: 1 }),
+      page.getByRole("heading", { name: "Religion and beliefs", level: 1 }),
     ).toBeVisible();
     await page
       .locator(".children-grid")
       .getByRole("link", { name: /^Lilith/ })
       .first()
       .click();
-    await expect(page.locator(".knowledge")).toContainText("démon féminin de la tradition juive");
-    // La source publique est citée ; la source privée ne l'est pas.
-    await expect(page.getByRole("link", { name: "Wikipédia, article « Lilith »" })).toBeVisible();
-    await expect(page.getByText("Article sur Lilith")).toHaveCount(0);
-    // Les flashcards se consultent depuis leur connaissance.
+    await expect(page.locator(".knowledge")).toContainText("female demon of Jewish tradition");
+    // The public source is cited; so is the private one, through its bibliographic record.
+    const sources = page.locator("section", {
+      has: page.getByRole("heading", { name: "Sources", level: 2 }),
+    });
+    await expect(sources.getByRole("link", { name: "Wikipedia: Lilith" })).toBeVisible();
+    await expect(sources.getByRole("link", { name: "Article on Lilith" })).toBeVisible();
+    await expect(sources).toContainText("Record only");
+    await expect(page.getByText("Extracted from")).toContainText("Article on Lilith");
+    // Flashcards are viewed from their knowledge item.
     await page.locator(".flashcard-list a").first().click();
-    await page.getByRole("button", { name: "Révéler la réponse" }).click();
-    await expect(page.locator(".card-face")).toContainText("Réponse attendue");
-    await expect(page.locator(".card-face")).toContainText("Connaissance testée");
+    await page.getByRole("button", { name: "Reveal the answer" }).click();
+    await expect(page.locator(".card-face")).toContainText("Expected answer");
+    await expect(page.locator(".card-face")).toContainText("Tested knowledge");
   });
 
-  test("parcourt la bibliothèque publique", async ({ page }) => {
+  test("shows only the bibliographic record of a private source", async ({ page }) => {
     const { publicRepo } = await demoRepos();
-    await installFakeGitHub(page, { token: "inutile", repos: [publicRepo], raw: [publicRepo] });
-    await page.goto("?repo=alice/eugenia-wiki-public");
-    await sidebar(page).getByRole("tab", { name: "Bibliothèque" }).click();
-    await expect(sidebar(page)).toContainText("Discours de la méthode");
-    await expect(sidebar(page)).not.toContainText("Article sur Lilith");
+    await installFakeGitHub(page, { token: "unused", repos: [publicRepo], raw: [publicRepo] });
     await page.goto("?repo=alice/eugenia-wiki-public#/library");
-    await expect(page.getByRole("heading", { name: "Bibliothèque", level: 1 })).toBeVisible();
-    await expect(page.locator(".library-item")).toHaveCount(3);
-    await page.locator(".library-item", { hasText: "Wikipédia, article « Lilith »" }).click();
-    await expect(page.locator(".notice")).toContainText("Site web");
-    await expect(page.locator("main")).toContainText("Connaissances tirées de cette source");
+    await page.locator(".library-item", { hasText: "Article on Lilith" }).click();
+    await expect(page.getByRole("heading", { name: "Article on Lilith", level: 1 })).toBeVisible();
+    await expect(page.locator(".node-head")).toContainText("Record only");
+    await expect(page.locator(".notice")).toContainText("Jane Doe");
+    await expect(page.locator(".notice")).toContainText("https://example.org/lilith");
+    await expect(page.locator("main")).toContainText("The content of this source is private");
+    await expect(page.locator("main")).not.toContainText("stands for a deity");
+    await expect(page.locator("main")).not.toContainText("article.pdf");
+    // The public knowledge that cites it is listed.
+    await expect(page.locator("main")).toContainText("Knowledge drawn from this source");
     await expect(
       page.locator("main").getByRole("link", { name: "Lilith", exact: true }),
     ).toBeVisible();
   });
 
-  test("recherche plein texte", async ({ page }) => {
+  test("browses the public library", async ({ page }) => {
     const { publicRepo } = await demoRepos();
-    await installFakeGitHub(page, { token: "inutile", repos: [publicRepo], raw: [publicRepo] });
+    await installFakeGitHub(page, { token: "unused", repos: [publicRepo], raw: [publicRepo] });
+    await page.goto("?repo=alice/eugenia-wiki-public");
+    await sidebar(page).getByRole("tab", { name: "Library" }).click();
+    await expect(sidebar(page)).toContainText("Discourse on the Method");
+    await expect(sidebar(page)).toContainText("Article on Lilith");
+    await page.goto("?repo=alice/eugenia-wiki-public#/library");
+    await expect(page.getByRole("heading", { name: "Library", level: 1 })).toBeVisible();
+    await expect(page.locator(".library-item")).toHaveCount(4);
+    await page.locator(".library-item", { hasText: "Wikipedia: Lilith" }).click();
+    await expect(page.locator(".notice")).toContainText("Website");
+    await expect(page.locator("main")).toContainText("Knowledge drawn from this source");
+    await expect(
+      page.locator("main").getByRole("link", { name: "Lilith", exact: true }),
+    ).toBeVisible();
+  });
+
+  test("full-text search", async ({ page }) => {
+    const { publicRepo } = await demoRepos();
+    await installFakeGitHub(page, { token: "unused", repos: [publicRepo], raw: [publicRepo] });
     await page.goto("?repo=alice/eugenia-wiki-public#/search?q=apogee");
-    await expect(page.getByRole("heading", { name: "Recherche", level: 1 })).toBeVisible();
-    await expect(page.locator("main a strong").filter({ hasText: /^Apogée$/ })).toBeVisible();
-    await expect(page.locator("main a strong").filter({ hasText: /^Lune noire$/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Search", level: 1 })).toBeVisible();
+    await expect(page.locator("main a strong").filter({ hasText: /^Apogee$/ })).toBeVisible();
+    await expect(page.locator("main a strong").filter({ hasText: /^Black Moon$/ })).toBeVisible();
   });
 
-  test("signale un dépôt qui n'est pas un wiki", async ({ page }) => {
+  test("reports a repository that is not a wiki", async ({ page }) => {
     const { publicRepo } = await demoRepos();
-    await installFakeGitHub(page, { token: "inutile", repos: [publicRepo], raw: [publicRepo] });
-    await page.goto("?repo=alice/inconnu");
-    await expect(page.getByText("Impossible d'ouvrir ce wiki")).toBeVisible();
+    await installFakeGitHub(page, { token: "unused", repos: [publicRepo], raw: [publicRepo] });
+    await page.goto("?repo=alice/unknown");
+    await expect(page.getByText("Cannot open this wiki")).toBeVisible();
   });
 
-  test("page d'accueil", async ({ page }) => {
+  test("home page", async ({ page }) => {
     await page.goto("");
     await expect(page.getByRole("heading", { name: "Eugenia" })).toBeVisible();
-    await page.getByLabel("Dépôt GitHub").fill("pas un dépôt");
-    await page.getByRole("button", { name: "Ouvrir" }).click();
-    await expect(page.getByText("Indiquez un dépôt GitHub")).toBeVisible();
+    await page.getByLabel("GitHub repository").fill("not a repository");
+    await page.getByRole("button", { name: "Open" }).click();
+    await expect(page.getByText("Give a GitHub repository")).toBeVisible();
   });
 });

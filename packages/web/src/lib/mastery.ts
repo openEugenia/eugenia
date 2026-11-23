@@ -1,4 +1,4 @@
-/** Maîtrise par branche, calculée en un seul parcours de l'arbre. */
+/** Mastery per branch, computed in a single walk of the tree. */
 import { currentMastery, dayNumber, type CardState, type WikiTree } from "@openeugenia/core";
 
 export interface BranchMastery {

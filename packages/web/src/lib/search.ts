@@ -1,4 +1,4 @@
-/** Recherche plein texte côté client (MiniSearch), avec filtres (§9.2, vue 9). */
+/** Client-side full-text search (MiniSearch), with filters (§9.2, view 9). */
 import MiniSearch from "minisearch";
 import {
   ancestors,
@@ -63,7 +63,7 @@ export interface SearchFilters {
   type?: PageType | "";
   tag?: string;
   visibility?: "public" | "private" | "";
-  /** Maîtrise : `low` sous le seuil, `mid`, `high` au-dessus de 70 %. */
+  /** Mastery: `low` below the threshold, `mid`, `high` above 70%. */
   mastery?: "low" | "mid" | "high" | "";
 }
 
@@ -88,7 +88,7 @@ export function matchesFilters(
   return true;
 }
 
-/** Extrait du texte autour du premier terme trouvé. */
+/** Excerpt of the text around the first term found. */
 export function snippet(text: string, terms: readonly string[], length = 180): string {
   const normalized = normalizeTerm(text);
   let at = -1;

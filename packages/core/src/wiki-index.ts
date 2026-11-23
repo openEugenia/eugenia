@@ -1,22 +1,24 @@
 /**
- * `.notes/index.json` du dépôt public : arbre, titres, types, descriptions courtes et liste
- * des discussions publiées (§6.4).
+ * `.notes/index.json` of the public repository: tree, titles, types, short descriptions and
+ * list of published discussions (§6.4).
  */
 import type { WikiConfig } from "./config.ts";
 import type { DiscussionMeta } from "./discussion.ts";
 import type { PageMeta, WikiTree } from "./tree.ts";
-import type { DiscussionKind, PageType, RepoFile, SourceKind } from "./types.ts";
+import type { DiscussionKind, PageType, RepoFile, SourceKind, Visibility } from "./types.ts";
 
 export const INDEX_FORMAT = "eugenia-index";
-export const INDEX_VERSION = 2;
+/** Version 3: private sources may be listed, with their bibliographic record only. */
+export const INDEX_VERSION = 3;
 
 export interface IndexNode {
   id: string;
-  /** Dossier de la page. */
+  /** Folder of the page. */
   path: string;
   type: PageType;
   title: string;
-  visibility: "public";
+  /** `private` only for a private source, published as its bibliographic record (§6.2). */
+  visibility: Visibility;
   parent: string | null;
   order?: number;
   tags?: string[];
@@ -24,12 +26,12 @@ export interface IndexNode {
   updated?: string;
   description?: string;
   extracted_from?: string;
-  /** Source : nature, auteurs, adresse, date de publication. */
+  /** Source: kind, authors, URL, publication date. */
   kind?: SourceKind;
   authors?: string[];
   url?: string;
   published?: string;
-  /** Connaissance : sources publiées citées, et présence d'au moins une source. */
+  /** Knowledge: cited published sources, and whether at least one source is given. */
   refs?: string[];
   sourced?: boolean;
 }
@@ -56,10 +58,10 @@ export interface WikiIndex {
   library: string;
   discussions: string;
   rootId: string;
-  /** Tous les fichiers publiés, avec le SHA de leur blob (cache permanent côté client). */
+  /** All published files, with their blob SHA (permanent client-side cache). */
   files: RepoFile[];
   nodes: IndexNode[];
-  /** Discussions publiées (hors quiz, jamais publiés). */
+  /** Published discussions (quizzes are never published). */
   discussionList: IndexDiscussion[];
 }
 
@@ -69,7 +71,7 @@ export function isWikiIndex(value: unknown): value is WikiIndex {
   return v.format === INDEX_FORMAT && Array.isArray(v.files) && Array.isArray(v.nodes);
 }
 
-/** Métadonnées de pages reconstituées depuis `index.json`, indexées par `index.md`. */
+/** Page metadata rebuilt from `index.json`, indexed by `index.md` path. */
 export function metasFromIndex(index: WikiIndex): Map<string, PageMeta> {
   const metas = new Map<string, PageMeta>();
   for (const node of index.nodes) {
@@ -77,7 +79,7 @@ export function metasFromIndex(index: WikiIndex): Map<string, PageMeta> {
       id: node.id,
       type: node.type,
       title: node.title,
-      visibility: "public",
+      visibility: node.visibility === "private" ? "private" : "public",
     };
     if (node.order !== undefined) meta.order = node.order;
     if (node.tags) meta.tags = node.tags;
@@ -96,7 +98,7 @@ export function metasFromIndex(index: WikiIndex): Map<string, PageMeta> {
   return metas;
 }
 
-/** Métadonnées des discussions reconstituées depuis `index.json`, indexées par chemin. */
+/** Discussion metadata rebuilt from `index.json`, indexed by path. */
 export function discussionsFromIndex(index: WikiIndex): Map<string, DiscussionMeta> {
   const out = new Map<string, DiscussionMeta>();
   for (const d of index.discussionList ?? []) {
@@ -121,7 +123,7 @@ export function buildIndex(input: {
   config: WikiConfig;
   tree: WikiTree;
   files: RepoFile[];
-  /** Pages publiées et leurs champs publics (description courte, sources citées publiées). */
+  /** Published pages and their public fields (short description, published cited sources). */
   nodes: Iterable<{
     id: string;
     description?: string;
@@ -136,20 +138,24 @@ export function buildIndex(input: {
   const nodes: IndexNode[] = [];
   for (const entry of input.nodes) {
     const node = tree.nodes.get(entry.id);
-    if (!node || node.virtual) continue;
+    // Only public pages, and private sources as their bibliographic record.
+    if (!node || node.virtual || (!node.isPublic && node.type !== "source")) continue;
     const parent = node.parentId ? tree.nodes.get(node.parentId) : undefined;
     const out: IndexNode = {
       id: node.id,
       path: node.path,
       type: node.type,
       title: node.title,
-      visibility: "public",
+      visibility: node.isPublic ? "public" : "private",
       parent: parent?.id ?? null,
     };
-    if (node.order !== undefined) out.order = node.order;
-    if (node.tags.length > 0) out.tags = node.tags;
-    if (node.created) out.created = node.created;
-    if (node.updated) out.updated = node.updated;
+    // A private source only shows its bibliographic record: no tags, dates or description.
+    if (node.isPublic) {
+      if (node.order !== undefined) out.order = node.order;
+      if (node.tags.length > 0) out.tags = node.tags;
+      if (node.created) out.created = node.created;
+      if (node.updated) out.updated = node.updated;
+    }
     if (entry.description) out.description = entry.description;
     if (entry.extracted_from) out.extracted_from = entry.extracted_from;
     if (node.type === "source") {

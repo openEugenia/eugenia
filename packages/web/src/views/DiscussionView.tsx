@@ -1,8 +1,8 @@
 /**
- * Discussion personnelle avec Eugenia (§8.4) : discussion libre (à partir d'une page ou non),
- * note rapide (Eugenia répond aussitôt par des connaissances candidates et des pistes de
- * sources), question enregistrée ou quiz (en lecture). Réponse en continu, résumé de
- * l'échange, extraction de connaissances, enregistrement dans le dossier des discussions.
+ * Personal discussion with Eugenia (§8.4): free discussion (from a page or not), quick note
+ * (Eugenia immediately answers with candidate knowledge and source leads), saved question or
+ * quiz (read-only). Streamed answer, summary of the exchange, knowledge extraction, saving in the
+ * discussions folder.
  */
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, FileText, GraduationCap, Highlighter, Send, Square } from "lucide-react";
@@ -75,7 +75,7 @@ export function DiscussionView({
     if (path && existing.data !== undefined && !doc) setDoc(parseDiscussion(existing.data));
   }, [path, existing.data, doc]);
 
-  // En quittant la discussion, l'échange est commité.
+  // When leaving the discussion, the exchange is committed.
   useEffect(
     () => () => {
       abort.current?.abort();
@@ -88,31 +88,30 @@ export function DiscussionView({
   if (about && !node && !path)
     return (
       <div className="page">
-        <ErrorBox title="Page introuvable">Cette page n'existe pas.</ErrorBox>
+        <ErrorBox title="Page not found">This page does not exist.</ErrorBox>
       </div>
     );
-  if (path && existing.loading) return <Loading message="Chargement de la discussion…" />;
+  if (path && existing.loading) return <Loading message="Loading the discussion…" />;
   if (path && existing.error)
     return (
       <div className="page">
-        <ErrorBox title="Discussion introuvable">{existing.error}</ErrorBox>
+        <ErrorBox title="Discussion not found">{existing.error}</ErrorBox>
       </div>
     );
   if (!editable && !path)
     return (
       <div className="page">
         <InfoBox>
-          Les discussions sont enregistrées dans votre dépôt privé : ouvrez votre wiki avec un
-          jeton.
+          Discussions are saved in your private repository: open your wiki with a token.
         </InfoBox>
       </div>
     );
-  // Un quiz est une trace de révision : il se relit, il ne se prolonge pas.
+  // A quiz is a review trace: it can be read again, not continued.
   const readOnly = !editable || kind === "quiz";
 
-  // Une discussion est personnelle et privée : son contenu compte toujours comme privé.
+  // A discussion is personal and private: its content always counts as private.
   const involvesPrivate = true;
-  // Dernière réponse d'Eugenia : celle en cours de diffusion, sinon la dernière enregistrée.
+  // Eugenia's last answer: the one being streamed, otherwise the last saved one.
   const lastReply =
     streaming === null ? (doc?.messages.findLastIndex((m) => m.role === "eugenia") ?? -1) : -1;
 
@@ -262,10 +261,10 @@ export function DiscussionView({
   const heading =
     doc?.fields.title ??
     (kind === "note"
-      ? "Nouvelle note rapide"
+      ? "New quick note"
       : node
-        ? `Discussion sur « ${node.title} »`
-        : "Nouvelle discussion");
+        ? `Discussion about "${node.title}"`
+        : "New discussion");
   const reference = filePath ?? node?.indexPath ?? `${derived.config.discussions}/index.md`;
 
   return (
@@ -282,23 +281,23 @@ export function DiscussionView({
         <span className="oe-badge">
           <DiscussionKindIcon kind={kind} /> {DISCUSSION_KIND_LABELS[kind]}
         </span>{" "}
-        {kind === "quiz" ? "Trace de révision" : "Échange personnel (privé) avec Eugenia"}
+        {kind === "quiz" ? "Review trace" : "Personal (private) exchange with Eugenia"}
         {node ? (
           <>
-            {kind === "quiz" || kind === "question" ? ", sur " : ", à partir de "}
+            {kind === "quiz" || kind === "question" ? ", about " : ", started from "}
             <a href={href({ name: "node", id: node.id })}>{node.title}</a>
           </>
         ) : null}
-        {doc?.fields.created ? ` · commencé le ${formatDateTime(doc.fields.created)}` : ""}.
+        {doc?.fields.created ? ` · started on ${formatDateTime(doc.fields.created)}` : ""}.
       </p>
       <div className="conversation section">
         {(doc?.messages ?? []).length === 0 && !streaming && (
           <InfoBox>
             {kind === "note"
-              ? "Notez une idée, un fait entendu, une lecture en cours : Eugenia y repère aussitôt les connaissances atomiques à retenir, signale ce qui mérite d'être vérifié et vous suggère des sources pour les appuyer."
+              ? "Write down an idea, a fact you heard, something you are reading: Eugenia right away spots the atomic knowledge worth keeping, points out what deserves checking and suggests sources to back it."
               : node
-                ? "Posez une question sur cette page : Eugenia peut clarifier une notion, suggérer des liens vers vos autres pages, résumer l'échange et proposer d'en extraire des connaissances."
-                : "Discutez librement avec Eugenia : elle peut clarifier une notion, suggérer des liens vers vos pages, résumer l'échange et proposer d'en extraire des connaissances."}
+                ? "Ask a question about this page: Eugenia can clarify a notion, suggest links to your other pages, summarize the exchange and offer to extract knowledge from it."
+                : "Talk freely with Eugenia: she can clarify a notion, suggest links to your pages, summarize the exchange and offer to extract knowledge from it."}
           </InfoBox>
         )}
         {doc?.messages.map((m, i) => (
@@ -310,9 +309,9 @@ export function DiscussionView({
             <span className="message__who">
               {m.role === "eugenia"
                 ? m.meta?.role === "summary"
-                  ? "Eugenia · résumé"
+                  ? "Eugenia · summary"
                   : "Eugenia"
-                : "Vous"}{" "}
+                : "You"}{" "}
               · {formatDateTime(m.timestamp)}
             </span>
             <div className="message__bubble">
@@ -323,7 +322,7 @@ export function DiscussionView({
         {streaming !== null && (
           <div ref={latest.ref} className="message message--eugenia">
             <span className="message__who">
-              Eugenia <Spinner small label="Eugenia répond" />
+              Eugenia <Spinner small label="Eugenia is answering" />
             </span>
             <div className="message__bubble">
               <Markdown text={streaming || "…"} path={reference} />
@@ -335,11 +334,11 @@ export function DiscussionView({
         <div className="actions actions--start">
           {kind === "quiz" && node && (
             <a className="oe-button" href={href({ name: "quiz", id: node.id })}>
-              <GraduationCap aria-hidden="true" /> Relancer un quiz sur « {node.title} »
+              <GraduationCap aria-hidden="true" /> Start another quiz on "{node.title}"
             </a>
           )}
           <a className="oe-button oe-button--ghost" href={href({ name: "discussions" })}>
-            Toutes les discussions
+            All discussions
           </a>
         </div>
       ) : (
@@ -348,15 +347,15 @@ export function DiscussionView({
             className="oe-textarea"
             placeholder={
               kind === "note" && !doc
-                ? "Votre note… (Ctrl+Entrée pour l'envoyer à Eugenia)"
-                : "Votre message… (Ctrl+Entrée pour envoyer)"
+                ? "Your note… (Ctrl+Enter to send it to Eugenia)"
+                : "Your message… (Ctrl+Enter to send)"
             }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
             }}
-            aria-label="Votre message"
+            aria-label="Your message"
           />
           <div className="actions" style={{ justifyContent: "space-between" }}>
             <div className="actions actions--start">
@@ -366,7 +365,7 @@ export function DiscussionView({
                 disabled={busy || !doc || doc.messages.length < 2}
                 onClick={() => void summarize()}
               >
-                <FileText aria-hidden="true" /> Résumer l'échange
+                <FileText aria-hidden="true" /> Summarize the exchange
               </button>
               <button
                 type="button"
@@ -383,7 +382,7 @@ export function DiscussionView({
                   })
                 }
               >
-                <Highlighter aria-hidden="true" /> Extraire des connaissances
+                <Highlighter aria-hidden="true" /> Extract knowledge
               </button>
               <button
                 type="button"
@@ -391,7 +390,7 @@ export function DiscussionView({
                 disabled={busy}
                 onClick={() => void finish()}
               >
-                <CheckCircle2 aria-hidden="true" /> Terminer
+                <CheckCircle2 aria-hidden="true" /> Finish
               </button>
             </div>
             {busy && streaming !== null ? (
@@ -400,7 +399,7 @@ export function DiscussionView({
                 className="oe-button oe-button--secondary"
                 onClick={() => abort.current?.abort()}
               >
-                <Square aria-hidden="true" /> Arrêter
+                <Square aria-hidden="true" /> Stop
               </button>
             ) : (
               <button
@@ -409,7 +408,7 @@ export function DiscussionView({
                 disabled={busy || !input.trim()}
                 onClick={() => void send()}
               >
-                <Send aria-hidden="true" /> Envoyer
+                <Send aria-hidden="true" /> Send
               </button>
             )}
           </div>

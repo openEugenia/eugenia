@@ -1,4 +1,4 @@
-/** Conversion d'un PDF en texte avec pdf.js, chargé à la demande (§8.1). */
+/** Converts a PDF to text with pdf.js, loaded on demand (§8.1). */
 
 export interface PdfText {
   text: string;

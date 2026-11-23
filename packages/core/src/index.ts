@@ -1,6 +1,6 @@
 /**
- * @openeugenia/core — bibliothèque sans dépendance navigateur ni Node : format des
- * nœuds, arbre, nommage, liens, visibilité, publication, descriptions et maîtrise.
+ * @openeugenia/core — a library with no browser or Node dependency: node format, tree,
+ * naming, links, visibility, publication, descriptions and mastery.
  */
 export * from "./types.ts";
 export * from "./paths.ts";

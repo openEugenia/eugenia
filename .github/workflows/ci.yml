@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: Types, tests, construction
+    name: Types, tests, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -24,19 +24,19 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Prompts embarqués à jour
+      - name: Embedded prompts up to date
         run: node packages/ai/scripts/embed-prompts.mjs --check
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      - name: Valider et publier (à blanc) le wiki de démonstration
+      - name: Validate and publish (dry run) the demo wiki
         run: |
           node packages/cli/dist/eugenia.mjs validate examples/demo-wiki
           node packages/cli/dist/eugenia.mjs publish examples/demo-wiki --out "${RUNNER_TEMP}/demo-public"
 
   e2e:
-    name: Tests de bout en bout
+    name: End-to-end tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

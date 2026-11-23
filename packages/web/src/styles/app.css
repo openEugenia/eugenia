@@ -1,6 +1,6 @@
 /*
- * Eugenia : mise en page de l'application. Couleurs, typographie, boutons, cartes,
- * badges, champs et alertes viennent de la charte openEugenia (vendor/graphic-charter).
+ * Eugenia: layout of the application. Colors, typography, buttons, cards, badges, fields and
+ * alerts come from the openEugenia charter (vendor/graphic-charter).
  */
 
 :root {
@@ -8,7 +8,7 @@
   --appbar-height: 3.5rem;
   --content-width: 54rem;
 
-  /* Visualisation des données : palette catégorielle validée (clair / sombre). */
+  /* Data visualization: validated categorical palette (light / dark). */
   --viz-series-1: light-dark(#2a78d6, #3987e5);
   --viz-series-2: light-dark(#eb6834, #d95926);
   --viz-series-3: light-dark(#1baf7a, #199e70);
@@ -19,7 +19,7 @@
   --viz-axis: light-dark(#c3c2b7, #4f5965);
   --viz-muted: #898781;
   --viz-surface: var(--oe-color-surface-raised);
-  /* Statut (réservé) : avertissement de maîtrise faible, toujours avec icône et libellé. */
+  /* Status (reserved): low mastery warning, always with an icon and a label. */
   --status-warning: #fab219;
   --status-good: #0ca30c;
   --status-critical: #d03b3b;
@@ -57,7 +57,7 @@ svg.lucide {
   white-space: nowrap;
 }
 
-/* ---- Coquille ---------------------------------------------------------- */
+/* ---- Shell ------------------------------------------------------------- */
 
 .shell {
   display: grid;
@@ -211,7 +211,7 @@ svg.lucide {
   }
 }
 
-/* ---- Indicateurs -------------------------------------------------------- */
+/* ---- Indicators ---------------------------------------------------------- */
 
 .sync-indicator {
   display: inline-flex;
@@ -263,7 +263,7 @@ svg.lucide {
   align-items: center;
 }
 
-/* ---- Arbre --------------------------------------------------------------- */
+/* ---- Tree ---------------------------------------------------------------- */
 
 .tree {
   list-style: none;
@@ -498,7 +498,7 @@ svg.lucide {
   font-size: var(--oe-font-size-sm);
 }
 
-/* ---- Contenu Markdown ----------------------------------------------------- */
+/* ---- Markdown content ----------------------------------------------------- */
 
 .prose {
   line-height: var(--oe-line-height-normal);
@@ -571,7 +571,7 @@ svg.lucide {
   padding: 0 0.15em;
 }
 
-/* ---- Visualisation --------------------------------------------------------- */
+/* ---- Visualization --------------------------------------------------------- */
 
 .meter {
   display: inline-flex;
@@ -780,7 +780,7 @@ svg.lucide {
   line-height: 1;
 }
 
-/* ---- Formulaires, dialogues --------------------------------------------- */
+/* ---- Forms, dialogs ------------------------------------------------------ */
 
 .form-grid {
   display: grid;
@@ -897,7 +897,7 @@ dialog.modal::backdrop {
   color: var(--oe-color-text-muted);
 }
 
-/* ---- Éditeur -------------------------------------------------------------- */
+/* ---- Editor --------------------------------------------------------------- */
 
 .cm-host {
   border: var(--oe-border-width) solid var(--oe-color-border-strong);
@@ -977,6 +977,16 @@ dialog.modal::backdrop {
 }
 .proposal.is-excluded {
   opacity: 0.55;
+}
+.planned-category {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oe-space-1);
+  padding-bottom: var(--oe-space-2);
+  border-bottom: var(--oe-border-width) solid var(--oe-color-border);
+}
+.planned-category:last-child {
+  border-bottom: 0;
 }
 .stepper {
   display: flex;
@@ -1104,7 +1114,7 @@ dialog.modal::backdrop {
   gap: var(--oe-space-2);
 }
 
-/* ---- Graphe ------------------------------------------------------------------ */
+/* ---- Graph ------------------------------------------------------------------- */
 
 .graph {
   position: relative;
@@ -1178,7 +1188,7 @@ dialog.modal::backdrop {
   max-height: 60vh;
 }
 
-/* ---- Accueil ------------------------------------------------------------------ */
+/* ---- Home --------------------------------------------------------------------- */
 
 .home {
   height: 100%;
@@ -1263,7 +1273,7 @@ dialog.modal::backdrop {
   }
 }
 
-/* ---- Recherche par le sens ---------------------------------------------------- */
+/* ---- Search by meaning --------------------------------------------------------- */
 
 .search-mode {
   display: flex;
@@ -1281,7 +1291,7 @@ dialog.modal::backdrop {
   margin-top: var(--oe-space-3);
 }
 
-/* ---- Espaces : wiki, bibliothèque, discussions --------------------------- */
+/* ---- Spaces: wiki, library, discussions ----------------------------------- */
 
 .section-tabs {
   display: grid;
@@ -1348,7 +1358,7 @@ dialog.modal::backdrop {
   vertical-align: -0.15em;
 }
 
-/* Filtres en pastilles (bibliothèque, discussions). */
+/* Chip filters (library, discussions). */
 .filters {
   display: flex;
   flex-direction: column;
@@ -1412,7 +1422,7 @@ dialog.modal::backdrop {
   font-variant-numeric: tabular-nums;
 }
 
-/* Bibliothèque. */
+/* Library. */
 .library-list,
 .discussion-list,
 .flashcard-list {
@@ -1552,7 +1562,7 @@ dialog.modal::backdrop {
   gap: 0.15rem;
 }
 
-/* Connaissances : flashcards, sources, à sourcer. */
+/* Knowledge: flashcards, sources, needs a source. */
 .flashcard-item {
   display: flex;
   flex-direction: row;
@@ -1598,7 +1608,7 @@ dialog.modal::backdrop {
   gap: var(--oe-space-3);
 }
 
-/* Notice d'une source. */
+/* Bibliographic record of a source. */
 .notice {
   margin: var(--oe-space-4) 0 0;
   display: grid;

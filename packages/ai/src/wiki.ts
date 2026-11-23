@@ -1,7 +1,7 @@
 /**
- * Passerelle entre le modèle du wiki (@openeugenia/core) et les tâches d'Eugenia :
- * données envoyées pour les descriptions, catégories proposées à l'extraction,
- * navigation dans l'arbre et prompts surchargés par le wiki.
+ * Bridge between the wiki model (@openeugenia/core) and Eugenia's tasks: data sent for
+ * descriptions, categories offered during extraction, tree navigation and prompts overridden
+ * by the wiki.
  */
 import {
   ancestors,
@@ -27,17 +27,17 @@ import type { TreeEntry, TreeNavigator } from "./tasks/ask.ts";
 import type { CategoryOption } from "./tasks/extract.ts";
 import type { SummaryInput } from "./tasks/summarize.ts";
 
-/** Libellé d'un type de page dans les données envoyées à Eugenia. */
+/** Label of a page type in the data sent to Eugenia. */
 export const PAGE_TYPE_LABELS: Record<PageType, string> = {
-  category: "catégorie",
-  knowledge: "connaissance",
+  category: "category",
+  knowledge: "knowledge",
   flashcard: "flashcard",
   source: "source",
 };
 
 /**
- * Texte d'une page pour Eugenia : énoncé d'une connaissance, question et réponse d'une
- * flashcard (avec l'énoncé de sa connaissance), notice et contenu d'une source.
+ * Text of a page for Eugenia: statement of a knowledge item, question and answer of a
+ * flashcard (with the statement of its knowledge item), record and content of a source.
  */
 export async function pageText(
   view: Pick<WikiView, "readText" | "files"> & { tree?: WikiView["tree"] },
@@ -55,9 +55,9 @@ export async function pageText(
       ).statement;
     }
     return [
-      knowledge ? `Connaissance : ${markdownToText(knowledge)}` : "",
-      card.question ? `Question : ${markdownToText(card.question)}` : "",
-      card.answer ? `Réponse attendue : ${markdownToText(card.answer)}` : "",
+      knowledge ? `Knowledge: ${markdownToText(knowledge)}` : "",
+      card.question ? `Question: ${markdownToText(card.question)}` : "",
+      card.answer ? `Expected answer: ${markdownToText(card.answer)}` : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -65,7 +65,7 @@ export async function pageText(
   if (node.type === "knowledge") {
     const content = parseKnowledgeBody(doc.body);
     return [
-      `Connaissance : ${markdownToText(content.statement)}`,
+      `Knowledge: ${markdownToText(content.statement)}`,
       content.notes ? markdownToText(content.notes) : "",
     ]
       .filter(Boolean)
@@ -73,12 +73,12 @@ export async function pageText(
   }
   if (node.type === "source") {
     const f = doc.fields;
-    const notice = [
-      f.authors?.length ? `Auteurs : ${f.authors.join(", ")}` : "",
-      f.published ? `Publication : ${f.published}` : "",
-      f.url ? `Adresse : ${f.url}` : "",
+    const record = [
+      f.authors?.length ? `Authors: ${f.authors.join(", ")}` : "",
+      f.published ? `Published: ${f.published}` : "",
+      f.url ? `URL: ${f.url}` : "",
     ].filter(Boolean);
-    return [...notice, markdownToText(doc.body)].filter(Boolean).join("\n");
+    return [...record, markdownToText(doc.body)].filter(Boolean).join("\n");
   }
   return markdownToText(doc.body);
 }
@@ -92,7 +92,7 @@ async function summaryBody(
   return markdownToText(doc.body);
 }
 
-/** Données d'une description de sous-wiki : la page, puis ses enfants pour la portée. */
+/** Data for a sub-wiki description: the page, then its children for the scope. */
 export async function summaryInputFor(
   view: WikiView,
   nodeId: string,
@@ -100,7 +100,7 @@ export async function summaryInputFor(
   summaries?: ReadonlyMap<string, SummaryDocument>,
 ): Promise<SummaryInput> {
   const node = view.tree.nodes.get(nodeId);
-  if (!node) throw new Error(`Nœud introuvable : ${nodeId}`);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
   const children = await Promise.all(
     scopedChildren(view.tree, node, scope).map(async (child) => {
       const isSubwiki = needsSummary(view.tree, child, scope);
@@ -127,13 +127,13 @@ export async function summaryInputFor(
   return input;
 }
 
-/** Le contenu d'une tâche implique-t-il un nœud privé ? */
+/** Does the content of a task involve a private node? */
 export function involvesPrivate(nodes: Iterable<WikiNode>): boolean {
   for (const node of nodes) if (!node.isPublic) return true;
   return false;
 }
 
-/** Catégories proposées à l'extraction : toutes les catégories du wiki, avec leur chemin. */
+/** Categories offered during extraction: all the categories of the wiki, with their path. */
 export function categoryOptions(view: Pick<WikiView, "tree">, limit = 400): CategoryOption[] {
   const out: CategoryOption[] = [];
   const visit = (node: WikiNode, path: string[]): void => {
@@ -151,8 +151,8 @@ export function categoryOptions(view: Pick<WikiView, "tree">, limit = 400): Cate
 }
 
 /**
- * Navigation dans l'arbre pour les questions (§8.5), limitée à une portée. Elle descend des
- * catégories jusqu'aux connaissances, dont le contenu inclut leurs flashcards.
+ * Tree navigation for questions (§8.5), limited to a scope. It goes down from categories to
+ * knowledge items, whose content includes their flashcards.
  */
 export function treeNavigator(
   view: WikiView,
@@ -169,7 +169,7 @@ export function treeNavigator(
       try {
         description = await summaryBody(view, file.path, summaries);
       } catch {
-        // description illisible : on garde la description courte
+        // unreadable description: keep the short description
       }
     }
     const entry: TreeEntry = {
@@ -211,12 +211,12 @@ export function treeNavigator(
             return `- ${markdownToText(card.question)} → ${markdownToText(card.answer)}`;
           }),
       );
-      return cards.length > 0 ? `${text}\n\nFlashcards :\n${cards.join("\n")}` : text;
+      return cards.length > 0 ? `${text}\n\nFlashcards:\n${cards.join("\n")}` : text;
     },
   };
 }
 
-/** Prompts surchargés par le wiki : `.notes/prompts/<nom>.md`. */
+/** Prompts overridden by the wiki: `.notes/prompts/<name>.md`. */
 export async function loadPromptOverrides(
   paths: Iterable<string>,
   readText: (path: string) => Promise<string>,

@@ -10,12 +10,12 @@ interface NodePickerProps {
   tree: WikiTree;
   onClose(): void;
   onSelect(node: WikiNode): void;
-  /** Nœuds proposables (tous par défaut). */
+  /** Nodes that can be picked (all by default). */
   filter?(node: WikiNode): boolean;
   hint?: string;
 }
 
-/** Recherche d'une page par son titre (liens, déplacement, catégorie). */
+/** Finds a page by its title (links, move, category). */
 export function NodePicker({
   open,
   title,
@@ -58,7 +58,7 @@ export function NodePicker({
       <input
         className="oe-input"
         type="search"
-        placeholder="Rechercher une page par son titre…"
+        placeholder="Search for a page by its title…"
         value={query}
         autoFocus
         onChange={(e) => {
@@ -77,7 +77,7 @@ export function NodePicker({
             choose(results[selected]);
           }
         }}
-        aria-label="Titre de la page"
+        aria-label="Page title"
       />
       <ul className="picker-list" role="listbox">
         {results.map((node, i) => (
@@ -94,14 +94,14 @@ export function NodePicker({
               <span className="path">
                 {ancestors(tree, node.id)
                   .map((a) => a.title)
-                  .join(" › ") || "Racine"}
+                  .join(" › ") || "Root"}
               </span>
             </button>
           </li>
         ))}
         {results.length === 0 && (
           <li className="muted small" style={{ padding: "0.75rem" }}>
-            Aucune page.
+            No pages.
           </li>
         )}
       </ul>

@@ -4,7 +4,7 @@ import { OwnerBackend, pushCommit } from "../src/lib/backend.ts";
 import type { Snapshot } from "../src/lib/db.ts";
 import { emptyPending, queueCommit, stageChanges } from "../src/lib/pending.ts";
 
-/** GitHub simulé : un dépôt dont la branche est passée de C1 à C2 (fichier modifié à distance). */
+/** Simulated GitHub: a repository whose branch moved from C1 to C2 (file changed remotely). */
 async function fakeGitHub(files: Record<string, string>) {
   const blobs = new Map<string, string>();
   const tree: { path: string; type: string; sha: string }[] = [];
@@ -47,7 +47,7 @@ async function fakeGitHub(files: Record<string, string>) {
   return { fetchImpl, writes };
 }
 
-describe("enregistrement dans le dépôt", () => {
+describe("saving to the repository", () => {
   const resolved = {
     mode: "owner" as const,
     source: { owner: "alice", name: "wiki" },
@@ -56,7 +56,7 @@ describe("enregistrement dans le dépôt", () => {
     canWrite: true,
   };
 
-  it("détecte un conflit et n'écrit rien quand le fichier a changé à distance", async () => {
+  it("detects a conflict and writes nothing when the file changed remotely", async () => {
     const { fetchImpl, writes } = await fakeGitHub({
       "wiki/a/index.md": "Version distante",
       "wiki/b/index.md": "B",
@@ -80,9 +80,9 @@ describe("enregistrement dans le dépôt", () => {
       emptyPending(),
       [{ op: "write", path: "wiki/a/index.md", content: "Version locale" }],
       remote,
-      "Modifier A",
+      "Edit A",
     );
-    state = queueCommit(state, "Modifier A");
+    state = queueCommit(state, "Edit A");
     const outcome = await pushCommit(backend, snapshot, state, state.queue[0]!);
     expect(outcome.status).toBe("conflicts");
     if (outcome.status === "conflicts") {
@@ -98,10 +98,10 @@ describe("enregistrement dans le dépôt", () => {
     expect(writes).toEqual([]);
   });
 
-  it("commite quand les fichiers modifiés localement n'ont pas changé à distance", async () => {
+  it("commits when the locally changed files did not change remotely", async () => {
     const { fetchImpl, writes } = await fakeGitHub({
       "wiki/a/index.md": "A",
-      "wiki/b/index.md": "B modifié ailleurs",
+      "wiki/b/index.md": "B changed elsewhere",
     });
     const backend = new OwnerBackend(resolved, "jeton", fetchImpl);
     const snapshot: Snapshot = {
@@ -121,9 +121,9 @@ describe("enregistrement dans le dépôt", () => {
       emptyPending(),
       [{ op: "write", path: "wiki/a/index.md", content: "A local" }],
       remote,
-      "Modifier A",
+      "Edit A",
     );
-    state = queueCommit(state, "Modifier A");
+    state = queueCommit(state, "Edit A");
     const outcome = await pushCommit(backend, snapshot, state, state.queue[0]!);
     expect(outcome.status).toBe("committed");
     expect(writes).toEqual([
@@ -137,7 +137,7 @@ describe("enregistrement dans le dépôt", () => {
         await gitBlobSha("A local"),
       );
       expect(outcome.snapshot.files.find((f) => f.path === "wiki/b/index.md")!.sha).toBe(
-        await gitBlobSha("B modifié ailleurs"),
+        await gitBlobSha("B changed elsewhere"),
       );
     }
   });

@@ -1,4 +1,4 @@
-/** Chargement d'un wiki complet à partir d'une liste de fichiers et d'un lecteur. */
+/** Loads a complete wiki from a list of files and a reader. */
 import { CONFIG_PATH, parseConfig, type WikiConfig } from "./config.ts";
 import {
   discussionMeta,
@@ -31,21 +31,21 @@ export interface LoadedWiki {
   files: Map<string, RepoFile>;
   metas: Map<string, PageMeta>;
   tree: WikiTree;
-  /** Descriptions lues, indexées par chemin. */
+  /** Descriptions read, indexed by path. */
   summaries: Map<string, SummaryDocument>;
-  /** Métadonnées des discussions, indexées par chemin. */
+  /** Discussion metadata, indexed by path. */
   discussions: Map<string, DiscussionMeta>;
-  /** Évaluations de tous les quiz du dépôt. */
+  /** Evaluations of all the quizzes of the repository. */
   quizEvents: QuizEvent[];
 }
 
 export interface LoadOptions {
   summaries?: boolean;
-  /** Lire les discussions (nécessaire à la maîtrise, qui rejoue les quiz). */
+  /** Read the discussions (needed for mastery, which replays the quizzes). */
   discussions?: boolean;
 }
 
-/** Chemins des `index.md` de pages (wiki et bibliothèque, hors dossiers réservés). */
+/** Paths of page `index.md` files (wiki and library, excluding reserved folders). */
 export function pageIndexPaths(config: WikiConfig, paths: Iterable<string>): string[] {
   const out: string[] = [];
   for (const path of paths) {
@@ -59,7 +59,7 @@ export function pageIndexPaths(config: WikiConfig, paths: Iterable<string>): str
   return out;
 }
 
-/** Fichiers à lire pour charger un wiki (pages, descriptions, discussions). */
+/** Files to read to load a wiki (pages, descriptions, discussions). */
 export function filesToLoad(
   config: WikiConfig,
   paths: Iterable<string>,

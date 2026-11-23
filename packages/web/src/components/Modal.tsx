@@ -10,7 +10,7 @@ interface ModalProps {
   wide?: boolean;
 }
 
-/** Boîte de dialogue modale (élément `<dialog>` natif). */
+/** Modal dialog (native `<dialog>` element). */
 export function Modal({ title, open, onClose, children, wide = false }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -37,7 +37,7 @@ export function Modal({ title, open, onClose, children, wide = false }: ModalPro
               type="button"
               className="oe-button oe-button--ghost oe-button--sm icon-only"
               onClick={onClose}
-              aria-label="Fermer"
+              aria-label="Close"
             >
               <X />
             </button>
@@ -49,7 +49,7 @@ export function Modal({ title, open, onClose, children, wide = false }: ModalPro
   );
 }
 
-/** Affiche les demandes de confirmation du magasin d'interface. */
+/** Shows the confirmation requests of the UI store. */
 export function DialogHost() {
   const dialogs = useUI((s) => s.dialogs);
   const close = useUI((s) => s.closeDialog);
@@ -64,7 +64,7 @@ export function DialogHost() {
           className="oe-button oe-button--ghost"
           onClick={() => close(dialog.id, false)}
         >
-          {dialog.cancelLabel ?? "Annuler"}
+          {dialog.cancelLabel ?? "Cancel"}
         </button>
         <button
           type="button"
@@ -102,7 +102,7 @@ export function Toasts() {
             type="button"
             className="oe-button oe-button--ghost oe-button--sm icon-only"
             onClick={() => dismiss(t.id)}
-            aria-label="Fermer"
+            aria-label="Close"
           >
             <X />
           </button>

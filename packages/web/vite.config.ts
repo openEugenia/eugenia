@@ -8,9 +8,8 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 };
 
 /**
- * Politique de sécurité du contenu (§12), injectée à la construction seulement (le
- * serveur de développement a besoin de scripts en ligne). GitHub Pages ne permet pas
- * d'en-têtes HTTP : elle passe par une balise meta.
+ * Content security policy (§12), injected at build time only (the development server needs
+ * inline scripts). GitHub Pages does not allow HTTP headers: it goes through a meta tag.
  */
 const CSP = [
   "default-src 'self'",
@@ -54,11 +53,11 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ["icons/*.svg", "icons/*.png"],
       manifest: {
-        name: "Eugenia — wiki personnel de connaissances",
+        name: "Eugenia — personal knowledge wiki",
         short_name: "Eugenia",
         description:
-          "Extraire, structurer et mémoriser durablement vos connaissances, dans vos propres dépôts git.",
-        lang: "fr",
+          "Extract, structure and durably remember your knowledge, in your own git repositories.",
+        lang: "en",
         theme_color: "#11161d",
         background_color: "#11161d",
         display: "standalone",

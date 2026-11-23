@@ -1,4 +1,4 @@
-/** Suggestion de sous-catégories (§8.1). */
+/** Subcategory suggestions for a category (§8.1). */
 import { z } from "zod";
 import { excerpt, systemPrompt, withSignal, type TaskContext } from "./context.ts";
 
@@ -24,9 +24,9 @@ export async function suggestCategories(
         {
           role: "user" as const,
           content: [
-            `<categorie>${[...input.path, input.category].join(" > ")}</categorie>`,
-            `<sous_categories>\n${input.subcategories.map((s) => `- ${s}`).join("\n") || "(aucune)"}\n</sous_categories>`,
-            `<connaissances>\n${input.samples.map((s) => `- ${excerpt(s, 300)}`).join("\n") || "(aucune)"}\n</connaissances>`,
+            `<category>${[...input.path, input.category].join(" > ")}</category>`,
+            `<subcategories>\n${input.subcategories.map((s) => `- ${s}`).join("\n") || "(none)"}\n</subcategories>`,
+            `<knowledge>\n${input.samples.map((s) => `- ${excerpt(s, 300)}`).join("\n") || "(none)"}\n</knowledge>`,
           ].join("\n"),
         },
       ],
