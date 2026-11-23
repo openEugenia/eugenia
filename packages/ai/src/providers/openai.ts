@@ -46,8 +46,34 @@ export function isLocalUrl(url: string): boolean {
 }
 
 interface ChatChoice {
-  message?: { content?: string | null };
-  delta?: { content?: string | null };
+  message?: { content?: unknown };
+  delta?: { content?: unknown };
+  finish_reason?: string | null;
+}
+
+/**
+ * Text of a message: a string, or, for reasoning models (Mistral Large 4, Magistral…), a list
+ * of chunks whose `text` parts form the answer (the `thinking` parts are left out).
+ */
+export function messageText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((chunk: unknown) => {
+      if (typeof chunk === "string") return chunk;
+      if (!chunk || typeof chunk !== "object") return "";
+      const c = chunk as { type?: unknown; text?: unknown };
+      return c.type === "text" && typeof c.text === "string" ? c.text : "";
+    })
+    .join("");
+}
+
+function truncated(label: string): AIError {
+  return new AIError(
+    "invalid_output",
+    `${label}: the answer was cut off (maximum length reached).`,
+    { cause: "length" },
+  );
 }
 
 export class OpenAICompatibleProvider implements AIProvider {
@@ -119,7 +145,7 @@ export class OpenAICompatibleProvider implements AIProvider {
       request.signal,
     );
     const data = (await response.json()) as { choices?: ChatChoice[] };
-    return (data.choices?.[0]?.message?.content ?? "").trim();
+    return messageText(data.choices?.[0]?.message?.content).trim();
   }
 
   async *stream(request: GenerateRequest): AsyncGenerator<string> {
@@ -141,7 +167,7 @@ export class OpenAICompatibleProvider implements AIProvider {
       } catch {
         continue;
       }
-      const text = chunk.choices?.[0]?.delta?.content;
+      const text = messageText(chunk.choices?.[0]?.delta?.content);
       if (text) yield text;
     }
   }
@@ -169,7 +195,10 @@ export class OpenAICompatibleProvider implements AIProvider {
           request.signal,
         );
         const data = (await response.json()) as { choices?: ChatChoice[] };
-        text = data.choices?.[0]?.message?.content ?? "";
+        const choice = data.choices?.[0];
+        // A truncated answer would be just as truncated in another format: give up now.
+        if (choice?.finish_reason === "length") throw truncated(this.info.label);
+        text = messageText(choice?.message?.content);
       } catch (error) {
         // Output format not supported: try the next one.
         if (error instanceof AIError && error.status === 400) {

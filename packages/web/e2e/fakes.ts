@@ -284,6 +284,8 @@ export interface FakeClaudeOptions {
   reply?: string;
   /** Title of the new category proposed for the knowledge of a document. */
   category?: string;
+  /** Exploration decision of a question about the tree, from the message (default: enough). */
+  exploration?: (user: string) => { explore: string[]; read: string[]; enough: boolean };
 }
 
 export interface ClaudeCall {
@@ -387,7 +389,7 @@ export async function installFakeClaude(
         suggestions: [{ title: "Mythologies", reason: "Groups the mythological figures." }],
       });
     } else if (user.includes("<step>exploration</step>")) {
-      text = JSON.stringify({ explore: [], read: [], enough: true });
+      text = JSON.stringify(options.exploration?.(user) ?? { explore: [], read: [], enough: true });
     } else {
       text = options.reply ?? "Eugenia's answer.";
     }

@@ -8,8 +8,11 @@ import type { PageMeta, WikiTree } from "./tree.ts";
 import type { DiscussionKind, PageType, RepoFile, SourceKind, Visibility } from "./types.ts";
 
 export const INDEX_FORMAT = "eugenia-index";
-/** Version 3: private sources may be listed, with their bibliographic record only. */
-export const INDEX_VERSION = 3;
+/**
+ * Version 3: private sources may be listed, with their bibliographic record only. Version 4:
+ * sources carry the category they are filed in (common hierarchy).
+ */
+export const INDEX_VERSION = 4;
 
 export interface IndexNode {
   id: string;
@@ -31,6 +34,8 @@ export interface IndexNode {
   authors?: string[];
   url?: string;
   published?: string;
+  /** Source: published category it is filed in. */
+  category?: string;
   /** Knowledge: cited published sources, and whether at least one source is given. */
   refs?: string[];
   sourced?: boolean;
@@ -91,6 +96,7 @@ export function metasFromIndex(index: WikiIndex): Map<string, PageMeta> {
     if (node.authors) meta.authors = node.authors;
     if (node.url) meta.url = node.url;
     if (node.published) meta.published = node.published;
+    if (node.category) meta.category = node.category;
     if (node.refs) meta.refs = node.refs;
     if (node.sourced) meta.sourced = true;
     metas.set(node.path === "" ? "index.md" : `${node.path}/index.md`, meta);
@@ -130,6 +136,7 @@ export function buildIndex(input: {
     refs?: string[];
     sourced?: boolean;
     extracted_from?: string;
+    category?: string;
   }>;
   discussions?: Iterable<{ path: string; meta: DiscussionMeta }>;
   now?: Date;
@@ -163,6 +170,7 @@ export function buildIndex(input: {
       if (node.authors.length > 0) out.authors = node.authors;
       if (node.url) out.url = node.url;
       if (node.published) out.published = node.published;
+      if (entry.category) out.category = entry.category;
     }
     if (node.type === "knowledge") {
       if (entry.refs?.length) out.refs = entry.refs;

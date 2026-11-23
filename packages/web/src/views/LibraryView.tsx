@@ -1,10 +1,19 @@
 /**
- * Library: the sources the knowledge comes from (books, articles, websites, PDFs…), as a flat
- * list with filters. Each source shows the knowledge items that cite it.
+ * Library: the sources the knowledge comes from (books, articles, websites, PDFs…), with
+ * filters. Each source is filed in a category of the wiki (common hierarchy) and shows the
+ * knowledge items that cite it.
  */
 import { useMemo, useState } from "react";
-import { FileUp, Library, Plus, Search } from "lucide-react";
-import { librarySources, SOURCE_KINDS, type SourceKind, type WikiNode } from "@openeugenia/core";
+import { FileUp, Library, ListTree, Plus, Search } from "lucide-react";
+import {
+  hierarchyAncestors,
+  isCategory,
+  isInBranch,
+  librarySources,
+  SOURCE_KINDS,
+  type SourceKind,
+  type WikiNode,
+} from "@openeugenia/core";
 import {
   EmptyState,
   RecordBadge,
@@ -29,7 +38,18 @@ function hostOf(url: string | undefined): string | undefined {
   }
 }
 
-export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
+/** Filter value of the sources not filed in a category yet. */
+const UNFILED = "unfiled";
+
+export function LibraryView({
+  kind,
+  q,
+  category,
+}: {
+  kind?: SourceKind;
+  q?: string;
+  category?: string;
+}) {
   const derived = useDerived();
   const owner = useIsOwner();
   const editable = useCanEdit();
@@ -55,11 +75,36 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
     () => [...new Set(sources.flatMap((s) => s.tags))].sort((a, b) => a.localeCompare(b, "fr")),
     [sources],
   );
+  const rootId = derived.tree.rootId;
+  const placeOf = (s: WikiNode): WikiNode[] => {
+    const filed = s.filedIn ? derived.tree.nodes.get(s.filedIn) : undefined;
+    return filed && filed.id !== rootId
+      ? [...hierarchyAncestors(derived.tree, filed).filter((a) => a.id !== rootId), filed]
+      : [];
+  };
+  // Categories holding sources (in their branch), for the filter.
+  const categories = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of sources) for (const c of placeOf(s)) ids.add(c.id);
+    return [...derived.tree.nodes.values()]
+      .filter((n) => ids.has(n.id) && isCategory(n))
+      .map((n) => ({
+        id: n.id,
+        label: [...hierarchyAncestors(derived.tree, n).filter((a) => a.id !== rootId), n]
+          .map((a) => a.title)
+          .join(" › "),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, "en"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sources, derived.tree]);
+  const unfiledCount = sources.filter((s) => placeOf(s).length === 0).length;
 
   const visible = useMemo(() => {
     const words = normalizeTerm(query.trim()).split(/\s+/).filter(Boolean);
     const list = sources.filter((s) => {
       if (kind && (s.sourceKind ?? "other") !== kind) return false;
+      if (category === UNFILED && placeOf(s).length > 0) return false;
+      if (category && category !== UNFILED && !isInBranch(derived.tree, category, s)) return false;
       if (tag && !s.tags.includes(tag)) return false;
       if (words.length === 0) return true;
       const haystack = normalizeTerm(
@@ -78,11 +123,26 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
           : recent(b).localeCompare(recent(a)),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sources, kind, tag, query, sort, derived.knowledgeBySource]);
+  }, [sources, kind, tag, query, sort, category, derived.knowledgeBySource]);
 
   const setKind = (next: SourceKind | undefined): void =>
     navigate(
-      { name: "library", ...(next ? { kind: next } : {}), ...(query ? { q: query } : {}) },
+      {
+        name: "library",
+        ...(next ? { kind: next } : {}),
+        ...(query ? { q: query } : {}),
+        ...(category ? { category } : {}),
+      },
+      { replace: true },
+    );
+  const setCategory = (next: string): void =>
+    navigate(
+      {
+        name: "library",
+        ...(kind ? { kind } : {}),
+        ...(query ? { q: query } : {}),
+        ...(next ? { category: next } : {}),
+      },
       { replace: true },
     );
 
@@ -92,8 +152,8 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
         <div>
           <h1>Library</h1>
           <p className="muted">
-            The sources of your knowledge: books, articles, websites, videos, documents. Each atomic
-            knowledge item of the wiki points to them.
+            The sources of your knowledge: books, articles, websites, videos, documents. Each one is
+            filed in a category of your wiki, and the atomic knowledge items point to them.
             {!owner &&
               " Private sources only show their bibliographic record (title, kind, authors, date, URL)."}
           </p>
@@ -102,7 +162,12 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
           <div className="actions">
             <a
               className="oe-button"
-              href={href({ name: "new", parentId: derived.tree.libraryId, type: "source" })}
+              href={href({
+                name: "new",
+                parentId: derived.tree.libraryId,
+                type: "source",
+                ...(category && category !== UNFILED ? { category } : {}),
+              })}
             >
               <Plus aria-hidden="true" /> Add a source
             </a>
@@ -164,6 +229,22 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
           ))}
         </div>
         <div className="filters__row">
+          {(categories.length > 0 || unfiledCount > 0) && (
+            <select
+              className="oe-select"
+              value={category ?? ""}
+              onChange={(e) => setCategory(e.target.value)}
+              aria-label="Category"
+            >
+              <option value="">All categories</option>
+              {unfiledCount > 0 && <option value={UNFILED}>Not filed yet ({unfiledCount})</option>}
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
           {tags.length > 0 && (
             <select
               className="oe-select"
@@ -221,6 +302,19 @@ export function LibraryView({ kind, q }: { kind?: SourceKind; q?: string }) {
                       ]
                         .filter(Boolean)
                         .join(" · ")}
+                    </span>
+                    <span className="library-item__meta">
+                      {placeOf(s).length > 0
+                        ? `In ${placeOf(s)
+                            .map((c) => c.title)
+                            .join(" › ")}`
+                        : "Not filed in a category yet"}
+                      {s.sourceTree && (
+                        <>
+                          {" · "}
+                          <ListTree aria-hidden="true" className="inline-icon" /> indexed
+                        </>
+                      )}
                     </span>
                     {s.description && <span className="library-item__text">{s.description}</span>}
                   </span>

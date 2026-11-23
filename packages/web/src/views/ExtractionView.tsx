@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import {
   createFlashcard,
+  categoryForSource,
   createPage,
   joinPath,
   markdownToText,
@@ -31,6 +32,7 @@ import {
   type FileChange,
   type SourceKind,
   type SourceRef,
+  updatePage,
 } from "@openeugenia/core";
 import {
   categorizeKnowledge,
@@ -57,6 +59,7 @@ import { fileToBase64, safeFileName } from "../lib/files.ts";
 import { plural } from "../lib/format.ts";
 import { useCanEdit, useDerived, useText } from "../lib/hooks.ts";
 import { pdfToText } from "../lib/pdf.ts";
+import { autoIndex } from "../lib/indexing.ts";
 import { href } from "../lib/router.ts";
 import { materializeSources, splitList, type NewSourceDraft } from "../lib/sources.ts";
 import { errorMessage, toast } from "../store/ui.ts";
@@ -390,9 +393,54 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
       const reserve = (path: string): void => {
         reserved.push(path);
       };
-      // 1. Pasted text or PDF: new library source, with its file.
+      // 1. New categories, each one after its parent.
+      const newCategories = new Map<
+        string,
+        { id: string; path: string; isPublic: boolean; parentId: string }
+      >();
+      const madeCategories: { id: string; title: string }[] = [];
+      const location = (categoryId: string): { path: string; isPublic: boolean } => {
+        const fresh = newCategories.get(categoryId);
+        if (fresh) return fresh;
+        const existing = tree.nodes.get(categoryId) ?? tree.nodes.get(tree.rootId)!;
+        return { path: existing.path, isPublic: existing.isPublic };
+      };
+      const categoryId = (key: string): string =>
+        newCategories.get(key)?.id ?? (tree.nodes.has(key) ? key : tree.rootId);
+      for (const category of orderPlanned(planned)) {
+        if (!used.has(category.key)) continue;
+        const parent = location(category.parent);
+        const page = createPage(
+          workspace,
+          {
+            parentPath: parent.path,
+            parentIsPublic: parent.isPublic,
+            title: category.title.trim(),
+          },
+          reserved,
+        );
+        changes.push(page.change);
+        reserve(page.indexPath);
+        newCategories.set(category.key, {
+          id: page.id,
+          path: page.path,
+          isPublic: false,
+          parentId: categoryId(category.parent),
+        });
+        madeCategories.push({ id: page.id, title: category.title.trim() });
+      }
+      // Common hierarchy: the source is filed where its knowledge goes.
+      const parentIds = new Map([...newCategories.values()].map((c) => [c.id, c.parentId]));
+      const sourceCategory = categoryForSource(
+        selected.map((p) => categoryId(p.categoryId)),
+        (id) => parentIds.get(id) ?? tree.nodes.get(id)?.parentId,
+        tree.rootId,
+      );
+      const filedCategory = sourceCategory !== tree.rootId ? sourceCategory : undefined;
+      // 2. Pasted text or PDF: new library source, with its file.
       let originId = source.originId;
       const refs: SourceRef[] = [...citations];
+      let newSource: string | undefined;
       if (source.kind === "paste" || source.kind === "pdf") {
         const library = tree.nodes.get(tree.libraryId)!;
         const fileName = source.pdf && source.attachPdf ? safeFileName(source.pdf.name) : undefined;
@@ -407,6 +455,7 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
             authors: splitList(sourceAuthors),
             ...(sourceUrl.trim() ? { url: sourceUrl.trim() } : {}),
             ...(fileName ? { file: fileName } : {}),
+            ...(filedCategory ? { category: filedCategory } : {}),
             body: source.text
               .split(/\n{2,}/)
               .map((p) => `> ${p.replace(/\n/g, "\n> ")}`)
@@ -422,37 +471,18 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
           reserve(path);
         }
         originId = page.id;
+        newSource = page.id;
         refs.unshift({ ref: page.id });
+      } else if (source.kind === "source" && originId && filedCategory) {
+        // A source not filed yet is filed with its first extraction.
+        const origin = tree.nodes.get(originId);
+        if (origin?.type === "source" && !origin.category) {
+          changes.push(...(await updatePage(workspace, originId, { category: filedCategory })));
+        }
       }
       const materialized = materializeSources(workspace, refs, drafts, reserved);
       changes.push(...materialized.changes);
       const sources = materialized.sources;
-      // 2. New categories, each one after its parent.
-      const newCategories = new Map<string, { id: string; path: string; isPublic: boolean }>();
-      const madeCategories: { id: string; title: string }[] = [];
-      const location = (categoryId: string): { path: string; isPublic: boolean } => {
-        const fresh = newCategories.get(categoryId);
-        if (fresh) return fresh;
-        const existing = tree.nodes.get(categoryId) ?? tree.nodes.get(tree.rootId)!;
-        return { path: existing.path, isPublic: existing.isPublic };
-      };
-      for (const category of orderPlanned(planned)) {
-        if (!used.has(category.key)) continue;
-        const parent = location(category.parent);
-        const page = createPage(
-          workspace,
-          {
-            parentPath: parent.path,
-            parentIsPublic: parent.isPublic,
-            title: category.title.trim(),
-          },
-          reserved,
-        );
-        changes.push(page.change);
-        reserve(page.indexPath);
-        newCategories.set(category.key, { id: page.id, path: page.path, isPublic: false });
-        madeCategories.push({ id: page.id, title: category.title.trim() });
-      }
       // 3. Atomic knowledge and its first flashcard.
       const made: { id: string; title: string }[] = [];
       for (const p of selected) {
@@ -492,6 +522,8 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
       );
       setCreated({ knowledge: made, categories: madeCategories });
       setStep("done");
+      // The new source is indexed (if automatic indexing is on).
+      if (newSource) void autoIndex([newSource]);
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {

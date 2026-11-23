@@ -1,0 +1,50 @@
+{
+  "format": "eugenia-source-tree",
+  "version": 1,
+  "model": "mistral-large-latest",
+  "text_sha": "377be32",
+  "generated": "2026-11-23T15:26:53Z",
+  "root": {
+    "name": "Article on Lilith",
+    "description": "Article by Jane Doe published in 2019 at https://example.org/lilith presenting Lilith as a female demon of Jewish tradition originating from a Mesopotamian deity, and describing her in medieval Jewish legends (specifically the Alphabet of Ben Sira) as Adam's first wife before Eve.",
+    "children": [
+      {
+        "name": "Publication details",
+        "description": "The source is an article titled 'Article on Lilith' written by Jane Doe, published in 2019, accessible at URL https://example.org/lilith.",
+        "children": []
+      },
+      {
+        "name": "Lilith's nature and origin",
+        "description": "Lilith is defined as a female demon in Jewish tradition who stands for a deity of Mesopotamian origin.",
+        "children": [
+          {
+            "name": "Role in Jewish tradition",
+            "description": "In Jewish tradition, Lilith is characterized as a female demon.",
+            "children": []
+          },
+          {
+            "name": "Mesopotamian deity origin",
+            "description": "Lilith represents a deity that originated in Mesopotamia.",
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "Lilith in medieval Jewish legends",
+        "description": "In the Jewish legends that spread during the Middle Ages, according to the Alphabet of Ben Sira, Lilith is presented as Adam's first wife, preceding Eve.",
+        "children": [
+          {
+            "name": "Alphabet of Ben Sira",
+            "description": "The Alphabet of Ben Sira is the textual source within medieval Jewish legends that presents Lilith as Adam's first wife.",
+            "children": []
+          },
+          {
+            "name": "Adam's first wife before Eve",
+            "description": "According to medieval Jewish legends, Lilith was Adam's first wife, existing before Eve.",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}

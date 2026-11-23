@@ -27,6 +27,8 @@ export interface PageMeta {
   url?: string;
   published?: string;
   file?: string;
+  /** Source: wiki category it is filed in. */
+  category?: string;
   /** Knowledge: cited library sources. */
   refs?: string[];
   /** Knowledge: at least one source is given (library or free reference). */
@@ -70,6 +72,10 @@ export interface WikiNode {
   summaries: { private?: RepoFile; public?: RepoFile };
   /** Embedding of the page for semantic search (`_embedding.json`), never published. */
   embedding?: RepoFile;
+  /** Source: its index, a knowledge tree describing its content (`_tree.json`). */
+  sourceTree?: RepoFile;
+  /** Source: embeddings of the sections of its index (`_tree.embeddings.json`), never published. */
+  sourceTreeEmbeddings?: RepoFile;
   /** Attached files (PDF, images…), including in subfolders that are not pages. */
   attachments: RepoFile[];
   /** Source: kind, authors, URL, publication date and personal file. */
@@ -78,6 +84,13 @@ export interface WikiNode {
   url?: string;
   published?: string;
   file?: string;
+  /** Source: category declared in its frontmatter (identifier of a wiki category). */
+  category?: string;
+  /**
+   * Source: category it is filed in, in the common hierarchy of the wiki, the library and the
+   * discussions: the declared category if it exists, otherwise the root of the wiki.
+   */
+  filedIn?: string;
   /** Knowledge: identifiers of the cited library sources. */
   refs: string[];
   /** Knowledge: at least one source is given (otherwise "needs a source"). */
@@ -95,6 +108,8 @@ export interface WikiTree {
   byPath: Map<string, WikiNode>;
   /** Discussion files, from newest to oldest (timestamped name). */
   discussions: RepoFile[];
+  /** Embedding of each discussion (`<discussions>/_embeddings/<name>.json`), by discussion path. */
+  discussionEmbeddings: Map<string, RepoFile>;
   problems: Problem[];
 }
 
@@ -108,6 +123,12 @@ export interface TreeInput {
 export const SUMMARY_FILE = "_summary.md";
 export const PUBLIC_SUMMARY_FILE = "_summary.public.md";
 export const EMBEDDING_FILE = "_embedding.json";
+/** Index of a source: a knowledge tree describing its content. */
+export const SOURCE_TREE_FILE = "_tree.json";
+/** Embeddings of the sections of the index of a source. */
+export const SOURCE_TREE_EMBEDDINGS_FILE = "_tree.embeddings.json";
+/** Folder of the discussion embeddings, inside the discussions folder. */
+export const DISCUSSION_EMBEDDINGS_DIR = "_embeddings";
 /** Per-page discussion folders of format v1, ignored (reported by `validate`). */
 export const LEGACY_DISCUSSION_DIRS: readonly string[] = ["_discussions", "_quizzes"];
 
@@ -318,6 +339,7 @@ export function buildTree(input: TreeInput): WikiTree {
     if (meta?.extracted_from) node.extractedFrom = meta.extracted_from;
     if (meta?.description) node.description = meta.description;
     if (node.type === "source") {
+      if (meta?.category) node.category = meta.category;
       if (meta?.kind) node.sourceKind = meta.kind;
       if (meta?.url) node.url = meta.url;
       if (meta?.published) node.published = meta.published;
@@ -335,11 +357,18 @@ export function buildTree(input: TreeInput): WikiTree {
     }
   }
 
-  // 4. Related files: descriptions, embeddings, attachments; discussions.
+  // 4. Related files: descriptions, embeddings, indexes, attachments; discussions.
   const discussions: RepoFile[] = [];
+  const discussionEmbeddings = new Map<string, RepoFile>();
+  const embeddingsDir = joinPath(config.discussions, DISCUSSION_EMBEDDINGS_DIR);
   for (const file of all) {
     if (isDiscussionPath(config, file.path)) {
       discussions.push(file);
+      continue;
+    }
+    if (dirname(file.path) === embeddingsDir && file.path.endsWith(".json")) {
+      const name = basename(file.path).slice(0, -".json".length);
+      discussionEmbeddings.set(joinPath(config.discussions, `${name}.md`), file);
       continue;
     }
     const dir = dirname(file.path);
@@ -360,6 +389,8 @@ export function buildTree(input: TreeInput): WikiTree {
         if (reserved === SUMMARY_FILE) owner.summaries.private = file;
         else if (reserved === PUBLIC_SUMMARY_FILE) owner.summaries.public = file;
         else if (reserved === EMBEDDING_FILE) owner.embedding = file;
+        else if (reserved === SOURCE_TREE_FILE) owner.sourceTree = file;
+        else if (reserved === SOURCE_TREE_EMBEDDINGS_FILE) owner.sourceTreeEmbeddings = file;
       } else if (LEGACY_DISCUSSION_DIRS.includes(reserved) && base.endsWith(".md")) {
         problems.push({
           level: "warning",
@@ -405,6 +436,30 @@ export function buildTree(input: TreeInput): WikiTree {
   visit(rootNode, undefined, 0);
   visit(libraryNode, undefined, 0);
 
+  // 6. Common hierarchy: each source is filed in a category of the wiki (the root by default).
+  for (const node of nodes.values()) {
+    if (node.type !== "source" || node.virtual) continue;
+    const declared = node.category ? nodes.get(node.category) : undefined;
+    node.filedIn = declared && isCategory(declared) ? declared.id : rootNode.id;
+    if (node.category && !declared) {
+      problems.push({
+        level: "warning",
+        code: "unknown-category",
+        message: `The source "${node.title}" is filed in an unknown category (${node.category}): it is shown at the root of the wiki.`,
+        path: node.indexPath,
+        nodeId: node.id,
+      });
+    } else if (declared && !isCategory(declared)) {
+      problems.push({
+        level: "warning",
+        code: "not-a-category",
+        message: `The source "${node.title}" is filed in "${declared.title}", which is not a category of the wiki: it is shown at the root.`,
+        path: node.indexPath,
+        nodeId: node.id,
+      });
+    }
+  }
+
   return {
     config,
     rootId: rootNode.id,
@@ -412,6 +467,7 @@ export function buildTree(input: TreeInput): WikiTree {
     nodes,
     byPath,
     discussions,
+    discussionEmbeddings,
     problems,
   };
 }
@@ -503,6 +559,41 @@ export function isCategory(node: Pick<WikiNode, "space" | "type">): boolean {
 /** Library sources. */
 export function librarySources(tree: WikiTree): WikiNode[] {
   return [...tree.nodes.values()].filter((n) => n.type === "source");
+}
+
+/**
+ * Category a page belongs to in the common hierarchy: the category a source is filed in, the
+ * parent of the other pages.
+ */
+export function hierarchyParentId(tree: WikiTree, node: WikiNode): string | null {
+  if (node.type === "source") return node.virtual ? null : (node.filedIn ?? tree.rootId);
+  return node.parentId;
+}
+
+/**
+ * Ancestors in the common hierarchy, from the root of the wiki: for a source, the category it
+ * is filed in and its ancestors.
+ */
+export function hierarchyAncestors(tree: WikiTree, node: WikiNode): WikiNode[] {
+  if (node.type !== "source") return ancestors(tree, node.id);
+  const category = node.filedIn ? tree.nodes.get(node.filedIn) : undefined;
+  return category ? [...ancestors(tree, category.id), category] : [];
+}
+
+/** Sources filed directly in a category, by title. */
+export function sourcesIn(tree: WikiTree, categoryId: string): WikiNode[] {
+  return librarySources(tree)
+    .filter((s) => s.filedIn === categoryId)
+    .sort(compareNodes);
+}
+
+/**
+ * True if a page belongs to the branch of `scopeId` in the common hierarchy (a source filed in
+ * the branch counts).
+ */
+export function isInBranch(tree: WikiTree, scopeId: string, node: WikiNode): boolean {
+  if (node.id === scopeId) return true;
+  return hierarchyAncestors(tree, node).some((a) => a.id === scopeId);
 }
 
 /** Knowledge item of a flashcard (its parent), or the knowledge item itself. */

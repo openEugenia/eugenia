@@ -6,17 +6,30 @@
 import {
   ancestors,
   basename,
+  buildHierarchy,
   dirname,
+  discussionAncestors,
+  discussionText,
+  findKnowledgeNode,
+  hierarchyAncestors,
   isCategory,
+  isSearchableDiscussion,
   markdownToText,
   needsSummary,
+  parseDiscussion,
   parseFlashcardBody,
   parseKnowledgeBody,
   parsePage,
+  parseSectionId,
+  parseSourceTree,
   parseSummary,
   PROMPTS_DIR,
   scopedChildren,
+  sectionId,
+  type Hierarchy,
+  type KnowledgeNode,
   type PageType,
+  type PlacedDiscussion,
   type SummaryDocument,
   type SummaryScope,
   type WikiNode,
@@ -150,21 +163,66 @@ export function categoryOptions(view: Pick<WikiView, "tree">, limit = 400): Cate
   return out;
 }
 
+export interface NavigatorOptions {
+  /** Descriptions already read, by path. */
+  summaries?: ReadonlyMap<string, SummaryDocument>;
+  /** Common hierarchy (discussions placed in the tree); without it, no discussion. */
+  hierarchy?: Hierarchy;
+}
+
 /**
- * Tree navigation for questions (§8.5), limited to a scope. It goes down from categories to
- * knowledge items, whose content includes their flashcards.
+ * Navigation in the common hierarchy for questions (§8.5), limited to a scope: categories, then
+ * their knowledge items, the sources filed in them and the discussions placed in them; a source
+ * goes down into the sections of its index. The content of a knowledge item includes its
+ * flashcards; the content of an indexed source is its index summary, not its full text.
+ * In the public scope, only public elements are shown.
  */
 export function treeNavigator(
   view: WikiView,
   scope: SummaryScope,
-  summaries?: ReadonlyMap<string, SummaryDocument>,
+  options: NavigatorOptions = {},
 ): TreeNavigator {
-  const navigable = (node: WikiNode): WikiNode[] =>
-    node.type === "category" ? scopedChildren(view.tree, node, scope) : [];
-  const toEntry = async (node: WikiNode): Promise<TreeEntry> => {
+  const { summaries } = options;
+  const tree = view.tree;
+  const hierarchy = options.hierarchy ?? buildHierarchy(tree, []);
+  const visible = (node: WikiNode): boolean => scope === "private" || node.isPublic;
+  const visibleDiscussion = (d: PlacedDiscussion): boolean =>
+    isSearchableDiscussion(d.meta) && (scope === "private" || d.meta.visibility === "public");
+  const indexes = new Map<string, Promise<KnowledgeNode | null>>();
+  const indexOf = (source: WikiNode): Promise<KnowledgeNode | null> => {
+    const file = source.sourceTree;
+    if (!file || !view.files.has(file.path)) return Promise.resolve(null);
+    let loaded = indexes.get(source.id);
+    if (!loaded) {
+      loaded = view.readText(file.path).then(
+        (text) => parseSourceTree(text).root,
+        () => null,
+      );
+      indexes.set(source.id, loaded);
+    }
+    return loaded;
+  };
+  const discussionsAt = (id: string): PlacedDiscussion[] =>
+    (hierarchy.discussionsAt.get(id) ?? []).filter(visibleDiscussion);
+  const navigable = (node: WikiNode): WikiNode[] => {
+    if (node.type !== "category") return [];
+    return [
+      ...scopedChildren(tree, node, scope),
+      ...(hierarchy.sourcesAt.get(node.id) ?? []).filter(visible),
+    ];
+  };
+  const pagePath = (node: WikiNode): string[] => hierarchyAncestors(tree, node).map((a) => a.title);
+
+  const pageEntry = async (node: WikiNode, withPath: boolean): Promise<TreeEntry> => {
     const kids = navigable(node);
-    const file = scope === "public" ? node.summaries.public : node.summaries.private;
     let description = node.description;
+    let hasChildren = kids.length > 0 || discussionsAt(node.id).length > 0;
+    if (node.type === "source") {
+      const index = await indexOf(node);
+      if (index?.description) description = index.description;
+      hasChildren ||= (index?.children.length ?? 0) > 0;
+    }
+    const file = scope === "public" ? node.summaries.public : node.summaries.private;
     if (kids.length > 0 && file) {
       try {
         description = await summaryBody(view, file.path, summaries);
@@ -176,15 +234,59 @@ export function treeNavigator(
       id: node.id,
       title: node.title,
       type: PAGE_TYPE_LABELS[node.type],
-      hasChildren: kids.length > 0,
+      hasChildren,
     };
     if (description) entry.description = description;
+    if (withPath) entry.path = pagePath(node);
     return entry;
   };
+  const sectionEntry = (
+    source: WikiNode,
+    key: string,
+    node: KnowledgeNode,
+    path?: string[],
+  ): TreeEntry => {
+    const entry: TreeEntry = {
+      id: sectionId(source.id, key),
+      title: node.name,
+      type: "section",
+      hasChildren: node.children.length > 0,
+    };
+    if (node.description) entry.description = node.description;
+    if (path) entry.path = path;
+    return entry;
+  };
+  const discussionEntry = (d: PlacedDiscussion, withPath: boolean): TreeEntry => {
+    const entry: TreeEntry = {
+      id: d.meta.id,
+      title: d.meta.title || "Discussion",
+      type: d.meta.kind === "discussion" ? "discussion" : `discussion (${d.meta.kind})`,
+      hasChildren: false,
+    };
+    if (d.meta.preview) entry.description = d.meta.preview;
+    if (withPath) entry.path = discussionAncestors(tree, hierarchy, d.path).map((a) => a.title);
+    return entry;
+  };
+  /** Source and node of a section, if visible. */
+  const section = async (
+    id: string,
+  ): Promise<{ source: WikiNode; key: string; node: KnowledgeNode } | undefined> => {
+    const ref = parseSectionId(id);
+    const source = ref ? tree.nodes.get(ref.sourceId) : undefined;
+    if (!ref || !source || source.type !== "source" || !visible(source)) return undefined;
+    const index = await indexOf(source);
+    const node = index ? findKnowledgeNode(index, ref.key) : undefined;
+    return node ? { source, key: ref.key, node } : undefined;
+  };
+  const discussion = (id: string): PlacedDiscussion | undefined => {
+    const d = hierarchy.discussionById.get(id);
+    return d && visibleDiscussion(d) ? d : undefined;
+  };
+
   return {
     entry(id) {
-      const node = view.tree.nodes.get(id);
-      if (!node) return undefined;
+      const node = tree.nodes.get(id);
+      if (!node || !visible(node)) return undefined;
       const entry: TreeEntry = {
         id: node.id,
         title: node.title,
@@ -194,17 +296,77 @@ export function treeNavigator(
       if (node.description) entry.description = node.description;
       return entry;
     },
+    async resolve(id) {
+      const node = tree.nodes.get(id);
+      if (node) return visible(node) && !node.virtual ? pageEntry(node, true) : undefined;
+      const found = await section(id);
+      if (found) {
+        const index = (await indexOf(found.source))!;
+        const keys = found.key.split(".");
+        const path = [...pagePath(found.source), found.source.title];
+        for (let i = 1; i < keys.length; i++) {
+          path.push(findKnowledgeNode(index, keys.slice(0, i).join("."))!.name);
+        }
+        return sectionEntry(found.source, found.key, found.node, path);
+      }
+      const d = discussion(id);
+      return d ? discussionEntry(d, true) : undefined;
+    },
     async children(id) {
-      const node = view.tree.nodes.get(id);
-      return node ? Promise.all(navigable(node).map(toEntry)) : [];
+      const found = await section(id);
+      if (found) {
+        return found.node.children.map((child, i) =>
+          sectionEntry(found.source, `${found.key}.${i + 1}`, child),
+        );
+      }
+      const node = tree.nodes.get(id);
+      if (!node || !visible(node)) return [];
+      const out: TreeEntry[] = await Promise.all(navigable(node).map((n) => pageEntry(n, false)));
+      if (node.type === "source") {
+        const index = await indexOf(node);
+        index?.children.forEach((child, i) => out.push(sectionEntry(node, String(i + 1), child)));
+      }
+      for (const d of discussionsAt(node.id)) out.push(discussionEntry(d, false));
+      return out;
     },
     async content(id) {
-      const node = view.tree.nodes.get(id);
-      if (!node) return "";
+      const found = await section(id);
+      if (found) {
+        const { node } = found;
+        const subsections = node.children.map((c) => c.name);
+        return [
+          node.description,
+          subsections.length > 0 ? `Subsections: ${subsections.join("; ")}.` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+      }
+      const d = discussion(id);
+      if (d) return discussionText(parseDiscussion(await view.readText(d.path)));
+      const node = tree.nodes.get(id);
+      if (!node || !visible(node)) return "";
+      if (node.type === "source") {
+        const index = await indexOf(node);
+        if (index) {
+          const doc = parsePage(await view.readText(node.indexPath));
+          const f = doc.fields;
+          return [
+            f.authors?.length ? `Authors: ${f.authors.join(", ")}` : "",
+            f.published ? `Published: ${f.published}` : "",
+            f.url ? `URL: ${f.url}` : "",
+            `Summary of the source (from its index): ${index.description}`,
+            index.children.length > 0
+              ? `Sections: ${index.children.map((c) => c.name).join("; ")}.`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n");
+        }
+      }
       const text = await pageText(view, node);
       if (node.type !== "knowledge") return text;
       const cards = await Promise.all(
-        scopedChildren(view.tree, node, scope)
+        scopedChildren(tree, node, scope)
           .filter((c) => c.type === "flashcard")
           .map(async (c) => {
             const card = parseFlashcardBody(parsePage(await view.readText(c.indexPath)).body);

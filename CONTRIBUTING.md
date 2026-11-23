@@ -29,7 +29,7 @@ pnpm --filter @openeugenia/web exec playwright install chromium   # for the end-
 |---|---|
 | `pnpm test` | Vitest: `core`, `ai` (simulated providers), `cli` (temporary git repositories), `web` (synchronization logic). |
 | `pnpm test:e2e` | Playwright on the built app; GitHub (REST, GraphQL, raw, commits) and the Claude API are simulated in memory (`packages/web/e2e/fakes.ts`). |
-| `pnpm test:live` | Vitest against real AI APIs (`packages/ai/test/live/`): OpenAI-compatible provider and quiz evaluation, with Mistral. `MISTRAL_API_KEY` key read from the `.env` file at the root (ignored by git); without a key, the tests are skipped. Outside CI: slow and subject to the free quota (2 requests per minute and per model). |
+| `pnpm test:live` | Vitest against real AI APIs (`packages/ai/test/live/`): OpenAI-compatible provider, quiz evaluation, embeddings and the indexing of a source (Mistral Large), with Mistral. `MISTRAL_API_KEY` key read from the `.env` file at the root (ignored by git); without a key, the tests are skipped. Outside CI: slow (Mistral Large reasons before answering: about a minute per request) and subject to the quotas of the key. |
 
 ## Prompts
 

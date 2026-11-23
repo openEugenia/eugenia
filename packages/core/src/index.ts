@@ -16,6 +16,8 @@ export * from "./links.ts";
 export * from "./pages.ts";
 export * from "./discussion.ts";
 export * from "./summaries.ts";
+export * from "./hierarchy.ts";
+export * from "./source-tree.ts";
 export * from "./embeddings.ts";
 export * from "./mastery.ts";
 export * from "./visibility.ts";

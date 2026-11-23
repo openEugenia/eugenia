@@ -25,6 +25,7 @@ import { uncommittedPaths } from "../lib/pending.ts";
 import { href, navigate, openRepo, useRoute, type Route } from "../lib/router.ts";
 import { normalizeTerm } from "../lib/text.ts";
 import type { Derived } from "../lib/workspace.ts";
+import { errorMessage, toast } from "../store/ui.ts";
 import { canEdit, useWiki } from "../store/wiki.ts";
 import {
   DiscussionKindIcon,
@@ -34,6 +35,7 @@ import {
   VisibilityBadge,
 } from "./common.tsx";
 import { moveWithConfirmation } from "./NodeActions.tsx";
+import { fileSource } from "./SourcePanels.tsx";
 import { TreeView } from "./TreeView.tsx";
 
 function SyncIndicator() {
@@ -400,7 +402,14 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
           {editable && section === "library" && (
             <a
               className="oe-button oe-button--ghost oe-button--sm"
-              href={href({ name: "new", parentId: derived.tree.libraryId, type: "source" })}
+              href={href({
+                name: "new",
+                parentId: derived.tree.libraryId,
+                type: "source",
+                ...(currentId && derived.tree.nodes.get(currentId)?.type === "category"
+                  ? { category: currentId }
+                  : {}),
+              })}
               title="New source"
             >
               <Plus aria-hidden="true" /> Source
@@ -423,7 +432,16 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
             owner={owner}
             canEdit={editable}
             storageKey={workspace.key}
-            onMove={(id, parent) => void moveWithConfirmation(id, parent)}
+            onMove={(id, parent) => {
+              const moving = derived.tree.nodes.get(id);
+              const target = derived.tree.nodes.get(parent);
+              // A source dropped on a category is filed in it (the library stays flat).
+              if (moving?.type === "source" && target) {
+                fileSource(moving, target).catch((error: unknown) =>
+                  toast(errorMessage(error), "error"),
+                );
+              } else void moveWithConfirmation(id, parent);
+            }}
             onNavigate={() => setSidebarOpen(false)}
           />
         )}

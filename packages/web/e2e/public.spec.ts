@@ -77,6 +77,14 @@ test.describe("public reading (anonymous)", () => {
     await expect(
       page.locator("main").getByRole("link", { name: "Lilith", exact: true }),
     ).toBeVisible();
+    // The index of a public source is published with it; the source is filed in its category.
+    await page.goto("?repo=alice/eugenia-wiki-public#/n/01M6G9KPP03D31H8CGR4EZWQ50");
+    await expect(page.locator(".source-filing")).toContainText(
+      "Filed in Demo wiki › Science › Astronomy",
+    );
+    await expect(page.locator("#source-index")).toContainText("Apogee of the lunar orbit");
+    expect(publicRepo.read("library/wikipedia-black-moon-lilith/_tree.json")).toBeDefined();
+    expect(publicRepo.read("library/article-on-lilith/_tree.json")).toBeUndefined();
   });
 
   test("full-text search", async ({ page }) => {

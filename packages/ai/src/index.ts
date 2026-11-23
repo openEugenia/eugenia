@@ -9,7 +9,7 @@ export {
   supportsEffort,
   supportsServerFallback,
 } from "./providers/anthropic.ts";
-export { isLocalUrl, OpenAICompatibleProvider } from "./providers/openai.ts";
+export { isLocalUrl, messageText, OpenAICompatibleProvider } from "./providers/openai.ts";
 export {
   createProvider,
   selectProvider,
@@ -27,4 +27,5 @@ export * from "./tasks/ask.ts";
 export * from "./tasks/categories.ts";
 export * from "./tasks/categorize.ts";
 export * from "./tasks/embed.ts";
+export * from "./tasks/index-source.ts";
 export * from "./wiki.ts";

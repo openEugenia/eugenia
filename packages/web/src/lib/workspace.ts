@@ -4,6 +4,7 @@
  */
 import {
   basename,
+  buildHierarchy,
   buildTree,
   CONFIG_PATH,
   dirname,
@@ -26,6 +27,7 @@ import {
   summaryStates,
   type CardState,
   type DiscussionMeta,
+  type Hierarchy,
   type PageMeta,
   type QuizEvent,
   type RepoFile,
@@ -58,6 +60,11 @@ export interface Derived {
   discussionsByNode: Map<string, DiscussionEntry[]>;
   /** Discussion by identifier (knowledge extracted from a discussion). */
   discussionById: Map<string, DiscussionEntry>;
+  /**
+   * Common hierarchy: sources filed in the categories of the wiki, discussions placed under the
+   * page they were started from.
+   */
+  hierarchy: Hierarchy;
   /** Knowledge items that cite each source, or were extracted from it. */
   knowledgeBySource: Map<string, string[]>;
   quizEvents: QuizEvent[];
@@ -331,6 +338,7 @@ export class Workspace implements WikiView {
       discussions,
       discussionsByNode,
       discussionById,
+      hierarchy: buildHierarchy(tree, discussions),
       knowledgeBySource,
       quizEvents: events,
       mastery,

@@ -20,6 +20,7 @@ describe("prompts", () => {
       "evaluate",
       "extract",
       "flashcards",
+      "index-source",
       "note",
       "summarize",
     ]);

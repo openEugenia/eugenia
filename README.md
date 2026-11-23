@@ -11,6 +11,13 @@ project and of the AI assistant that accompanies the user.
   holds your **atomic knowledge**, each item tested by one or more **flashcards**; the
   **library**, the sources this knowledge comes from (books, articles, websites, PDFs); the
   **discussions**, all your exchanges with Eugenia (discussions, questions, quizzes, quick notes).
+  They form **one hierarchy**: each source is filed in a category of the wiki, each discussion
+  sits under the page it was started from.
+- Each source is **indexed**: a large model (Mistral Large) reads it once and describes its whole
+  content as a **knowledge tree**, which smaller models then read at low cost.
+- Eugenia **answers from your tree only**: each question searches every element of the hierarchy
+  (knowledge, sources and their index, discussions), by going down the tree or by meaning, and her
+  answers cite what they are based on — or say that your wiki does not hold the answer.
 - Eugenia **extracts atomic knowledge** from your sources, quick notes and discussions, linking
   it to its sources and filing it into categories as Wikipedia would, then helps you **review**
   it with conversational quizzes, with a mastery that decays over time.
@@ -58,14 +65,16 @@ that public knowledge can still cite them. See [docs/publication.md](docs/public
 
 | | |
 |---|---|
-| **Wiki** | Collapsible tree of categories and atomic knowledge, sub-wiki descriptions (written in the first person), mastery gauges, knowledge that "needs a source" flagged, backlinks, full-text search or search by meaning (Mistral embeddings), radial graph, dashboard. |
-| **Library** | Flat list of sources (book, article, website, video, audio, document), filters by kind and tag, personal file never published, knowledge that cites each source. Private sources show only their bibliographic record in the public part. |
+| **Wiki** | Collapsible tree of categories and atomic knowledge (with the sources filed in them and, on demand, the discussions), sub-wiki descriptions (written in the first person), mastery gauges, knowledge that "needs a source" flagged, backlinks, full-text search or search by meaning across pages, discussions and source indexes (Mistral embeddings), radial graph, dashboard. |
+| **Library** | Sources (book, article, website, video, audio, document), each filed in a category of the wiki (common hierarchy: shown in the category and in the tree, filed by drag and drop), filters by category, kind and tag, personal file never published, knowledge that cites each source. Private sources show only their bibliographic record in the public part. |
+| **Indexing** | Each new or changed source is indexed by Mistral Large (`mistral-large-latest`): a knowledge tree (topics, ideas, arguments, examples, conclusions) saved in `_tree.json` next to it, shown on the source page and published with public sources. Long sources are read in parts. `eugenia index` indexes in a batch. |
 | **Editing** | Categories and sources in Markdown (CodeMirror), atomic knowledge (statement, bold target, library sources with location), flashcards (question, answer), links by title search (`[[`). Renaming or moving a page rewrites its incoming links. All changes go out in a single commit. |
 | **Visibility** | Private by default; a public page never has a private ancestor; links to private content become text on publication; personal files and quizzes are never published; private sources only publish their bibliographic record. |
 | **Extraction** | From a source, a discussion, a quick note, a pasted text or a PDF (which becomes a source): highlighting by Eugenia and by you, proposals of knowledge and of its first flashcard, then the categories that best group the knowledge of the document, as Wikipedia would (existing ones, or new ones to review), and creation in one commit. Eugenia also proposes new flashcards for a knowledge item. |
 | **Review** | Quizzes on flashcards by increasing mastery, evaluation by Eugenia or offline self-assessment, mastery recomputed by replaying quizzes, reminders. |
-| **Discussions** | A section that gathers discussions, questions, quizzes and quick notes, filterable by kind; discussion from any page, quick note that Eugenia answers right away (candidate knowledge, source leads), summary of the exchange, extraction; questions about the whole tree with citations. |
-| **AI** | Claude (default `claude-opus-5-5`), any OpenAI-compatible provider, Ollama. "Local AI for private content" option. Versioned, overridable prompts. |
+| **Discussions** | A section that gathers discussions, questions, quizzes and quick notes, filterable by kind; discussion from any page (placed under it in the hierarchy), quick note that Eugenia answers right away (candidate knowledge, what the wiki says, source leads), summary of the exchange, extraction. |
+| **Questions** | Questions about a branch of the tree: Eugenia searches every element of the hierarchy (categories, knowledge, sources down to the sections of their index, discussions), by going down the tree and by meaning (embeddings), then answers from what she read only, with citations and the list of elements the answer is based on. Her discussion answers follow the same rule. |
+| **AI** | Claude (default `claude-opus-5-5`), any OpenAI-compatible provider (reasoning models included), Ollama; Mistral Large for indexing, `mistral-embed` for search by meaning. "Local AI for private content" option. Versioned, overridable prompts. |
 | **Offline** | Local copy (IndexedDB), commit queue, node-by-node conflict resolution. |
 
 Planned after v1 (specification §14): "Sign in with GitHub" (GitHub App), audio and video
@@ -76,13 +85,14 @@ news feed).
 
 ```
 packages/
-  core/   Data model: three spaces (wiki, library, discussions), page format, tree, naming,
-          links, visibility, publication, stale descriptions, mastery algorithm. No browser
-          or Node dependency.
+  core/   Data model: three spaces (wiki, library, discussions) and their common hierarchy,
+          page format, tree, source indexes, embeddings, naming, links, visibility,
+          publication, stale descriptions, mastery algorithm. No browser or Node dependency.
   ai/     Eugenia: providers (Claude through the official SDK, OpenAI-compatible, Ollama),
           prompts (prompts/*.md) and tasks (extraction, categorization, flashcards,
-          descriptions, evaluation, discussion, quick note, questions about the tree).
-  cli/    `eugenia init | validate | publish | summarize | embed`, built into a single file
+          descriptions, evaluation, discussion, quick note, indexing of sources, questions
+          about the tree).
+  cli/    `eugenia init | validate | publish | summarize | index | embed`, built into a single file
           and used by the publication action.
   web/    React app (PWA): views, git synchronization, offline copy.
 examples/demo-wiki/   Demo wiki (typical private repository).

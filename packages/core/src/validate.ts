@@ -5,6 +5,7 @@ import type { WikiView } from "./operations.ts";
 import { knowledgeStatement, parseFlashcardBody, parsePage } from "./pages.ts";
 import { joinPath, normalizePath } from "./paths.ts";
 import { publicSummaryProblems } from "./publish.ts";
+import { parseSourceTree } from "./source-tree.ts";
 import { parseSummary } from "./summaries.ts";
 import type { Problem } from "./types.ts";
 
@@ -49,6 +50,16 @@ export async function validateWiki(
     }
     if (node.type === "knowledge" && !knowledgeStatement(doc.body)) {
       warn("knowledge-empty", `The knowledge item "${node.title}" has no statement.`);
+    }
+    if (node.type === "source" && node.sourceTree) {
+      try {
+        parseSourceTree(await view.readText(node.sourceTree.path));
+      } catch (error) {
+        warn(
+          "invalid-source-index",
+          `The index of the source "${node.title}" (${node.sourceTree.path}) cannot be read: ${error instanceof Error ? error.message : String(error)} Generate it again.`,
+        );
+      }
     }
     if (node.type === "source" && doc.fields.file) {
       if (!files.has(normalizePath(joinPath(node.path, doc.fields.file)))) {

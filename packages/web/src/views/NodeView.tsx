@@ -65,6 +65,7 @@ import {
 import { FlashcardSuggestions } from "../components/FlashcardSuggestions.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import { NodePicker } from "../components/NodePicker.tsx";
+import { CategorySources, SourceFiling, SourceIndexPanel } from "../components/SourcePanels.tsx";
 import {
   DeleteDialog,
   moveWithConfirmation,
@@ -484,7 +485,7 @@ function DiscussionList({ entries }: { entries: DiscussionEntry[] }) {
   );
 }
 
-export function NodeView({ id }: { id: string }) {
+export function NodeView({ id, section }: { id: string; section?: string }) {
   const derived = useDerived();
   const owner = useIsOwner();
   const editable = useCanEdit();
@@ -716,6 +717,7 @@ export function NodeView({ id }: { id: string }) {
       )}
 
       {isSource && <SourceRecord node={node} {...(personalFile ? { file: personalFile } : {})} />}
+      {isSource && !node.virtual && <SourceFiling node={node} />}
       {isRecord && (
         <InfoBox title="Private source">
           The content of this source is private: only its bibliographic record (title, kind,
@@ -783,6 +785,8 @@ export function NodeView({ id }: { id: string }) {
         </section>
       )}
 
+      {node.type === "category" && <CategorySources node={node} />}
+
       {others.length > 0 && (
         <section className="section">
           <h2>Misplaced pages</h2>
@@ -805,6 +809,10 @@ export function NodeView({ id }: { id: string }) {
         <section className="section">
           <CategorySuggestions node={node} />
         </section>
+      )}
+
+      {isSource && !isRecord && !node.virtual && (
+        <SourceIndexPanel node={node} {...(section ? { section } : {})} />
       )}
 
       {isSource && (

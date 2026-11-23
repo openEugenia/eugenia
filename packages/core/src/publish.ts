@@ -59,6 +59,8 @@ export interface PublicationStats {
   attachments: number;
   summaries: number;
   discussions: number;
+  /** Indexes of public sources (`_tree.json`). */
+  indexes: number;
 }
 
 export interface Publication {
@@ -90,10 +92,12 @@ function publicReadme(title: string, publicRepo: string | undefined, appUrl: str
  * Bibliographic record of a private source: the only fields of a private source that are
  * published. Its content, personal file, tags and any other key stay private.
  */
-export function sourceRecord(doc: PageDocument): PageDocument {
+export function sourceRecord(doc: PageDocument, publicCategory?: boolean): PageDocument {
   const f = doc.fields;
   const fields: PageFields = { id: f.id, type: "source", title: f.title, visibility: "private" };
   if (f.kind) fields.kind = f.kind;
+  // The category of a private source is only published if the category itself is.
+  if (f.category && publicCategory) fields.category = f.category;
   if (f.authors?.length) fields.authors = f.authors;
   if (f.published) fields.published = f.published;
   if (f.url) fields.url = f.url;
@@ -120,6 +124,7 @@ export async function buildPublication(
     attachments: 0,
     summaries: 0,
     discussions: 0,
+    indexes: 0,
   };
 
   // Rule 3 and tree consistency.
@@ -162,6 +167,9 @@ export async function buildPublication(
     for (const attachment of node.attachments) {
       if (!personalFiles.has(attachment.path)) published.add(attachment.path);
     }
+    // The index of a public source only describes its (public) content: it is published, so
+    // that questions about the public part can use it. Its embeddings never are.
+    if (node.type === "source" && node.sourceTree) published.add(node.sourceTree.path);
     if (node.summaries.public) {
       const summary = parseSummary(await source.readText(node.summaries.public.path));
       const summaryProblems = publicSummaryProblems(tree, node, summary);
@@ -194,7 +202,8 @@ export async function buildPublication(
       });
       continue;
     }
-    records.set(node.id, sourceRecord(doc));
+    const category = doc.fields.category ? tree.nodes.get(doc.fields.category) : undefined;
+    records.set(node.id, sourceRecord(doc, category?.isPublic === true));
     published.add(node.indexPath);
   }
   // Discussions: private by default, quizzes are never published.
@@ -225,6 +234,7 @@ export async function buildPublication(
       refs?: string[];
       sourced?: boolean;
       extracted_from?: string;
+      category?: string;
     }
   >();
   for (const node of publicNodes) {
@@ -238,6 +248,9 @@ export async function buildPublication(
           s.ref ? isPublishedId(s.ref) : Boolean(s.description || s.url),
         );
         if (doc.fields.sources.length === 0) delete doc.fields.sources;
+      }
+      if (doc.fields.category && tree.nodes.get(doc.fields.category)?.isPublic !== true) {
+        delete doc.fields.category;
       }
       const from = doc.fields.extracted_from;
       if (from && !isPublishedId(from) && !publicDiscussionIds.has(from)) {
@@ -255,7 +268,9 @@ export async function buildPublication(
         refs?: string[];
         sourced?: boolean;
         extracted_from?: string;
+        category?: string;
       } = { id: node.id };
+      if (doc.fields.category) entry.category = doc.fields.category;
       const description = shortDescription(doc);
       if (description) entry.description = description;
       const refs = (doc.fields.sources ?? []).map((s) => s.ref).filter(Boolean) as string[];
@@ -269,6 +284,11 @@ export async function buildPublication(
       if (personalFiles.has(attachment.path)) continue;
       files.push({ path: attachment.path, copyFrom: attachment.path, sha: attachment.sha });
       stats.attachments++;
+    }
+    if (node.type === "source" && node.sourceTree && doc) {
+      const index = node.sourceTree;
+      files.push({ path: index.path, copyFrom: index.path, sha: index.sha });
+      stats.indexes++;
     }
     const summary = publicSummaries.get(node.id);
     if (summary) {
@@ -284,7 +304,10 @@ export async function buildPublication(
   for (const [id, record] of records) {
     const node = tree.nodes.get(id)!;
     files.push({ path: node.indexPath, content: serializePage(record) });
-    indexEntries.set(id, { id });
+    indexEntries.set(
+      id,
+      record.fields.category ? { id, category: record.fields.category } : { id },
+    );
     stats.records++;
   }
   const indexDiscussions: { path: string; meta: ReturnType<typeof discussionMeta> }[] = [];

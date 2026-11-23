@@ -1,20 +1,27 @@
 /**
  * Full-text search with filters by type, tag, visibility and mastery (§9.2, view 9), and, for
- * the owner, search by meaning thanks to the page embeddings (§14).
+ * the owner, search by meaning across the common hierarchy (§14): pages, discussions and the
+ * sections of the source indexes.
  */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Sparkles } from "lucide-react";
+import { ListTree, Sparkles } from "lucide-react";
 import { ancestors, pageIndexPaths, type SimilarityHit } from "@openeugenia/core";
 import { MasteryMeter } from "../components/charts.tsx";
-import { InfoBox, Spinner, TypeIcon, VisibilityBadge } from "../components/common.tsx";
+import {
+  DiscussionKindIcon,
+  InfoBox,
+  Spinner,
+  TypeIcon,
+  VisibilityBadge,
+} from "../components/common.tsx";
 import { currentMastery, dayNumber } from "@openeugenia/core";
 import { formatPercent, plural } from "../lib/format.ts";
 import { useCanEdit, useDerived, useIsOwner } from "../lib/hooks.ts";
 import { href, navigate } from "../lib/router.ts";
 import {
-  indexPages,
+  indexEmbeddings,
   loadSemanticIndex,
-  pendingEntries,
+  pendingItems,
   semanticSearch,
   type SemanticIndex,
 } from "../lib/semantic.ts";
@@ -97,8 +104,8 @@ export function SearchView({ q }: { q?: string }) {
     };
   }, [meaning, embeddingModel, derived]);
 
-  const pending = semantic ? pendingEntries(semantic) : [];
-  const indexed = semantic ? semantic.entries.filter((e) => e.vector).length : 0;
+  const pending = semantic ? pendingItems(semantic) : [];
+  const indexed = semantic ? semantic.items.filter((e) => e.vector).length : 0;
   // The query is sent to the embedding provider once typing is over.
   const semanticQuery = meaning && semantic && indexed > 0 ? text : "";
   useEffect(() => {
@@ -121,6 +128,16 @@ export function SearchView({ q }: { q?: string }) {
     };
   }, [semantic, semanticQuery]);
 
+  // By meaning, the closest elements also include sections of source indexes and discussions.
+  const elements = useMemo(() => {
+    if (!meaning || !text || !hits || !semantic) return [];
+    const byId = new Map(semantic.items.map((i) => [i.id, i]));
+    return hits.flatMap((h) => {
+      const item = byId.get(h.id);
+      return item && item.kind !== "page" ? [{ ...h, item }] : [];
+    });
+  }, [meaning, text, hits, semantic]);
+
   const results = useMemo(() => {
     const threshold = derived.config.mastery.reminder_threshold;
     const candidates: { id: string; terms: string[]; score?: number }[] =
@@ -140,13 +157,13 @@ export function SearchView({ q }: { q?: string }) {
     if (!semantic) return;
     setIndexing({ done: 0, total: pending.length });
     try {
-      const result = await indexPages(semantic, {
+      const result = await indexEmbeddings(semantic, {
         onProgress: (done, total) => setIndexing({ done, total }),
       });
       toast(
-        `${plural(result.indexed, "page")} indexed${
+        `${plural(result.indexed, "element")} indexed${
           result.skippedPrivate
-            ? `; ${plural(result.skippedPrivate, "private page")} skipped (kept for a local AI)`
+            ? `; ${plural(result.skippedPrivate, "private element")} skipped (kept for a local AI)`
             : ""
         }.`,
         "success",
@@ -276,8 +293,9 @@ export function SearchView({ q }: { q?: string }) {
             <Spinner small label="Loading the semantic index" />
           ) : (
             <span className="muted">
-              {indexed} / {plural(semantic.entries.length, "page")} indexed
-              {pending.length > 0 && ` · ${plural(pending.length, "page")} to index`}
+              {indexed} / {plural(semantic.items.length, "element")} indexed (pages, discussions,
+              sections of the source indexes)
+              {pending.length > 0 && ` · ${plural(pending.length, "element")} to index`}
             </span>
           )}
           {semantic && pending.length > 0 && editable && (
@@ -290,7 +308,7 @@ export function SearchView({ q }: { q?: string }) {
               <Sparkles aria-hidden="true" />{" "}
               {indexing
                 ? `Indexing… ${indexing.done}/${indexing.total}`
-                : `Index ${plural(pending.length, "page")}`}
+                : `Index ${plural(pending.length, "element")}`}
             </button>
           )}
         </div>
@@ -308,7 +326,8 @@ export function SearchView({ q }: { q?: string }) {
           <Spinner label="Searching by meaning" />
         ) : (
           <>
-            <p className="muted small">{plural(results.length, "result")}</p>
+            <p className="muted small">{plural(results.length + elements.length, "result")}</p>
+
             <ul className="link-list">
               {results.map(({ node, terms, score }) => {
                 const state = derived.mastery.get(node.id);
@@ -361,6 +380,53 @@ export function SearchView({ q }: { q?: string }) {
                 );
               })}
             </ul>
+            {elements.length > 0 && (
+              <>
+                <h2 className="small">In your sources and discussions</h2>
+                <ul className="link-list">
+                  {elements.map(({ id, score, item }) => {
+                    const discussion = derived.hierarchy.discussionById.get(id);
+                    const link =
+                      item.kind === "section" && item.node
+                        ? href({ name: "node", id: item.node.id, section: item.sectionKey! })
+                        : discussion
+                          ? href({ name: "discussion", path: discussion.path })
+                          : undefined;
+                    return (
+                      <li
+                        key={id}
+                        style={{ flexDirection: "column", alignItems: "flex-start", gap: "0.2rem" }}
+                      >
+                        <span
+                          style={{ display: "inline-flex", gap: "0.5rem", alignItems: "center" }}
+                        >
+                          {item.kind === "section" ? (
+                            <ListTree aria-hidden="true" />
+                          ) : (
+                            <DiscussionKindIcon kind={discussion?.meta.kind ?? "discussion"} />
+                          )}
+                          {link ? (
+                            <a href={link}>
+                              <strong>{item.title}</strong>
+                            </a>
+                          ) : (
+                            <strong>{item.title}</strong>
+                          )}
+                          <span className="muted small" title="Closeness of meaning to the query">
+                            closeness {formatPercent(score)}
+                          </span>
+                        </span>
+                        <span className="muted small">
+                          {item.kind === "section"
+                            ? `Section of the index · ${item.text.split("\n")[0]}`
+                            : "Discussion"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
           </>
         )}
       </section>

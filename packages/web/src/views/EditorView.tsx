@@ -12,6 +12,8 @@ import {
   dirname,
   encodeLinkPath,
   flashcardTitle,
+  hierarchyAncestors,
+  isCategory,
   joinPath,
   parseFlashcardBody,
   parseKnowledgeBody,
@@ -45,13 +47,17 @@ import { NodePicker } from "../components/NodePicker.tsx";
 import { SourcesEditor } from "../components/SourcesEditor.tsx";
 import { fileToBase64, safeFileName } from "../lib/files.ts";
 import { useDerived, useText } from "../lib/hooks.ts";
+import { autoIndex } from "../lib/indexing.ts";
 import { href, navigate } from "../lib/router.ts";
 import { materializeSources, splitList, type NewSourceDraft } from "../lib/sources.ts";
 import { normalizeTerm } from "../lib/text.ts";
 import { errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
 
-type EditorProps = { mode: "edit"; id: string } | { mode: "new"; parentId: string; type: PageType };
+type EditorProps =
+  | { mode: "edit"; id: string }
+  /** `category`: the category a new source is filed in. */
+  | { mode: "new"; parentId: string; type: PageType; category?: string };
 
 interface Upload {
   name: string;
@@ -183,7 +189,11 @@ export function EditorView(props: EditorProps) {
   // Knowledge: cited sources and sources to create.
   const [sources, setSources] = useState<SourceRef[]>([]);
   const [drafts, setDrafts] = useState<NewSourceDraft[]>([]);
-  // Source: bibliographic record and personal file.
+  // Source: category it is filed in, bibliographic record and personal file.
+  const [category, setCategory] = useState<string | undefined>(
+    props.mode === "new" ? props.category : undefined,
+  );
+  const [categoryPicker, setCategoryPicker] = useState(false);
   const [kind, setKind] = useState<SourceKind>("web");
   const [authors, setAuthors] = useState("");
   const [url, setUrl] = useState("");
@@ -215,6 +225,7 @@ export function EditorView(props: EditorProps) {
     setUrl(f.url ?? "");
     setPublished(f.published ?? "");
     setFile(f.file ?? "");
+    setCategory(f.category);
     if (node.type === "flashcard") {
       const card = parseFlashcardBody(doc.body);
       setQuestion(card.question);
@@ -332,6 +343,7 @@ export function EditorView(props: EditorProps) {
               url: url.trim(),
               published: published.trim(),
               file: file.trim(),
+              category: category && category !== derived.tree.rootId ? category : null,
             }
           : undefined;
       let targetId: string;
@@ -355,6 +367,7 @@ export function EditorView(props: EditorProps) {
                   ...(sourceFields.url ? { url: sourceFields.url } : {}),
                   ...(sourceFields.published ? { published: sourceFields.published } : {}),
                   ...(sourceFields.file ? { file: sourceFields.file } : {}),
+                  ...(sourceFields.category ? { category: sourceFields.category } : {}),
                 }
               : {}),
             ...(orderValue !== null && Number.isFinite(orderValue) ? { order: orderValue } : {}),
@@ -420,6 +433,8 @@ export function EditorView(props: EditorProps) {
       }
       toast("Changes pending: remember to save them to the repository.", "success");
       navigate({ name: "node", id: targetId });
+      // A new or changed source is indexed (if automatic indexing is on).
+      if (type === "source") void autoIndex([targetId]);
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
@@ -645,6 +660,53 @@ export function EditorView(props: EditorProps) {
       {type === "source" && (
         <>
           <div className="form-grid section">
+            <Field id="category" label="Category">
+              <div className="actions actions--start">
+                <span id="category">
+                  {(() => {
+                    const target = category ? derived.tree.nodes.get(category) : undefined;
+                    return target && isCategory(target) && target.id !== derived.tree.rootId
+                      ? [...hierarchyAncestors(derived.tree, target), target]
+                          .map((c) => c.title)
+                          .join(" › ")
+                      : "Not filed yet (root of the wiki)";
+                  })()}
+                </span>
+                <button
+                  type="button"
+                  className="oe-button oe-button--ghost oe-button--sm"
+                  onClick={() => setCategoryPicker(true)}
+                >
+                  Choose
+                </button>
+                {category && (
+                  <button
+                    type="button"
+                    className="oe-button oe-button--ghost oe-button--sm"
+                    onClick={() => setCategory(undefined)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <span className="oe-help">
+                The category of your wiki this source deals with: it appears there, and the
+                questions about this category search it.
+              </span>
+            </Field>
+            {categoryPicker && (
+              <NodePicker
+                open
+                title="File the source in…"
+                tree={derived.tree}
+                filter={(n) => isCategory(n)}
+                onClose={() => setCategoryPicker(false)}
+                onSelect={(n) => {
+                  setCategoryPicker(false);
+                  setCategory(n.id);
+                }}
+              />
+            )}
             <div className="form-row">
               <Field id="kind" label="Kind">
                 <select

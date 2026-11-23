@@ -5,9 +5,10 @@ frontmatter. The app never shows these files, but they stay readable and editabl
 `eugenia validate` checks a repository edited outside the app.
 
 This document describes version 2 of the format (specification §5): three spaces (wiki,
-library, discussions), atomic knowledge and separate flashcards. A format-1 wiki (everything
-under `wiki/`, discussions in `_discussions/` and `_quizzes/` folders) is not migrated
-automatically; `validate` reports its old-format files.
+library, discussions), atomic knowledge and separate flashcards, with the common hierarchy of
+the three spaces and the indexes of sources (optional additions: a wiki without them stays
+valid). A format-1 wiki (everything under `wiki/`, discussions in `_discussions/` and
+`_quizzes/` folders) is not migrated automatically; `validate` reports its old-format files.
 
 ## Tree
 
@@ -31,11 +32,15 @@ wiki/                        the wiki: categories, atomic knowledge, flashcards
         index.md             a flashcard on this knowledge item
 library/                     the library: the sources, flat
   article-on-lilith/
-    index.md                 a source
+    index.md                 a source (filed in a category of the wiki)
     article.pdf              its personal file (never published)
+    _tree.json               its index: a knowledge tree of its content
+    _tree.embeddings.json    embeddings of the sections of its index (never published)
 discussions/                 discussions, questions, quizzes and quick notes
   2026-11-10-1030-quiz-religion-and-beliefs.md
   2026-11-14-0830-51-pegasi-b.md
+  _embeddings/               embeddings of the discussions (never published)
+    2026-11-14-0830-51-pegasi-b.json
 ```
 
 - **Every page is a folder containing an `index.md`**, whether it has children or not.
@@ -43,7 +48,8 @@ discussions/                 discussions, questions, quizzes and quick notes
 - **Wiki**: a category contains subcategories and knowledge items; a knowledge item only contains
   flashcards; a flashcard has no subpage. `validate` reports misplaced pages.
 - **Library**: a flat list of sources, directly under `library/`. The folder itself does not
-  need an `index.md`.
+  need an `index.md`. Each source is **filed** in a category of the wiki by its `category` field
+  (§Common hierarchy): the files do not move.
 - **Discussions**: one Markdown file per discussion, directly under `discussions/`.
 - Names starting with `_` or `.` are reserved for the app and are not pages.
 - A folder without `index.md` that contains pages is shown as a category (reported by
@@ -149,17 +155,78 @@ authors: [Jane Doe]
 published: "2019"      # date or year, free text
 url: https://example.org/lilith
 file: article.pdf      # attached personal file, never published
+category: 01M6B8TE80FWZWZ9A13320JP2Z   # wiki category it is filed in (optional)
 visibility: private
 ---
 ```
 
-The body (excerpts, summary, reading notes) is the text Eugenia extracts knowledge from. The page
-of a source lists the knowledge items that cite it (`sources[].ref`) or were extracted from it
-(`extracted_from`).
+The body (excerpts, summary, reading notes, or the text of an imported PDF) is the text Eugenia
+indexes and extracts knowledge from. The page of a source lists the knowledge items that cite it
+(`sources[].ref`) or were extracted from it (`extracted_from`), and shows its index.
+
+`category` is the identifier of the wiki category the source deals with. Without it, or if it
+does not name a category (reported by `validate`), the source is at the root of the wiki.
 
 A private source is published as its **bibliographic record** only: `id`, `type`, `kind`,
 `title`, `authors`, `published`, `url` and `visibility: private`, without body, personal file,
 tags or other keys (§Generated public repository).
+
+## Common hierarchy
+
+The three spaces form a single tree, the **common hierarchy**: the wiki gives the structure, and
+the library and the discussions are placed in it, by identifier.
+
+- A **source** is filed in the category named by its `category` field (the root by default).
+- A **discussion** is placed under the page it was started from (`about`), otherwise under its
+  scope (`scope_node`), otherwise at the root. A discussion started from a flashcard is placed
+  under its knowledge item.
+
+The files never move: renaming or moving a category does not touch its sources or discussions.
+Deleting a page moves up what was placed in it: its sources are filed in its parent category,
+its discussions are attached to its parent (or, for a source, to its category).
+
+Eugenia searches every element of the hierarchy together (categories, knowledge items, sources
+and the sections of their index, discussions); quizzes are left out, since they hold the user's
+attempts, right or wrong.
+
+## Index of a source
+
+`_tree.json`, in the folder of a source, is its **index**: a knowledge tree that describes the
+whole content of the source, generated once by a large model (Mistral Large,
+`mistral-large-latest`, by default), then read at low cost to answer questions. Each node has a
+`name`, a self-contained `description` and `children`; the root sums up the source.
+
+```json
+{
+  "format": "eugenia-source-tree",
+  "version": 1,
+  "model": "mistral-large-latest",
+  "text_sha": "c4a1f0e",
+  "generated": "2026-11-23T15:27:40Z",
+  "root": {
+    "name": "Article on Lilith",
+    "description": "Article by Jane Doe (2019) presenting Lilith as a female demon of…",
+    "children": [
+      {
+        "name": "Lilith in medieval Jewish legends",
+        "description": "In the Jewish legends that spread during the Middle Ages…",
+        "children": []
+      }
+    ]
+  }
+}
+```
+
+- The nodes below the root are the **sections** of the index, addressed by their position:
+  `3.1` is the first child of the third child of the root. In the hierarchy, a section is
+  identified by `<source id>#<position>`.
+- Text sent to the model: `# <title>`, the authors, publication date and URL, then the body in
+  Markdown (its headings show the plan of the source, which the tree follows). `text_sha`: SHA
+  (git blob, 7 characters) of this text; the index is **stale** when it differs. A long source is
+  read in parts, whose main topics are then gathered.
+- The index of a public source is published with it; the index of a private source never is.
+- Generated by the app (automatically for a new or changed source, or on demand) or by
+  `eugenia index`. It can be edited by hand, like any file.
 
 ## Sub-wiki descriptions
 
@@ -190,8 +257,9 @@ Text of the description…
 ## Embeddings (semantic search)
 
 `_embedding.json`, in the folder of the page, sums up the meaning of its `index.md` as a vector,
-for the app's search "by meaning". It is computed by the app or by `eugenia embed` (Mistral
-`mistral-embed` by default, or any OpenAI-compatible provider).
+for the app's search "by meaning" and for Eugenia's search across the hierarchy. It is computed
+by the app or by `eugenia embed` (Mistral `mistral-embed` by default, or any OpenAI-compatible
+provider). Discussions and the sections of the source indexes have embeddings too (below).
 
 ```json
 {
@@ -218,6 +286,23 @@ for the app's search "by meaning". It is computed by the app or by `eugenia embe
 - The file follows the page when it is renamed or moved, and disappears with it. It is **never
   published**, not even for a public page: it is computed on the content of the private
   repository.
+- **Discussions** (except quizzes): `discussions/_embeddings/<name of the discussion>.json`, same
+  format; text: the title, then each message as plain text, with its author.
+- **Sections of a source index**: `_tree.embeddings.json`, next to `_tree.json`, one vector per
+  section; text: the path of the section (`Article on Lilith › Origins › Lilitu`), then its
+  description. A section whose text changed is recomputed alone.
+
+```json
+{
+  "format": "eugenia-embeddings",
+  "version": 1,
+  "model": "mistral-embed",
+  "generated": "2026-11-23T16:02:10Z",
+  "dimensions": 1024,
+  "encoding": "int8",
+  "items": [{ "key": "3", "text_sha": "9b2e1c4", "scale": 0.00081, "vector": "…" }]
+}
+```
 
 ## Discussions
 
@@ -255,7 +340,10 @@ The answer is incorrect: Lilith was expected.
 | `quiz` | Review session: the trace mastery is recomputed from. |
 | `note` | Quick note: Eugenia answers it with candidate knowledge and source leads. |
 
-- A discussion is attached to the `about` and `scope_node` pages: it appears on their page.
+- A discussion is attached to the `about` and `scope_node` pages: it appears on their page, and
+  is placed under the first of them in the common hierarchy.
+- An answer of Eugenia based on elements of the wiki lists them in its metadata:
+  `<!-- eugenia: {"based_on": ["01M6DP0H707WPFZNQATGBZG5SB", "01M6BK4140P9T3R69AH4Y8K1PA#3"]} -->`.
 - A feedback message (`role: feedback`) of a quiz carries the **score** in [0, 1] of the
   flashcard `card` (`"self": true` for a self-assessment). Only quizzes count for mastery.
 - A knowledge item extracted from a discussion refers to it by its `id` in `extracted_from`.
@@ -312,20 +400,22 @@ Personal settings (token, API keys, AI provider) are never in the repository.
 5. Making a page private makes all its descendants private.
 6. Each library source has its own visibility (private by default). A private source is published
    as its bibliographic record only (title, kind, authors, date, URL), so that public knowledge
-   can still cite it; its content, personal file and tags stay private.
+   can still cite it; its content, personal file, index and tags stay private. The category of a
+   source is only published if the category is public.
 
 ## Generated public repository
 
 The public repository, written by the publication only, contains the public pages of the wiki
 and the library (without personal files of sources, nor links or references to anything
-unpublished), the bibliographic records of private sources, their attached files (public pages
+unpublished), the indexes of public sources (`_tree.json`), the bibliographic records of private
+sources, their attached files (public pages
 only), the public descriptions renamed `_summary.md`, the discussions marked public (never
 quizzes), a reduced configuration, a `README.md` and `.notes/index.json`:
 
 ```json
 {
   "format": "eugenia-index",
-  "version": 3,
+  "version": 4,
   "generated": "2026-11-17T16:28:24.202Z",
   "title": "Demo wiki",
   "root": "wiki",
@@ -337,7 +427,8 @@ quizzes), a reduced configuration, a `README.md` and `.notes/index.json`:
     { "id": "01M6B5CJM0EDQQYQ3XR5ZN1ACK", "path": "wiki", "type": "category", "title": "Demo wiki",
       "visibility": "public", "parent": null, "description": "This is my wiki: I gather…" },
     { "id": "01M6DKS4209DK53G50GBPV3WD6", "path": "library/wikipedia-lilith", "type": "source",
-      "kind": "web", "url": "https://en.wikipedia.org/wiki/Lilith", "parent": "virtual:library", "…": "…" },
+      "kind": "web", "url": "https://en.wikipedia.org/wiki/Lilith", "parent": "virtual:library",
+      "category": "01M6B8TE80FWZWZ9A13320JP2Z", "…": "…" },
     { "id": "01M6BK4140P9T3R69AH4Y8K1PA", "path": "library/article-on-lilith", "type": "source",
       "title": "Article on Lilith", "visibility": "private", "kind": "article",
       "authors": ["Jane Doe"], "url": "https://example.org/lilith", "published": "2019",
@@ -348,5 +439,6 @@ quizzes), a reduced configuration, a `README.md` and `.notes/index.json`:
 ```
 
 Version 3 of the index adds the bibliographic records of private sources (`"visibility":
-"private"`, without description, tags or dates). The app reads this file without the GitHub API
+"private"`, without description, tags or dates). Version 4 adds the published category of the
+sources (`category`). The app reads this file without the GitHub API
 (raw.githubusercontent.com), then the files on demand, cached by SHA.

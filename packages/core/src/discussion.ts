@@ -8,6 +8,7 @@ import { markdownToText, truncate } from "./markdown.ts";
 import { parseVisibility } from "./pages.ts";
 import { joinPath } from "./paths.ts";
 import { slugify, uniqueName } from "./slug.ts";
+import { DISCUSSION_EMBEDDINGS_DIR } from "./tree.ts";
 import { fileStamp } from "./time.ts";
 import { parseDiscussionKind, type DiscussionKind, type Visibility } from "./types.ts";
 
@@ -270,3 +271,23 @@ export const DISCUSSION_KIND_LABELS: Record<DiscussionKind, string> = {
   quiz: "Quiz",
   note: "Quick note",
 };
+
+/**
+ * Text of a discussion for Eugenia and for its embedding: the title, then the messages in plain
+ * text (summaries included), each with its author.
+ */
+export function discussionText(doc: DiscussionDocument): string {
+  const lines = doc.messages
+    .filter((m) => m.content.trim() !== "")
+    .map((m) => `${m.role === "user" ? "User" : "Eugenia"}: ${markdownToText(m.content)}`);
+  return [doc.fields.title, ...lines].filter(Boolean).join("\n\n").trim();
+}
+
+/** Path of the embedding of a discussion: `<discussions>/_embeddings/<name>.json`. */
+export function discussionEmbeddingPath(
+  config: Pick<WikiConfig, "discussions">,
+  path: string,
+): string {
+  const name = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "");
+  return joinPath(config.discussions, DISCUSSION_EMBEDDINGS_DIR, `${name}.json`);
+}

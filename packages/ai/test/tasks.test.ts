@@ -235,6 +235,7 @@ describe("questions about the tree", () => {
   const tree: Record<string, string[]> = { R: ["S", "H"], S: ["L"], H: [] };
   const navigator = {
     entry: (id: string) => entries[id],
+    resolve: async (id: string) => entries[id],
     children: async (id: string) => (tree[id] ?? []).map((c) => entries[c]!),
     content: async (id: string) => `Content of ${id}`,
   };

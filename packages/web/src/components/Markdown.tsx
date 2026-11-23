@@ -5,8 +5,9 @@
 import { memo, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { isExternalUrl, linkedNode, resolveLinkTarget } from "@openeugenia/core";
+import { isDiscussionPath, isExternalUrl, linkedNode, resolveLinkTarget } from "@openeugenia/core";
 import { EUGENIA_LINK_PREFIX } from "@openeugenia/ai/constants";
+import { elementLink } from "../lib/discussions.ts";
 import { openAttachment, useBinaryUrl } from "../lib/hooks.ts";
 import { href } from "../lib/router.ts";
 import { useWiki } from "../store/wiki.ts";
@@ -31,12 +32,14 @@ function RepoImage({ path, alt }: { path: string; alt: string }) {
 }
 
 function WikiLink({ url, path, children }: { url: string; path: string; children: ReactNode }) {
-  const tree = useWiki((s) => s.derived?.tree);
+  const derived = useWiki((s) => s.derived);
+  const tree = derived?.tree;
   if (url.startsWith(EUGENIA_LINK_PREFIX)) {
     const id = url.slice(EUGENIA_LINK_PREFIX.length);
-    const node = tree?.nodes.get(id);
-    return node ? (
-      <a href={href({ name: "node", id })} title={node.title}>
+    // A page, a section of the index of a source, or a discussion.
+    const target = derived ? elementLink(derived.tree, derived.discussionById, id) : undefined;
+    return target ? (
+      <a href={target.href} title={target.title}>
         {children}
       </a>
     ) : (
@@ -56,6 +59,9 @@ function WikiLink({ url, path, children }: { url: string; path: string; children
   const target = resolveLinkTarget(path, url);
   const node = target && tree ? linkedNode(tree, target) : undefined;
   if (node) return <a href={href({ name: "node", id: node.id })}>{children}</a>;
+  if (target && derived && isDiscussionPath(derived.config, target.path)) {
+    return <a href={href({ name: "discussion", path: target.path })}>{children}</a>;
+  }
   if (target && useWiki.getState().derived?.files.has(target.path)) {
     return (
       <a

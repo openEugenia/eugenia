@@ -1,0 +1,23 @@
+{
+  "format": "eugenia-source-tree",
+  "version": 1,
+  "model": "mistral-large-latest",
+  "text_sha": "0be2336",
+  "generated": "2026-11-23T15:27:26Z",
+  "root": {
+    "name": "Discourse on the Method",
+    "description": "Treatise by René Descartes, published in Leiden in 1637, in which he sets out his method \"of rightly conducting one's reason and seeking truth in the sciences\".",
+    "children": [
+      {
+        "name": "Author and Publication",
+        "description": "The Discourse on the Method was written by René Descartes and published in Leiden in 1637.",
+        "children": []
+      },
+      {
+        "name": "Purpose of the Treatise",
+        "description": "The work presents Descartes' method defined as being \"of rightly conducting one's reason and seeking truth in the sciences\".",
+        "children": []
+      }
+    ]
+  }
+}

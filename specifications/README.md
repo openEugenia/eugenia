@@ -1,6 +1,6 @@
 # Specification — Eugenia: a personal knowledge wiki, on git
 
-> Status: draft v0.7 — 2026-11-20 (English throughout; bibliographic records of private sources in the public part; categories proposed for all the knowledge of a document)
+> Status: draft v0.8 — 2026-11-23 (common hierarchy of the wiki, the library and the discussions; indexing of sources as knowledge trees by Mistral Large; Eugenia's answers based on the tree only)
 > This document is the starting point of the project's git repository. It turns the functional documentation of the [`functional_doc/`](functional_doc/) folder into a technical specification; the functional documentation remains the reference for the "what" and the "why". Open points are listed in §16.
 
 ---
@@ -14,6 +14,7 @@ This project is its **decentralized and open-source** implementation:
 - The user's knowledge is **Markdown files in their own git repositories** (one private, one public): they are the sole owner of their data, with no central database. A free GitHub account is enough.
 - It forms a **tree**: the **personal wiki**. Each parent node (sub-wiki) is **summarized by Eugenia** from what lies below.
 - Eugenia proposes **atomic knowledge** (flashcards) extracted from the user's notes and sources, then helps them **reinforce** it through conversational quizzes, with a mastery score and a decay mechanism.
+- The wiki, the library of sources and the discussions form **one hierarchy**; each source is **indexed** as a knowledge tree, and Eugenia's answers are **based on this tree only**.
 - Knowledge is **public or private**: anyone can browse the public part of a wiki; the owner also sees the private part.
 - **A single instance** of the app, published on GitHub Pages by the **openEugenia** account, serves every user: each one opens it on their own repository.
 - The app works **offline** (PWA) and synchronizes when the network is back.
@@ -66,6 +67,9 @@ The functional definitions come from `functional_doc/`. This table states how th
 | **Public repository** | Public git repository generated from the public nodes only. Never edited by hand. | — |
 | **Branch of the tree** | A node and all its descendants (not to be confused with a git branch). | — |
 | **Stale** | A summary at least one of whose sources changed since it was generated. | — |
+| **Common hierarchy** | The single tree formed by the wiki, the library and the discussions: each source is filed in a category, each discussion is placed under the page it was started from. | Computed from identifiers (§5.10). |
+| **Source index** | A tree of concepts that describes the whole content of a source, generated once by a large model and read at low cost. | `_tree.json` next to the source (§8.6). |
+| **Section** | A node of the index of a source, below its root. | `<source id>#<position>`, e.g. `01JD3S…#2.1`. |
 
 ## 4. General architecture
 
@@ -143,8 +147,10 @@ wiki/
         └── ...
 library/
 └── article-on-lilith/
-    ├── index.md                          # source (type: source)
-    └── article.pdf                       # personal file of the source
+    ├── index.md                          # source (type: source), filed in a category
+    ├── article.pdf                       # personal file of the source
+    ├── _tree.json                        # index of the source: knowledge tree (§8.6)
+    └── _tree.embeddings.json             # embeddings of its sections (never published)
 discussions/
 ├── 2026-11-12-1800-lilith-and-the-black-moon.md   # free discussion
 ├── 2026-11-14-0830-51-pegasi-b.md                  # quick note (kind: note)
@@ -155,6 +161,7 @@ discussions/
 - The order of the children is set by the `order` field, otherwise alphabetical by title.
 - Files and folders starting with `_` or `.` are reserved for the app and do not appear as children in the tree.
 - **No limit** on the depth or width of categories.
+- The three spaces form a **common hierarchy** (§5.10): the folders do not mirror it, the identifiers do.
 - Attached files (PDFs, images, audio) are stored in the folder of the node concerned.
 - The v1 format (everything under `wiki/`, free notes, discussions in `_discussions/` and `_quizzes/`) is not migrated automatically; `validate` reports its files.
 
@@ -336,11 +343,12 @@ authors: [Jane Doe]
 published: "2019"
 url: https://example.org/lilith
 file: article.pdf          # personal file, never published
+category: 01JD3K8Z9X...    # wiki category it is filed in (§5.10)
 visibility: private
 ---
 ```
 
-- The body (excerpts, summary, reading notes) is the source text for extraction.
+- The body (excerpts, summary, reading notes, text of an imported PDF) is the source text for extraction and for its index (§8.6).
 - **Visibility**: each source has its own. A **private source** is published as its **bibliographic record** only (`id`, `type`, `kind`, `title`, `authors`, `published`, `url`, `visibility: private`): its content, personal file, tags and any other key stay private. A public knowledge item that cites a private source therefore keeps its citation in the public part, which leads to the record. The **personal file** is never published.
 - Deleting a source turns its citations into free references (title, URL, location).
 
@@ -371,6 +379,17 @@ mastery:                                # algorithm parameters (§8.3)
 
 Personal settings (API keys, AI provider, local AI preference) are **not** in the repository: they stay in the browser.
 
+### 5.10 Common hierarchy
+
+The wiki, the library and the discussions form **a single tree**. The wiki gives its structure; the other two spaces are placed in it:
+
+- a **source** is filed in a category of the wiki (`category` field of the source, chosen by the user, proposed when the source is created from a category, or deduced from the knowledge extracted from it: the deepest category common to that knowledge, otherwise the one that holds most of it). Without a category, it is at the root;
+- a **discussion** finds its place under the node it was started from (`about`), otherwise under its scope (`scope_node`), otherwise at the root. A discussion started from a flashcard is placed under its knowledge item.
+
+The files do not move (the library stays a flat folder, the discussions a flat folder of files): the hierarchy is computed from identifiers, so renaming or moving a category does not touch its sources or discussions. Deleting a node moves up what was placed in it (its parent; for a deleted source, its category). In the interface, a category lists the sources filed in it, the side tree shows them (and, on demand, the discussions) under their category, a source is filed by dragging it onto a category, and the library is filtered by category.
+
+Every element of the hierarchy — category, knowledge item, source and the sections of its index, discussion — is searched together by Eugenia (§8.5). Quizzes are left out: their answers are the user's attempts, right or wrong.
+
 ## 6. Public / private visibility
 
 ### 6.1 Principle: two repositories
@@ -387,7 +406,7 @@ Personal settings (API keys, AI provider, local AI preference) are **not** in th
 4. Making a node public does **not** automatically make its descendants public: the app offers to include them (checkboxes). Flashcards, however, always follow their knowledge item.
 5. Making a node private makes all its descendants private, after confirmation.
 6. On publication, a link from a public node to a private node is rewritten as plain text.
-7. The personal files of sources are never published; the other attached files follow the visibility of their node. Each library source has its own visibility; a private source is published as its **bibliographic record** only (title, kind, authors, date, URL), so that the knowledge that cites it keeps its citation and the links to it in the public part.
+7. The personal files of sources are never published; the other attached files follow the visibility of their node. Each library source has its own visibility; a private source is published as its **bibliographic record** only (title, kind, authors, date, URL), so that the knowledge that cites it keeps its citation and the links to it in the public part. The **index** of a public source (§8.6) is published with it; the index of a private source never is. The category of a source is only published if the category is public. Embeddings are never published.
 8. Quizzes are not published in v1.
 9. The publication CLI refuses any tree that breaks rule 3, for example if the repository was edited outside the app.
 
@@ -480,16 +499,28 @@ $$m_{\text{current}}(d) = m \cdot \beta^{\,(d - e)}$$
 - From any page (category, knowledge item, flashcard, source), the user can open a discussion with Eugenia. It is saved in `discussions/` and also shown on the page's view.
 - **Quick note**: the user notes an idea or a fact; Eugenia answers **right away** with the candidate atomic knowledge, what deserves checking, and leads to **external sources** (a library source if one fits). The note continues as a discussion and can be extracted (§8.1).
 - Eugenia can: clarify or rephrase a notion, suggest links to existing nodes, summarize the exchange, and **offer to extract new knowledge** from the discussion (back to flow §8.1), inviting the user to back it with a source.
+- **Answers based on the tree only**: before each answer, Eugenia searches the common hierarchy for the user's message (§8.5, without the answer step) and answers from the elements found and the page the discussion was started from, citing them. She adds no fact of her own; when the wiki does not hold the answer, she says so. The elements an answer is based on are recorded in its metadata (`based_on`) and shown under it. A quick note is compared with what the wiki says, not with Eugenia's own knowledge.
 - A saved quiz can be read again in the Discussions section, without being continued.
 - v1 discussions are **personal** and private by default (§6.2).
 
 ### 8.5 Questions about the tree
 
-The user asks a question about a given scope (whole wiki or branch):
-1. Eugenia first receives the top-level descriptions of the scope.
-2. She chooses the relevant branches and **goes down** the tree (descriptions → child descriptions → node contents).
-3. Her answer cites the nodes used, as clickable links.
+The user asks a question about a given scope (whole wiki or branch). The search covers **every element of the common hierarchy** of the scope (§5.10): categories, knowledge items, sources and the sections of their index, discussions. Two searches are combined:
+
+1. **Exhaustive search** (owner, with search by meaning set up): the question's embedding is compared with those of every element (pages, discussions, sections of the source indexes); the closest elements of the scope are shown to Eugenia from the start, with their place in the tree, and the best ones are read right away.
+2. **Tree search**: Eugenia receives the top-level descriptions of the scope, chooses the relevant branches and **goes down** the tree (descriptions → child descriptions → contents). A source goes down into its index: summary, sections, subsections — so a small model reads only the relevant parts of a long source, never its full text.
+3. Her answer is **based only on what she read**: no knowledge of her own, every fact cited as a clickable link to its element (page, section of a source, discussion); if the tree does not hold the answer, she says so and points to what comes closest. The interface lists the elements the answer is based on.
 4. The exchange can be saved as a discussion of kind `question` in `discussions/`, attached to the scope.
+
+### 8.6 Indexing of sources
+
+Each source of the library is transformed into an **index**: a tree of concepts that describes its whole content exhaustively — topics, subtopics, key ideas, arguments, examples, facts, decisions, conclusions, relationships — each node with a name and a self-contained description, the root summing up the source. The plan of the source is followed when it gives one; duplicate concepts are merged; nothing is added that the source does not say.
+
+1. **Model**: a large model, Mistral Large (`mistral-large-latest`) by default, through Mistral's OpenAI-compatible API (any compatible provider can replace it). The index is generated once; it is then read at low cost by smaller models (§8.5).
+2. **When**: automatically for a new source and when the text of a source changes (option in the settings), on demand from the source page, or in a batch (`eugenia index`). An index is **stale** when the text of its source changed (fingerprint `text_sha`).
+3. **Long sources**: read in parts (about 60,000 characters each, several at the same time); each part gets its tree, then the model gathers the main topics of the parts into the top of the tree of the whole source. A part whose answer is cut off is split in two and read again.
+4. **Storage**: `_tree.json` next to the source (format in `docs/format.md`); its sections get embeddings (`_tree.embeddings.json`) for the exhaustive search.
+5. **Privacy**: a private source follows the "local AI for private content" rule (§11.1); the index of a public source is published with it, never the index of a private one.
 
 ## 9. Web interface
 
@@ -498,17 +529,17 @@ The user asks a question about a given scope (whole wiki or branch):
 - Without a parameter: home page (presentation of Eugenia, repository input, recently viewed wikis, creation of a new wiki).
 
 ### 9.2 Views
-1. **Side panel** with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title), **Discussions** (recent exchanges).
-2. **Category**: description at the top, introduction, subcategories and knowledge items with their short descriptions, backlinks, related discussions.
+1. **Side panel** with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, with the sources filed in them and, on demand, the discussions (common hierarchy, §5.10), icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title), **Discussions** (recent exchanges).
+2. **Category**: description at the top, introduction, subcategories and knowledge items with their short descriptions, the sources filed in it, backlinks, related discussions.
 3. **Knowledge item**: statement (target in bold), sources (with location), flashcards and their mastery, origin (source or discussion); **flashcard**: question, expected answer, tested knowledge, mastery curve.
-3a. **Library**: list of sources filterable by kind, tag and text, sorting, knowledge that needs a source; **source**: bibliographic record, personal file, content, knowledge that cites it. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
+3a. **Library**: list of sources filterable by category, kind, tag and text, sorting, knowledge that needs a source; **source**: the category it is filed in (changeable), bibliographic record, personal file, content, its index (collapsible tree, state, generation), knowledge that cites it. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
 3b. **Discussions**: list of all the exchanges, filterable by kind, direct access to the quick note, the question, the quiz.
 4. **Extraction**: source text with highlights, panel of proposed knowledge and of the new categories proposed for the document (§8.1).
 5. **Quiz**: conversation with Eugenia, score and feedback after each answer, session progress.
 6. **Discussion**: chronological messages, Eugenia's answer streamed; quick note; quiz read-only.
 7. **Graph**: visualization of the tree (zoom, focus on a branch).
 8. **Dashboard**: indicators and progress curves.
-9. **Search**: full text (client-side index) with filters by type, tag, visibility and mastery.
+9. **Search**: full text (client-side index) with filters by type, tag, visibility and mastery; for the owner, search by meaning across the pages, the discussions and the sections of the source indexes.
 10. **Editor**: Markdown, metadata as a form (the raw frontmatter is never shown).
 11. **Settings**: GitHub token, AI provider, API key, model, local AI for private content, offline data.
 
@@ -549,6 +580,8 @@ Common `AIProvider` interface (`complete`, `stream`, `countTokens`, and `embed` 
 - **Ollama / local server**: requires allowing the `openeugenia.github.io` origin in CORS.
 - **OpenAI-compatible**: any other provider.
 
+**Indexing of sources** (§8.6): a separate provider, Mistral Large (`mistral-large-latest`) by default, with the Mistral key of the semantic search unless another one is given. Reasoning models (Mistral Large 4, Magistral…) answer with chunks of reasoning and text: only the text is kept; an answer cut off by the length limit is reported at once.
+
 **Local AI for private content**: on first setup (then in the settings), the app **asks the user** whether they want to keep private nodes for a local AI.
 - If so: any task involving a private node (description, extraction, categorization, quiz, discussion, question about the tree) must go through the local provider. Otherwise, the action is blocked with an explanation.
 - If not: a warning is shown the first time private content is sent to a remote provider.
@@ -570,9 +603,10 @@ Eugenia's prompts are versioned in the app's repository, written in English, and
 - `flashcards.md`: new flashcards on a knowledge item;
 - `summarize.md`: description of a sub-wiki (variant for discussions: decisions + open questions);
 - `evaluate.md`: comparison of the answer with the expected answer, with feedback and a score in [0, 1] as **structured output** (validated JSON);
-- `discuss.md`: Eugenia's role in a discussion;
-- `note.md`: answer to a quick note;
-- `ask.md`: questions about the tree.
+- `discuss.md`: Eugenia's role in a discussion, answering from the knowledge found in the wiki only;
+- `note.md`: answer to a quick note, compared with what the wiki says;
+- `ask.md`: questions about the tree (exploration of the common hierarchy, answer from what was read only);
+- `index-source.md`: index of a source as a knowledge tree, and gathering of the parts of a long source.
 
 ## 12. Security and privacy
 - Data held by the user in their own repositories, without a central server.
@@ -623,4 +657,7 @@ None for now. Recent decisions:
 - default categories of the functional documentation kept as they are;
 - the whole project (interface, prompts, documentation, demo wiki) is in English, for an English-speaking audience; Eugenia answers in the language of the content or of the user;
 - the bibliographic record of a private source (title, kind, authors, date, URL) is public, so that public knowledge can cite it;
-- the knowledge extracted from a document is categorized together, Wikipedia-style, possibly in new categories reviewed by the user.
+- the knowledge extracted from a document is categorized together, Wikipedia-style, possibly in new categories reviewed by the user;
+- the common hierarchy of the wiki, the library and the discussions is computed from identifiers (`category` of a source, `about` of a discussion), without moving files: the library and the discussions stay flat folders, and moving a category touches nothing else;
+- the index of a source is a JSON knowledge tree (`_tree.json`) generated by a large Mistral model; it is read by tree search and by exhaustive search (embeddings of its sections);
+- Eugenia's answers (questions, discussions, quick notes) are based on the elements of the tree only, cited, with no knowledge of her own.

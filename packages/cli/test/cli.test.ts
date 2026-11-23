@@ -1,11 +1,19 @@
 import { execFileSync } from "node:child_process";
-import { cp, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseEmbedding, parseSummary, summaryStates, type SummaryScope } from "@openeugenia/core";
+import {
+  parseEmbedding,
+  parseSectionEmbeddings,
+  parseSourceTree,
+  parseSummary,
+  summaryStates,
+  type SummaryScope,
+} from "@openeugenia/core";
 import type { AIProvider, GenerateRequest, JsonRequest } from "@openeugenia/ai";
 import { embedCommand, type EmbedOptions } from "../src/commands/embed.ts";
+import { indexCommand, type IndexOptions } from "../src/commands/index-sources.ts";
 import { summarizeCommand } from "../src/commands/summarize.ts";
 import { loadDiskWiki, listFiles } from "../src/fs-source.ts";
 import { main } from "../src/main.ts";
@@ -317,5 +325,129 @@ describe("eugenia embed", () => {
     const nodes = [...wiki.tree.nodes.values()].filter((n) => !n.virtual && n.type !== "flashcard");
     expect(nodes.filter((n) => n.embedding).every((n) => n.isPublic)).toBe(true);
     expect(nodes.filter((n) => n.isPublic).every((n) => n.embedding)).toBe(true);
+  });
+});
+
+describe("eugenia index", () => {
+  /** Describes each source as a two-section tree, named after the title of the request. */
+  class IndexingProvider extends ScriptedProvider {
+    readonly titles: string[] = [];
+    override async json<T>(request: JsonRequest<T>): Promise<T> {
+      this.requests.push(request);
+      const title = /<title>(.*)<\/title>/.exec(request.messages[0]!.content)?.[1] ?? "?";
+      this.titles.push(title);
+      return {
+        name: title,
+        description: `What "${title}" says.`,
+        children: [
+          { name: "First idea", description: "The first idea.", children: [] },
+          { name: "Second idea", description: "The second idea.", children: [] },
+        ],
+      } as T;
+    }
+    async embed(texts: string[]): Promise<number[][]> {
+      return texts.map((t) => [t.length, 1, 0]);
+    }
+  }
+  /** Copy of the demo wiki without its indexes. */
+  const unindexed = async (): Promise<string> => {
+    const dir = await demoCopy();
+    for (const file of await listFiles(dir)) {
+      if (file.endsWith("/_tree.json")) await rm(join(dir, file));
+    }
+    return dir;
+  };
+  const run = (dir: string, provider: AIProvider, extra: Partial<IndexOptions> = {}) =>
+    indexCommand(
+      {
+        dir,
+        force: false,
+        dryRun: false,
+        localOnlyPrivate: false,
+        providerInstance: provider,
+        ...extra,
+      },
+      logger().log,
+    );
+
+  it("indexes each source once, then only the changed ones", async () => {
+    // The indexes of the demo wiki are current.
+    const demo = new IndexingProvider();
+    expect(await run(await demoCopy(), demo)).toBe(0);
+    expect(demo.titles).toEqual([]);
+
+    const dir = await unindexed();
+    const provider = new IndexingProvider();
+    expect(await run(dir, provider)).toBe(0);
+    expect(provider.titles.sort()).toEqual([
+      "Article on Lilith",
+      "Discourse on the Method",
+      "Wikipedia: Black Moon Lilith",
+      "Wikipedia: Lilith",
+    ]);
+    const tree = parseSourceTree(
+      await readFile(join(dir, "library/wikipedia-lilith/_tree.json"), "utf8"),
+    );
+    expect(tree).toMatchObject({ model: "test-model", root: { name: "Wikipedia: Lilith" } });
+    expect(tree.root.children).toHaveLength(2);
+    // The model receives the record and the content of the source.
+    const request = provider.requests.find((r) =>
+      r.messages[0]!.content.includes("Wikipedia: Lilith"),
+    )!;
+    expect(request.messages[0]!.content).toContain("URL: https://en.wikipedia.org/wiki/Lilith");
+    expect(request.messages[0]!.content).toContain("from Mesopotamian mythology");
+
+    expect(await run(dir, provider)).toBe(0);
+    expect(provider.titles).toHaveLength(4);
+    const source = join(dir, "library/wikipedia-lilith/index.md");
+    await writeFile(source, `${await readFile(source, "utf8")}\nA new paragraph.\n`);
+    await run(dir, provider);
+    expect(provider.titles.slice(4)).toEqual(["Wikipedia: Lilith"]);
+    expect(await main(["validate", dir], logger().log)).toBe(0);
+  });
+
+  it("indexes the sources filed in a category, and keeps private ones local", async () => {
+    const dir = await unindexed();
+    const provider = new IndexingProvider();
+    await run(dir, provider, { node: "wiki/religion-and-beliefs" });
+    expect(provider.titles.sort()).toEqual(["Article on Lilith", "Wikipedia: Lilith"]);
+
+    const remote = new IndexingProvider();
+    (remote.info as { local: boolean }).local = false;
+    await run(dir, remote, { localOnlyPrivate: true, force: true });
+    // "Article on Lilith" is private: it is not sent to a remote provider.
+    expect(remote.titles).not.toContain("Article on Lilith");
+    expect(remote.titles).toContain("Wikipedia: Lilith");
+  });
+
+  it("embeds the sections of the indexes and publishes the indexes of public sources only", async () => {
+    const dir = await unindexed();
+    const provider = new IndexingProvider();
+    await run(dir, provider);
+    expect(
+      await embedCommand(
+        { dir, force: false, dryRun: false, localOnlyPrivate: false, providerInstance: provider },
+        logger().log,
+      ),
+    ).toBe(0);
+    const sections = parseSectionEmbeddings(
+      await readFile(join(dir, "library/wikipedia-lilith/_tree.embeddings.json"), "utf8"),
+    );
+    expect([...sections.items.keys()]).toEqual(["1", "2"]);
+    const files = await listFiles(dir);
+    // Discussions are embedded too, except the quiz.
+    expect(files.filter((f) => f.startsWith("discussions/_embeddings/"))).toHaveLength(3);
+
+    const out = await temp("eugenia-public-");
+    expect(await main(["publish", dir, "--out", out], logger().log)).toBe(0);
+    const published = await listFiles(out);
+    expect(published).toContain("library/wikipedia-lilith/_tree.json");
+    expect(published).not.toContain("library/article-on-lilith/_tree.json");
+    expect(published.filter((p) => p.includes("embedding"))).toEqual([]);
+    // A public source is published with its category only if the category is public.
+    const descartes = await readFile(join(out, "library/discourse-on-the-method/index.md"), "utf8");
+    expect(descartes).not.toContain("category:");
+    const lilith = await readFile(join(out, "library/wikipedia-lilith/index.md"), "utf8");
+    expect(lilith).toContain("category: 01M6B8TE80FWZWZ9A13320JP2Z");
   });
 });

@@ -7,7 +7,7 @@ import type { AIProvider, TaskContext } from "@openeugenia/ai";
 import { useSettings } from "../store/settings.ts";
 import { confirmDialog } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
-import { hasAI } from "./settings.ts";
+import { hasAI, indexingConfig } from "./settings.ts";
 
 /** Asks (once) whether private nodes should be kept for a local AI. */
 export async function ensurePrivacyChoice(): Promise<void> {
@@ -63,6 +63,42 @@ export async function embeddingAccess(sendsPrivate = false): Promise<EmbeddingAc
   const allowsPrivate = useSettings.getState().settings.ai.localOnlyForPrivate !== true;
   if (sendsPrivate && allowsPrivate) await acknowledgeRemote(provider);
   return { provider, allowsPrivate };
+}
+
+/**
+ * Context of the indexing of a source (Mistral Large by default). A private source follows the
+ * "local AI for private content" rule: with a remote indexing provider, it is refused.
+ */
+export async function indexingContext(
+  isPrivate: boolean,
+  signal?: AbortSignal,
+): Promise<TaskContext> {
+  const { AIError, createProvider } = await import("@openeugenia/ai");
+  const config = indexingConfig(useSettings.getState().settings);
+  if (!config) {
+    throw new AIError(
+      "config",
+      "Indexing of sources is not configured: add a Mistral key in the settings.",
+    );
+  }
+  const provider = createProvider(config);
+  if (isPrivate && !provider.info.local) {
+    await ensurePrivacyChoice();
+    if (useSettings.getState().settings.ai.localOnlyForPrivate === true) {
+      throw new AIError(
+        "privacy",
+        "This source is private, and you keep private content for a local AI: it cannot be indexed by a remote provider.",
+      );
+    }
+    await acknowledgeRemote(provider);
+  }
+  const derived = useWiki.getState().derived;
+  return {
+    provider,
+    prompts: derived?.prompts ?? {},
+    variables: { wiki_title: derived?.config.title ?? "my wiki" },
+    ...(signal ? { signal } : {}),
+  };
 }
 
 /**

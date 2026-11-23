@@ -17,7 +17,13 @@ import {
   type DiscussionDocument,
   type DiscussionKind,
 } from "@openeugenia/core";
-import { isAbortError, streamDiscussion, summarizeDiscussion } from "@openeugenia/ai";
+import {
+  gatherKnowledge,
+  isAbortError,
+  streamDiscussion,
+  summarizeDiscussion,
+  type KnowledgeExcerpt,
+} from "@openeugenia/ai";
 import {
   Breadcrumb,
   DiscussionKindIcon,
@@ -31,10 +37,12 @@ import { Markdown } from "../components/Markdown.tsx";
 import { taskContext } from "../lib/ai.ts";
 import {
   adoptDiscussionPath,
+  elementLink,
   pathTitles,
   portableLinks,
   relatedPages,
 } from "../lib/discussions.ts";
+import { hierarchyNavigator, semanticCandidates } from "../lib/retrieval.ts";
 import { formatDateTime } from "../lib/format.ts";
 import { useCanEdit, useDerived, useReveal, useText } from "../lib/hooks.ts";
 import { href, navigate } from "../lib/router.ts";
@@ -42,6 +50,27 @@ import { errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
 
 const now = (): string => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/** Elements of the wiki an answer of Eugenia is based on. */
+function BasedOn({ ids }: { ids: string[] }) {
+  const derived = useDerived();
+  const links = ids.flatMap((id) => {
+    const link = elementLink(derived.tree, derived.discussionById, id);
+    return link ? [{ id, ...link }] : [];
+  });
+  if (links.length === 0) return null;
+  return (
+    <p className="muted small message__sources">
+      Based on{" "}
+      {links.map((l, i) => (
+        <span key={l.id}>
+          {i > 0 && ", "}
+          <a href={l.href}>{l.title}</a>
+        </span>
+      ))}
+    </p>
+  );
+}
 
 export function DiscussionView({
   path,
@@ -64,6 +93,7 @@ export function DiscussionView({
   const [filePath, setFilePath] = useState<string | undefined>(path);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const dirty = useRef(false);
@@ -121,7 +151,12 @@ export function DiscussionView({
       ...next,
       messages: next.messages.map((m) => ({
         ...m,
-        content: portableLinks(m.content, target, tree),
+        content: portableLinks(
+          m.content,
+          target,
+          tree,
+          useWiki.getState().derived?.discussionById ?? derived.discussionById,
+        ),
       })),
     };
     await useWiki
@@ -169,9 +204,37 @@ export function DiscussionView({
     const controller = new AbortController();
     abort.current = controller;
     let reply = "";
+    let knowledge: KnowledgeExcerpt[] = [];
     try {
       const context = await taskContext(involvesPrivate, controller.signal);
       const body = page.data ? parsePage(page.data).body : "";
+      // Eugenia answers from the wiki only: first, what the wiki says about this message
+      // (elements closest in meaning, then a short descent into the tree).
+      setSearching(true);
+      latest.reveal();
+      const question = node ? `${text}\n\n(Discussion about "${node.title}")` : text;
+      try {
+        const candidates = await semanticCandidates(derived, true, question, derived.tree.rootId, {
+          limit: 8,
+          signal: controller.signal,
+        }).catch((error: unknown) => {
+          if (isAbortError(error)) throw error;
+          return [];
+        });
+        knowledge = await gatherKnowledge(context, {
+          question,
+          scopeId: derived.tree.rootId,
+          navigator: hierarchyNavigator(derived, true),
+          candidates: candidates.filter((c) => c.id !== node?.id),
+          autoRead: 4,
+          maxRounds: 2,
+        });
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        toast(`Searching the wiki failed: ${errorMessage(error)}`, "error");
+      } finally {
+        setSearching(false);
+      }
       setStreaming("");
       latest.reveal();
       const sources = librarySources(derived.tree)
@@ -196,6 +259,7 @@ export function DiscussionView({
           : {}),
         related: relatedPages(derived.tree, node, text),
         sources,
+        knowledge,
         history: withQuestion.messages.map((m) => ({ role: m.role, content: m.content })),
       })) {
         reply += chunk;
@@ -214,7 +278,13 @@ export function DiscussionView({
         fields: { ...withQuestion.fields, updated: now() },
         messages: [
           ...withQuestion.messages,
-          { role: "eugenia", timestamp: now(), content: reply.trim() },
+          {
+            role: "eugenia",
+            timestamp: now(),
+            content: reply.trim(),
+            // The elements of the wiki the answer is based on.
+            ...(knowledge.length > 0 ? { meta: { based_on: knowledge.map((k) => k.id) } } : {}),
+          },
         ],
       };
       setDoc(withReply);
@@ -294,10 +364,10 @@ export function DiscussionView({
         {(doc?.messages ?? []).length === 0 && !streaming && (
           <InfoBox>
             {kind === "note"
-              ? "Write down an idea, a fact you heard, something you are reading: Eugenia right away spots the atomic knowledge worth keeping, points out what deserves checking and suggests sources to back it."
+              ? "Write down an idea, a fact you heard, something you are reading: Eugenia right away spots the atomic knowledge worth keeping, compares it with what your wiki already says and suggests sources of your library to back it."
               : node
-                ? "Ask a question about this page: Eugenia can clarify a notion, suggest links to your other pages, summarize the exchange and offer to extract knowledge from it."
-                : "Talk freely with Eugenia: she can clarify a notion, suggest links to your pages, summarize the exchange and offer to extract knowledge from it."}
+                ? "Ask a question about this page: Eugenia answers from your wiki only (knowledge, sources and their index, discussions), citing it. She can clarify a notion, link it to your other pages, summarize the exchange and offer to extract knowledge from it."
+                : "Talk with Eugenia about your knowledge: she answers from your wiki only (knowledge, sources and their index, discussions), citing it, and tells you when your wiki does not hold the answer."}
           </InfoBox>
         )}
         {doc?.messages.map((m, i) => (
@@ -317,8 +387,18 @@ export function DiscussionView({
             <div className="message__bubble">
               <Markdown text={m.content} path={reference} />
             </div>
+            {Array.isArray(m.meta?.based_on) && m.meta.based_on.length > 0 && (
+              <BasedOn ids={m.meta.based_on as string[]} />
+            )}
           </div>
         ))}
+        {searching && (
+          <div className="message message--eugenia">
+            <span className="message__who">
+              Eugenia <Spinner small label="Eugenia is searching your wiki" /> searching your wiki…
+            </span>
+          </div>
+        )}
         {streaming !== null && (
           <div ref={latest.ref} className="message message--eugenia">
             <span className="message__who">

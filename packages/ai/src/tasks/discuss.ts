@@ -4,6 +4,7 @@
  */
 import type { DiscussionKind } from "@openeugenia/core";
 import type { ChatMessage, GenerateRequest } from "../types.ts";
+import { knowledgeBlock, type KnowledgeExcerpt } from "./ask.ts";
 import { excerpt, systemPrompt, withSignal, type TaskContext } from "./context.ts";
 
 export interface DiscussionPage {
@@ -34,6 +35,11 @@ export interface DiscussionInput {
   related: readonly RelatedPage[];
   /** Library sources, which the assistant may recommend. */
   sources?: readonly RelatedPage[];
+  /**
+   * Knowledge of the tree found for the last message (wiki, sources and their index,
+   * discussions): Eugenia's answer is based on it only.
+   */
+  knowledge?: readonly KnowledgeExcerpt[];
   history: readonly DiscussionTurn[];
 }
 
@@ -67,6 +73,13 @@ export function discussionRequest(context: TaskContext, input: DiscussionInput):
   if (input.sources) {
     parts.push(`<library>\n${pagesList(input.sources) || "(no source)"}\n</library>`);
   }
+  parts.push(
+    `<knowledge>\n${
+      input.knowledge?.length
+        ? input.knowledge.map(knowledgeBlock).join("\n\n")
+        : "(nothing found in the wiki for this message)"
+    }\n</knowledge>`,
+  );
   const messages: ChatMessage[] = input.history.map((turn) => ({
     role: turn.role === "user" ? "user" : "assistant",
     content: turn.content,

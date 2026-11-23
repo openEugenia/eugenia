@@ -21,6 +21,7 @@ import {
   getNode,
   isAncestorOf,
   isContentPath,
+  isDiscussionPath,
   placementProblem,
   type WikiNode,
   type WikiTree,
@@ -78,6 +79,8 @@ export interface NewPage {
   url?: string;
   published?: string;
   file?: string;
+  /** Source: wiki category it is filed in. */
+  category?: string;
   id?: string;
   now?: Date;
 }
@@ -127,6 +130,7 @@ export function createPage(
   if (page.url) doc.fields.url = page.url;
   if (page.published) doc.fields.published = page.published;
   if (page.file) doc.fields.file = page.file;
+  if (page.category) doc.fields.category = page.category;
   if (doc.fields.visibility === "public" && !page.parentIsPublic) doc.fields.visibility = "private";
   if (page.inheritVisibility && page.visibility === undefined) delete doc.fields.visibility;
   const indexPath = joinPath(path, "index.md");
@@ -197,6 +201,8 @@ export interface PagePatch {
   url?: string | null;
   published?: string | null;
   file?: string | null;
+  /** Source: wiki category it is filed in (`null`: at the root). */
+  category?: string | null;
 }
 
 /**
@@ -247,7 +253,7 @@ export async function updatePage(
     if (patch.authors.length > 0) f.authors = patch.authors;
     else delete f.authors;
   }
-  for (const key of ["url", "published", "file"] as const) {
+  for (const key of ["url", "published", "file", "category"] as const) {
     const value = patch[key];
     if (value === undefined) continue;
     if (value === null || value.trim() === "") delete f[key];
@@ -397,6 +403,10 @@ export async function deleteNode(
       .filter((n) => !removed.has(n.id) && n.refs.some((r) => removed.has(r)))
       .map((n) => n.indexPath),
   );
+  // Common hierarchy: what was filed or placed in the deleted branch moves up to where the
+  // branch was (the parent of a page, the category of a source).
+  const fallback = node.type === "source" ? (node.filedIn ?? view.tree.rootId) : node.parentId;
+  const removedIds = [...removed.keys()];
   const needles = [node.name, encodeLinkPath(node.name)];
   for (const [path] of view.files) {
     if (isUnder(node.path, path) || !isMarkdownPath(path) || !isContentPath(view.config, path))
@@ -406,9 +416,46 @@ export async function deleteNode(
       ? unlinkTargets(content, path, (target) => isUnder(node.path, target))
       : content;
     if (citing.has(path)) next = detachSourceRefs(next, removed);
+    if (removedIds.some((id) => next.includes(id))) {
+      next = isDiscussionPath(view.config, path)
+        ? reattachDiscussion(next, removed, fallback)
+        : refileSource(next, removed, fallback, view.tree.rootId);
+    }
     if (next !== content) changes.push({ op: "write", path, content: next });
   }
   return changes;
+}
+
+/** A source filed in a deleted category is filed where the category was. */
+function refileSource(
+  content: string,
+  removed: ReadonlyMap<string, WikiNode>,
+  fallback: string | null,
+  rootId: string,
+): string {
+  const doc = parsePage(content);
+  if (!doc.fields.category || !removed.has(doc.fields.category)) return content;
+  if (fallback && fallback !== rootId) doc.fields.category = fallback;
+  else delete doc.fields.category;
+  return serializePage(doc);
+}
+
+/** A discussion attached to a deleted page is attached where the page was. */
+function reattachDiscussion(
+  content: string,
+  removed: ReadonlyMap<string, WikiNode>,
+  fallback: string | null,
+): string {
+  const doc = parseDiscussion(content);
+  let changed = false;
+  for (const key of ["about", "scope_node"] as const) {
+    const id = doc.fields[key];
+    if (!id || !removed.has(id)) continue;
+    if (fallback) doc.fields[key] = fallback;
+    else delete doc.fields[key];
+    changed = true;
+  }
+  return changed ? serializeDiscussion(doc) : content;
 }
 
 /** Replaces references to deleted sources with a free reference. */

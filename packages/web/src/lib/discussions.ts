@@ -4,12 +4,14 @@ import {
   children,
   dirname,
   encodeLinkPath,
+  parseSectionId,
   relativePath,
   type WikiNode,
   type WikiTree,
 } from "@openeugenia/core";
 import type { RelatedPage } from "@openeugenia/ai";
 import { EUGENIA_LINK_PREFIX } from "@openeugenia/ai/constants";
+import { href } from "./router.ts";
 import { normalizeTerm } from "./text.ts";
 
 /** Pages offered to Eugenia for her link suggestions. */
@@ -49,14 +51,44 @@ export function pathTitles(tree: WikiTree, node: WikiNode): string[] {
   return ancestors(tree, node.id).map((a) => a.title);
 }
 
-/** Replaces `eugenia:ID` links with relative links, readable outside the app. */
-export function portableLinks(text: string, fromFile: string, tree: WikiTree): string {
+/**
+ * Replaces `eugenia:ID` links with relative links, readable outside the app: to the page, to
+ * the source of a section of its index, or to the file of a discussion.
+ */
+export function portableLinks(
+  text: string,
+  fromFile: string,
+  tree: WikiTree,
+  discussionById?: ReadonlyMap<string, { path: string }>,
+): string {
   return text.replace(/\]\(eugenia:([^)\s]+)\)/g, (match, id: string) => {
-    const target = tree.nodes.get(id);
-    return target
-      ? `](${encodeLinkPath(relativePath(dirname(fromFile), target.indexPath))})`
-      : match;
+    const section = parseSectionId(id);
+    const target = tree.nodes.get(section ? section.sourceId : id);
+    const file = target?.indexPath ?? discussionById?.get(id)?.path;
+    return file ? `](${encodeLinkPath(relativePath(dirname(fromFile), file))})` : match;
   });
+}
+
+/** Address and title of an element cited by Eugenia: page, section of a source index, discussion. */
+export function elementLink(
+  tree: WikiTree,
+  discussionById: ReadonlyMap<string, { path: string; meta: { title: string } }>,
+  id: string,
+): { href: string; title: string } | undefined {
+  const node = tree.nodes.get(id);
+  if (node) return { href: href({ name: "node", id }), title: node.title };
+  const section = parseSectionId(id);
+  const source = section ? tree.nodes.get(section.sourceId) : undefined;
+  if (section && source) {
+    return {
+      href: href({ name: "node", id: source.id, section: section.key }),
+      title: source.title,
+    };
+  }
+  const discussion = discussionById.get(id);
+  return discussion
+    ? { href: href({ name: "discussion", path: discussion.path }), title: discussion.meta.title }
+    : undefined;
 }
 
 export function isEugeniaLink(url: string): boolean {

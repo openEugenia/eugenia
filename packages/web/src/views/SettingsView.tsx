@@ -5,6 +5,7 @@ import type { ProviderConfig, ProviderKind } from "@openeugenia/ai";
 import {
   DEFAULT_ANTHROPIC_MODEL,
   DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_INDEX_MODEL,
   DEFAULT_MISTRAL_URL,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_OLLAMA_URL,
@@ -12,7 +13,7 @@ import {
 import { forgetRepo, listRecents, localSize, type RecentWiki } from "../lib/db.ts";
 import { formatBytes } from "../lib/format.ts";
 import { GitHubClient } from "../lib/github.ts";
-import type { Settings, Theme } from "../lib/settings.ts";
+import { indexingConfig, type Settings, type Theme } from "../lib/settings.ts";
 import { useSettings } from "../store/settings.ts";
 import { confirmDialog, errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
@@ -272,6 +273,132 @@ function EmbeddingEditor({
   );
 }
 
+/**
+ * Model of the indexing of sources: a large Mistral model by default, with the key of the
+ * semantic search unless another one is given.
+ */
+function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: Settings): void }) {
+  const indexing = draft.ai.indexing;
+  const [fields, setFields] = useState({
+    model: indexing?.model ?? DEFAULT_INDEX_MODEL,
+    apiKey: indexing?.apiKey ?? "",
+    baseUrl: indexing?.baseUrl ?? DEFAULT_MISTRAL_URL,
+  });
+  const [testing, setTesting] = useState(false);
+  const set = (patch: Partial<typeof fields>): void => {
+    const next = { ...fields, ...patch };
+    setFields(next);
+    const baseUrl = next.baseUrl.trim() || DEFAULT_MISTRAL_URL;
+    const apiKey = next.apiKey.trim();
+    onChange({
+      ...draft,
+      ai: {
+        ...draft.ai,
+        indexing: {
+          kind: "openai",
+          baseUrl,
+          model: next.model.trim() || DEFAULT_INDEX_MODEL,
+          ...(apiKey ? { apiKey } : {}),
+          ...(baseUrl === DEFAULT_MISTRAL_URL ? { label: "Mistral" } : {}),
+        },
+      },
+    });
+  };
+  const effective = indexingConfig(draft);
+  const test = async (): Promise<void> => {
+    if (!effective) return;
+    setTesting(true);
+    try {
+      const { createProvider } = await import("@openeugenia/ai");
+      const provider = createProvider(effective);
+      const text = await provider.complete({
+        system: "Answer with one word.",
+        messages: [{ role: "user", content: "Say OK." }],
+        maxTokens: 2000,
+      });
+      toast(
+        `${provider.info.label} answers (${provider.info.model}): ${text.slice(0, 40)}`,
+        "success",
+      );
+    } catch (error) {
+      toast(errorMessage(error), "error");
+    } finally {
+      setTesting(false);
+    }
+  };
+  return (
+    <div className="form-grid">
+      <div className="form-row">
+        <div className="oe-field">
+          <label className="oe-label" htmlFor="indexing-model">
+            Indexing model
+          </label>
+          <input
+            id="indexing-model"
+            className="oe-input"
+            value={fields.model}
+            placeholder={DEFAULT_INDEX_MODEL}
+            onChange={(e) => set({ model: e.target.value })}
+          />
+          <span className="oe-help">A large model: it reads each source once.</span>
+        </div>
+        <div className="oe-field">
+          <label className="oe-label" htmlFor="indexing-key">
+            API key
+          </label>
+          <input
+            id="indexing-key"
+            className="oe-input"
+            type="password"
+            autoComplete="off"
+            value={fields.apiKey}
+            placeholder="the Mistral key above, by default"
+            onChange={(e) => set({ apiKey: e.target.value })}
+          />
+        </div>
+        <div className="oe-field">
+          <label className="oe-label" htmlFor="indexing-url">
+            Server URL
+          </label>
+          <input
+            id="indexing-url"
+            className="oe-input"
+            value={fields.baseUrl}
+            placeholder={DEFAULT_MISTRAL_URL}
+            onChange={(e) => set({ baseUrl: e.target.value })}
+          />
+        </div>
+      </div>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={draft.ai.autoIndex !== false}
+          onChange={(e) => onChange({ ...draft, ai: { ...draft.ai, autoIndex: e.target.checked } })}
+        />
+        <span>Index each new source automatically (and again when its content changes).</span>
+      </label>
+      {effective ? (
+        <div className="actions actions--start">
+          <span className="muted small">
+            Indexing with {effective.model}
+            {effective.apiKey ? "" : " (no key)"}.
+          </span>
+          <button
+            type="button"
+            className="oe-button oe-button--secondary oe-button--sm"
+            disabled={testing}
+            onClick={() => void test()}
+          >
+            {testing ? "Testing…" : "Test"}
+          </button>
+        </div>
+      ) : (
+        <p className="muted small">Add a Mistral key (above or here) to index your sources.</p>
+      )}
+    </div>
+  );
+}
+
 export function SettingsView() {
   const { settings, update } = useSettings();
   const [draft, setDraft] = useState<Settings>(settings);
@@ -465,6 +592,20 @@ export function SettingsView() {
             }))
           }
         />
+      </section>
+
+      <section className="section oe-card">
+        <h2 className="oe-card__title">Indexing of sources</h2>
+        <p className="muted small">
+          Each source of your library is read once by a large model and described as a tree of
+          knowledge (topics, ideas, arguments, examples, conclusions), saved next to the source in
+          your private repository. Eugenia then answers your questions from this index, at low cost,
+          without reading the whole source again; with search by meaning, each part of the index is
+          also found by its meaning. The content of the sources is sent to this model: private
+          sources follow the "local AI for private content" rule above. The index of a public source
+          is published with it.
+        </p>
+        <IndexingEditor draft={draft} onChange={setDraft} />
       </section>
 
       <section className="section oe-card">

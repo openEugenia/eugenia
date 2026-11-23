@@ -36,6 +36,8 @@ export interface PageFields {
   published?: string;
   /** Source: attached personal file (PDF…), relative to the page folder, never published. */
   file?: string;
+  /** Source: wiki category it is filed in (identifier), in the common hierarchy. */
+  category?: string;
 }
 
 export interface PageDocument {
@@ -62,6 +64,7 @@ const PAGE_KEYS = new Set([
   "url",
   "published",
   "file",
+  "category",
 ]);
 
 export function parseVisibility(value: unknown): Visibility | undefined {
@@ -124,6 +127,8 @@ export function parsePage(text: string): PageDocument {
   if (published) fields.published = published;
   const file = asString(d.file);
   if (file) fields.file = file;
+  const category = asString(d.category)?.trim();
+  if (category) fields.category = category;
   const extra: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(d)) if (!PAGE_KEYS.has(key)) extra[key] = value;
   const doc: PageDocument = { fields, extra, body: parsed.body };
@@ -148,6 +153,7 @@ export function serializePage(doc: PageDocument): string {
   data.url = f.url;
   data.published = f.published;
   data.file = f.file;
+  data.category = f.category;
   data.extracted_from = f.extracted_from;
   data.sources = f.sources?.map(serializeSourceRef);
   return serializeDocument(data, doc.body);
@@ -360,6 +366,7 @@ export function pageMeta(text: string): PageMeta {
   if (f.url) meta.url = f.url;
   if (f.published) meta.published = f.published;
   if (f.file) meta.file = f.file;
+  if (f.category) meta.category = f.category;
   const refs = (f.sources ?? []).map((s) => s.ref).filter((r): r is string => Boolean(r));
   if (refs.length > 0) meta.refs = [...new Set(refs)];
   if ((f.sources ?? []).length > 0) meta.sourced = true;

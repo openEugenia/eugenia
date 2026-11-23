@@ -6,13 +6,27 @@
  * The vector is quantized to 8 bits (one scale factor per vector): four times less space than
  * 32-bit floats, for a practically identical similarity ranking.
  */
+import {
+  discussionEmbeddingPath,
+  discussionText,
+  parseDiscussion,
+  type DiscussionMeta,
+} from "./discussion.ts";
+import { isSearchableDiscussion } from "./hierarchy.ts";
 import { markdownToText } from "./markdown.ts";
 import type { WikiView } from "./operations.ts";
 import { parseFlashcardBody, parsePage } from "./pages.ts";
 import { joinPath } from "./paths.ts";
 import { base64ToBytes, bytesToBase64, gitBlobSha } from "./sha.ts";
+import {
+  parseSourceTree,
+  sectionEmbeddingText,
+  sourceSections,
+  sourceTreeEmbeddingsPath,
+} from "./source-tree.ts";
 import { isoTimestamp } from "./time.ts";
 import { EMBEDDING_FILE, type WikiNode } from "./tree.ts";
+import type { FileChange } from "./types.ts";
 
 export const EMBEDDING_FORMAT = "eugenia-embedding";
 /** Maximum length of the text sent to the model (mistral-embed accepts 8,192 tokens). */
@@ -74,14 +88,27 @@ export function newEmbeddingDocument(input: {
   };
 }
 
-export function serializeEmbedding(doc: EmbeddingDocument): string {
+/** 8-bit quantization of a vector: one scale factor, components in base64. */
+function quantize(vector: ArrayLike<number>): { scale: number; vector: string } {
   let max = 0;
-  for (const v of doc.vector) max = Math.max(max, Math.abs(v));
+  for (let i = 0; i < vector.length; i++) max = Math.max(max, Math.abs(vector[i]!));
   const scale = max > 0 ? max / 127 : 1;
-  const quantized = new Int8Array(doc.vector.length);
-  for (let i = 0; i < doc.vector.length; i++) {
-    quantized[i] = Math.max(-127, Math.min(127, Math.round(doc.vector[i]! / scale)));
+  const quantized = new Int8Array(vector.length);
+  for (let i = 0; i < vector.length; i++) {
+    quantized[i] = Math.max(-127, Math.min(127, Math.round(vector[i]! / scale)));
   }
+  return { scale, vector: bytesToBase64(new Uint8Array(quantized.buffer)) };
+}
+
+function dequantize(base64: string, scale: number, dimensions: number): Float32Array {
+  const bytes = base64ToBytes(base64);
+  if (bytes.length !== dimensions) throw new Error("Inconsistent embedding size.");
+  const quantized = new Int8Array(bytes.buffer, bytes.byteOffset, bytes.length);
+  return Float32Array.from(quantized, (q) => q * scale);
+}
+
+export function serializeEmbedding(doc: EmbeddingDocument): string {
+  const { scale, vector } = quantize(doc.vector);
   const data = {
     format: EMBEDDING_FORMAT,
     version: 1,
@@ -91,7 +118,7 @@ export function serializeEmbedding(doc: EmbeddingDocument): string {
     dimensions: doc.vector.length,
     encoding: "int8",
     scale,
-    vector: bytesToBase64(new Uint8Array(quantized.buffer)),
+    vector,
   };
   return `${JSON.stringify(data, null, 2)}\n`;
 }
@@ -111,14 +138,11 @@ export function parseEmbedding(text: string): EmbeddingDocument {
   ) {
     throw new Error("Incomplete embedding.");
   }
-  const bytes = base64ToBytes(vector);
-  if (bytes.length !== dimensions) throw new Error("Inconsistent embedding size.");
-  const quantized = new Int8Array(bytes.buffer, bytes.byteOffset, bytes.length);
   return {
     model,
     textSha,
     generated: typeof generated === "string" ? generated : "",
-    vector: Float32Array.from(quantized, (q) => q * scale),
+    vector: dequantize(vector, scale, dimensions),
   };
 }
 
@@ -210,4 +234,281 @@ export function rankBySimilarity(
     if (Number.isFinite(score)) hits.push({ id: item.id, score });
   }
   return hits.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Embeddings of the sections of a source index (`_tree.embeddings.json`)
+// ---------------------------------------------------------------------------
+
+export const SECTION_EMBEDDINGS_FORMAT = "eugenia-embeddings";
+
+export interface SectionEmbeddingsDocument {
+  model: string;
+  generated: string;
+  /** Vector of each section, by position (`2.1`), with the fingerprint of its text. */
+  items: Map<string, { textSha: string; vector: Float32Array }>;
+}
+
+export function serializeSectionEmbeddings(doc: SectionEmbeddingsDocument): string {
+  const items = [...doc.items].map(([key, item]) => ({
+    key,
+    text_sha: item.textSha,
+    ...quantize(item.vector),
+  }));
+  const data = {
+    format: SECTION_EMBEDDINGS_FORMAT,
+    version: 1,
+    model: doc.model,
+    generated: doc.generated,
+    dimensions: doc.items.values().next().value?.vector.length ?? 0,
+    encoding: "int8",
+    items,
+  };
+  return `${JSON.stringify(data, null, 2)}\n`;
+}
+
+export function parseSectionEmbeddings(text: string): SectionEmbeddingsDocument {
+  const data = JSON.parse(text) as Record<string, unknown>;
+  if (
+    data.format !== SECTION_EMBEDDINGS_FORMAT ||
+    data.version !== 1 ||
+    data.encoding !== "int8" ||
+    typeof data.model !== "string" ||
+    typeof data.dimensions !== "number" ||
+    !Array.isArray(data.items)
+  ) {
+    throw new Error("Unknown embeddings format.");
+  }
+  const dimensions = data.dimensions;
+  const items = new Map<string, { textSha: string; vector: Float32Array }>();
+  for (const raw of data.items as Record<string, unknown>[]) {
+    if (
+      typeof raw.key !== "string" ||
+      typeof raw.text_sha !== "string" ||
+      typeof raw.scale !== "number" ||
+      typeof raw.vector !== "string"
+    ) {
+      throw new Error("Incomplete embedding.");
+    }
+    items.set(raw.key, {
+      textSha: raw.text_sha,
+      vector: dequantize(raw.vector, raw.scale, dimensions),
+    });
+  }
+  return {
+    model: data.model,
+    generated: typeof data.generated === "string" ? data.generated : "",
+    items,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Catalog of the vectors of the common hierarchy
+// ---------------------------------------------------------------------------
+
+/** Kind of element searched by meaning: a page, a discussion, a section of a source index. */
+export type VectorKind = "page" | "discussion" | "section";
+
+export interface VectorItem {
+  /**
+   * Identifier of the element: page or discussion identifier, `<source id>#<position>` for a
+   * section of a source index.
+   */
+  id: string;
+  kind: VectorKind;
+  title: string;
+  /** The page, or the source of a section. */
+  node?: WikiNode;
+  /** File of a discussion. */
+  discussionPath?: string;
+  /** Position of a section in the index of its source. */
+  sectionKey?: string;
+  /** File holding the vector. */
+  file: string;
+  /** Text sent to the model. */
+  text: string;
+  textSha: string;
+  status: EmbeddingStatus;
+  /** Vector recorded by the same model, even if stale (usable for searching). */
+  vector?: Float32Array;
+  /** Public content (may be sent to a remote provider without restriction). */
+  isPublic: boolean;
+}
+
+export interface VectorCatalogOptions {
+  /** Pages to include (by default all the indexable pages). */
+  nodes?: Iterable<WikiNode>;
+  /** Discussions to include (by default all of them except quizzes). */
+  discussions?: Iterable<{ path: string; meta?: Pick<DiscussionMeta, "kind"> }>;
+  /** Include the sections of the source indexes (default: yes). */
+  sections?: boolean;
+}
+
+async function readEmbedding(
+  view: WikiView,
+  path: string | undefined,
+): Promise<{ doc?: EmbeddingDocument; unreadable: boolean }> {
+  if (!path || !view.files.has(path)) return { unreadable: false };
+  try {
+    return { doc: parseEmbedding(await view.readText(path)), unreadable: false };
+  } catch {
+    return { unreadable: true };
+  }
+}
+
+/**
+ * Every element of the common hierarchy that can be searched by meaning, with the state of its
+ * embedding for a model: pages (categories, knowledge, sources), discussions (except quizzes)
+ * and sections of the source indexes.
+ */
+export async function vectorItems(
+  view: WikiView,
+  model: string,
+  options: VectorCatalogOptions = {},
+): Promise<VectorItem[]> {
+  const out: VectorItem[] = [];
+  const nodes = [...(options.nodes ?? view.tree.nodes.values())].filter(isEmbeddable);
+  for (const entry of await embeddingEntries(view, model, nodes)) {
+    const item: VectorItem = {
+      id: entry.node.id,
+      kind: "page",
+      title: entry.node.title,
+      node: entry.node,
+      file: embeddingPath(entry.node),
+      text: entry.text,
+      textSha: entry.textSha,
+      status: entry.status,
+      isPublic: entry.node.isPublic,
+    };
+    if (entry.vector) item.vector = entry.vector;
+    out.push(item);
+  }
+
+  const discussions: Iterable<{ path: string; meta?: Pick<DiscussionMeta, "kind"> }> =
+    options.discussions ?? view.tree.discussions.map((file) => ({ path: file.path }));
+  for (const { path, meta } of discussions) {
+    if (meta && !isSearchableDiscussion(meta)) continue;
+    if (!view.files.has(path)) continue;
+    const doc = parseDiscussion(await view.readText(path));
+    if (!doc.fields.id || !isSearchableDiscussion({ kind: doc.fields.kind ?? "discussion" })) {
+      continue;
+    }
+    const text = discussionText(doc).slice(0, EMBEDDING_MAX_CHARS);
+    const textSha = await embeddingTextSha(text);
+    const file = discussionEmbeddingPath(view.config, path);
+    const stored = await readEmbedding(view, view.tree.discussionEmbeddings.get(path)?.path);
+    const item: VectorItem = {
+      id: doc.fields.id,
+      kind: "discussion",
+      title: doc.fields.title || path,
+      discussionPath: path,
+      file,
+      text,
+      textSha,
+      status: stored.unreadable ? "stale" : embeddingStatus(stored.doc, textSha, model),
+      isPublic: doc.fields.visibility === "public",
+    };
+    if (stored.doc && stored.doc.model === model) item.vector = stored.doc.vector;
+    out.push(item);
+  }
+
+  if (options.sections !== false) {
+    for (const source of nodes) {
+      if (source.type !== "source" || !source.sourceTree) continue;
+      let sections;
+      try {
+        sections = sourceSections(
+          source.id,
+          parseSourceTree(await view.readText(source.sourceTree.path)).root,
+        );
+      } catch {
+        continue;
+      }
+      let stored: SectionEmbeddingsDocument | undefined;
+      if (source.sourceTreeEmbeddings) {
+        try {
+          stored = parseSectionEmbeddings(await view.readText(source.sourceTreeEmbeddings.path));
+        } catch {
+          stored = undefined;
+        }
+      }
+      for (const section of sections) {
+        const text = sectionEmbeddingText(source.title, section).slice(0, EMBEDDING_MAX_CHARS);
+        const textSha = await embeddingTextSha(text);
+        const known = stored?.model === model ? stored.items.get(section.key) : undefined;
+        const item: VectorItem = {
+          id: section.id,
+          kind: "section",
+          title: section.name,
+          node: source,
+          sectionKey: section.key,
+          file: sourceTreeEmbeddingsPath(source),
+          text,
+          textSha,
+          status: !known
+            ? stored
+              ? "stale"
+              : "missing"
+            : known.textSha === textSha
+              ? "current"
+              : "stale",
+          isPublic: source.isPublic,
+        };
+        if (known) item.vector = known.vector;
+        out.push(item);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Files to write once new vectors are computed (by element identifier): one file per page or
+ * discussion, one file per source for the sections of its index (the current vectors of its
+ * other sections are kept).
+ */
+export function embeddingChanges(
+  items: readonly VectorItem[],
+  vectors: ReadonlyMap<string, ArrayLike<number>>,
+  model: string,
+  now?: Date,
+): FileChange[] {
+  const changes: FileChange[] = [];
+  const sectionFiles = new Map<string, VectorItem[]>();
+  for (const item of items) {
+    if (item.kind === "section") {
+      sectionFiles.set(item.file, [...(sectionFiles.get(item.file) ?? []), item]);
+      continue;
+    }
+    const vector = vectors.get(item.id);
+    if (!vector) continue;
+    const doc = newEmbeddingDocument({
+      model,
+      textSha: item.textSha,
+      vector,
+      ...(now ? { now } : {}),
+    });
+    changes.push({ op: "write", path: item.file, content: serializeEmbedding(doc) });
+  }
+  for (const [file, group] of sectionFiles) {
+    if (!group.some((item) => vectors.has(item.id))) continue;
+    const doc: SectionEmbeddingsDocument = {
+      model,
+      generated: isoTimestamp(now),
+      items: new Map(),
+    };
+    for (const item of group) {
+      const fresh = vectors.get(item.id);
+      if (fresh)
+        doc.items.set(item.sectionKey!, {
+          textSha: item.textSha,
+          vector: Float32Array.from(fresh),
+        });
+      else if (item.status === "current" && item.vector) {
+        doc.items.set(item.sectionKey!, { textSha: item.textSha, vector: item.vector });
+      }
+    }
+    changes.push({ op: "write", path: file, content: serializeSectionEmbeddings(doc) });
+  }
+  return changes;
 }

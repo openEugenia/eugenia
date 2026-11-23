@@ -1634,3 +1634,65 @@ dialog.modal::backdrop {
     gap: 0;
   }
 }
+
+/* Common hierarchy: where a source is filed, its index (knowledge tree). */
+.source-filing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--oe-space-1);
+  margin-top: var(--oe-space-3);
+}
+
+.outline-root {
+  padding: var(--oe-space-4);
+}
+
+.outline__summary {
+  margin: 0 0 var(--oe-space-3);
+}
+
+.outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.outline .outline {
+  margin-left: var(--oe-space-2);
+  padding-left: var(--oe-space-3);
+  border-left: var(--oe-border-width) solid var(--oe-color-border);
+}
+
+.outline__node > summary {
+  cursor: pointer;
+  padding: var(--oe-space-1) 0;
+}
+
+.outline__name {
+  font-weight: var(--oe-font-weight-semibold);
+}
+
+.outline__text {
+  margin: 0 0 var(--oe-space-2);
+  color: var(--oe-color-text-muted);
+  font-size: var(--oe-font-size-sm);
+}
+
+.outline__node.is-selected > summary {
+  background-color: var(--oe-color-primary-subtle);
+  border-radius: var(--oe-radius-sm);
+  padding-left: var(--oe-space-2);
+}
+
+.message__sources {
+  margin: var(--oe-space-1) 0 0;
+}
+
+.tree-row--secondary .title {
+  color: var(--oe-color-text-muted);
+}
+
+.tree-filters {
+  margin: 0 0 var(--oe-space-2);
+}

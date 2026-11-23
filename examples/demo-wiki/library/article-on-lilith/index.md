@@ -3,6 +3,7 @@ id: 01M6BK4140P9T3R69AH4Y8K1PA
 type: source
 kind: article
 title: Article on Lilith
+category: 01M6B8TE80FWZWZ9A13320JP2Z
 visibility: private
 created: 2026-11-02T08:00:00Z
 updated: 2026-11-02T08:00:00Z

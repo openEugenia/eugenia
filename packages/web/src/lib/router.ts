@@ -15,9 +15,11 @@ import { parseRepo, repoLabel, type RepoRef } from "./repo.ts";
 
 export type Route =
   | { name: "root" }
-  | { name: "node"; id: string }
+  /** Page; for a source, `section` points to a section of its index (`2.1`). */
+  | { name: "node"; id: string; section?: string }
   | { name: "edit"; id: string }
-  | { name: "new"; parentId: string; type: PageType }
+  /** New page; a new source is filed in `category`. */
+  | { name: "new"; parentId: string; type: PageType; category?: string }
   /** Extraction from a page (source, category…), a discussion, or a new text. */
   | { name: "extract"; id?: string; discussion?: string }
   | { name: "quiz"; id: string }
@@ -27,7 +29,8 @@ export type Route =
    */
   | { name: "discussion"; path?: string; about?: string; kind?: "note" }
   | { name: "discussions"; kind?: DiscussionKind; q?: string }
-  | { name: "library"; kind?: SourceKind; q?: string }
+  /** Library; `category`: the sources filed in a category (`unfiled`: at the root). */
+  | { name: "library"; kind?: SourceKind; q?: string; category?: string }
   | { name: "ask"; id?: string }
   | { name: "graph"; id?: string }
   | { name: "dashboard" }
@@ -53,7 +56,7 @@ export function parseHash(hash: string): Route {
       if (!second) return { name: "root" };
       switch (third) {
         case undefined:
-          return { name: "node", id: second };
+          return { name: "node", id: second, ...optional("section", query.get("s")) };
         case "edit":
           return { name: "edit", id: second };
         case "new": {
@@ -62,6 +65,7 @@ export function parseHash(hash: string): Route {
             name: "new",
             parentId: second,
             type: type && PAGE_TYPES.includes(type) ? type : "category",
+            ...optional("category", query.get("category")),
           };
         }
         case "extract":
@@ -99,6 +103,7 @@ export function parseHash(hash: string): Route {
         name: "library",
         ...(kind && SOURCE_KINDS.includes(kind) ? { kind } : {}),
         ...optional("q", query.get("q")),
+        ...optional("category", query.get("category")),
       };
     }
     case "extract":
@@ -137,11 +142,11 @@ export function href(route: Route): string {
     case "not-found":
       return "#/";
     case "node":
-      return `#/n/${enc(route.id)}`;
+      return `#/n/${enc(route.id)}${queryString({ s: route.section })}`;
     case "edit":
       return `#/n/${enc(route.id)}/edit`;
     case "new":
-      return `#/n/${enc(route.parentId)}/new?type=${route.type}`;
+      return `#/n/${enc(route.parentId)}/new?type=${route.type}${route.category ? `&category=${enc(route.category)}` : ""}`;
     case "extract": {
       const query = queryString({ discussion: route.discussion });
       return route.id ? `#/n/${enc(route.id)}/extract${query}` : `#/extract${query}`;
@@ -156,7 +161,7 @@ export function href(route: Route): string {
     case "discussions":
       return `#/discussions${queryString({ kind: route.kind, q: route.q })}`;
     case "library":
-      return `#/library${queryString({ kind: route.kind, q: route.q })}`;
+      return `#/library${queryString({ kind: route.kind, q: route.q, category: route.category })}`;
     case "ask":
       return route.id ? `#/n/${enc(route.id)}/ask` : "#/ask";
     case "graph":

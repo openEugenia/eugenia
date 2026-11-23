@@ -3,6 +3,7 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 import type { SummaryScope } from "@openeugenia/core";
 import type { ProviderKind } from "@openeugenia/ai";
 import { embedCommand } from "./commands/embed.ts";
+import { indexCommand } from "./commands/index-sources.ts";
 import { initCommand } from "./commands/init.ts";
 import { publishCommand } from "./commands/publish.ts";
 import { summarizeCommand } from "./commands/summarize.ts";
@@ -55,10 +56,22 @@ Commands:
       --local-only-private     Never sends private content to a remote provider
       --dry-run                Shows the descriptions without writing them
 
-  embed [folder]        Computes the missing or stale page embeddings (semantic search):
-                        one _embedding.json per page, never published.
+  index [folder]        Generates the missing or stale source indexes: a large model reads
+                        each source and describes its whole content as a knowledge tree
+                        (_tree.json), then read at low cost to answer questions.
+      --force                  Also regenerates current indexes
+      --node <id|folder>       One source, or the sources filed in a category
+      --model <model>          Model (default: mistral-large-latest, or EUGENIA_INDEX_MODEL)
+      --base-url <url>         OpenAI-compatible server (default: Mistral, or
+                               EUGENIA_INDEX_BASE_URL); key MISTRAL_API_KEY or
+                               EUGENIA_INDEX_API_KEY
+      --local-only-private     Never sends private content to a remote provider
+      --dry-run                Shows the sources concerned without calling the model
+
+  embed [folder]        Computes the missing or stale embeddings (search by meaning) of the
+                        pages, discussions and sections of the source indexes; never published.
       --force                  Also recomputes current embeddings
-      --node <id|folder>       Limits to one branch
+      --node <id|folder>       Limits to one branch (with its sources and discussions)
       --model <model>          Model (default: mistral-embed, or EUGENIA_EMBED_MODEL)
       --base-url <url>         OpenAI-compatible server (default: Mistral, or
                                EUGENIA_EMBED_BASE_URL); key MISTRAL_API_KEY or
@@ -218,6 +231,31 @@ export async function main(argv: string[], log: Logger = consoleLogger): Promise
           localOnlyPrivate: values["local-only-private"] === true,
           ...(node ? { node } : {}),
           ...(provider ? { provider: provider as ProviderKind } : {}),
+          ...(model ? { model } : {}),
+          ...(baseUrl ? { baseUrl } : {}),
+        },
+        log,
+      );
+    }
+    case "index": {
+      const { values, dir } = parse(rest, {
+        force: { type: "boolean", default: false },
+        node: { type: "string" },
+        model: { type: "string" },
+        "base-url": { type: "string" },
+        "local-only-private": { type: "boolean", default: false },
+        "dry-run": { type: "boolean", default: false },
+      });
+      const node = str(values.node);
+      const model = str(values.model);
+      const baseUrl = str(values["base-url"]);
+      return indexCommand(
+        {
+          dir,
+          force: values.force === true,
+          dryRun: values["dry-run"] === true,
+          localOnlyPrivate: values["local-only-private"] === true,
+          ...(node ? { node } : {}),
           ...(model ? { model } : {}),
           ...(baseUrl ? { baseUrl } : {}),
         },

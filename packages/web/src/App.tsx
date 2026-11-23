@@ -78,12 +78,21 @@ function WikiRoute({ route }: { route: Route }) {
       return rootId ? <NodeView id={rootId} key={rootId} /> : null;
     case "node":
       // The library root is the list of sources.
-      return route.id === libraryId ? <LibraryView /> : <NodeView id={route.id} key={route.id} />;
+      return route.id === libraryId ? (
+        <LibraryView />
+      ) : (
+        <NodeView
+          id={route.id}
+          {...(route.section ? { section: route.section } : {})}
+          key={route.id}
+        />
+      );
     case "library":
       return (
         <LibraryView
           {...(route.kind ? { kind: route.kind } : {})}
           {...(route.q ? { q: route.q } : {})}
+          {...(route.category ? { category: route.category } : {})}
         />
       );
     case "discussions":
@@ -101,7 +110,8 @@ function WikiRoute({ route }: { route: Route }) {
           mode="new"
           parentId={route.parentId}
           type={route.type}
-          key={`new-${route.parentId}-${route.type}`}
+          {...(route.category ? { category: route.category } : {})}
+          key={`new-${route.parentId}-${route.type}-${route.category ?? ""}`}
         />
       );
     case "extract":

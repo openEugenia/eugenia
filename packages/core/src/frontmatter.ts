@@ -15,6 +15,7 @@ export const KEY_ORDER: readonly string[] = [
   "type",
   "kind",
   "title",
+  "category",
   "about",
   "scope_node",
   "visibility",

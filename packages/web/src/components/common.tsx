@@ -28,7 +28,7 @@ import type {
   WikiNode,
   WikiTree,
 } from "@openeugenia/core";
-import { ancestors } from "@openeugenia/core";
+import { hierarchyAncestors } from "@openeugenia/core";
 import { href } from "../lib/router.ts";
 
 export function Spinner({ small = false, label = "Loading" }: { small?: boolean; label?: string }) {
@@ -225,7 +225,8 @@ export function Breadcrumb({
   /** Extra steps, first (e.g. "Discussions"). */
   trail?: { label: string; href: string }[];
 }) {
-  const chain = node ? ancestors(tree, node.id) : [];
+  // Common hierarchy: a source is shown in the category it is filed in.
+  const chain = node ? hierarchyAncestors(tree, node) : [];
   const steps = [
     ...(trail ?? []),
     ...chain.map((a) => ({ label: a.title, href: nodeHref(tree, a) })),
@@ -244,7 +245,7 @@ export function Breadcrumb({
 }
 
 export function nodePath(tree: WikiTree, node: WikiNode): string {
-  return [...ancestors(tree, node.id).map((a) => a.title), node.title].join(" › ");
+  return [...hierarchyAncestors(tree, node).map((a) => a.title), node.title].join(" › ");
 }
 
 export function EmptyState({

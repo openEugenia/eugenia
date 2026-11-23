@@ -5,10 +5,11 @@
  * the repository root (ignored by git) or in the environment. Without a key, these tests are
  * skipped.
  *
- * The free tier limits each model to 2 requests per minute: the tests are spread over several
- * models, and requests refused for that reason (429) are replayed after a pause. A model's
- * answers vary from one run to the next: rerun an isolated failure of the evaluation tests
- * before interpreting it.
+ * Quotas depend on the key (the free tier limits each model to 2 requests per minute): the tests
+ * are spread over several models, and requests refused for that reason (429) are replayed after
+ * a pause. Mistral Large, used for indexing sources, reasons before answering: about a minute per
+ * request. A model's answers vary from one run to the next: rerun an isolated failure of the
+ * evaluation tests before interpreting it.
  */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -21,9 +22,11 @@ import {
 import {
   createProvider,
   DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_INDEX_MODEL,
   embedQuery,
   embedTexts,
   evaluateAnswer,
+  indexSource,
   summarizeNode,
   type AIProvider,
 } from "../../src/index.ts";
@@ -222,6 +225,36 @@ describe.skipIf(!KEY)("Mistral, real API", () => {
       expect(await best("philosopher who doubts everything except his own existence")).toBe(
         "cogito",
       );
+    });
+  });
+
+  describe("indexing a source (Mistral Large)", () => {
+    const { provider } = mistral(DEFAULT_INDEX_MODEL);
+
+    it("describes a source as a knowledge tree that follows its plan", async () => {
+      const tree = await indexSource(
+        { provider, variables: { wiki_title: "My knowledge" } },
+        {
+          title: "Photosynthesis",
+          text: [
+            "# Photosynthesis",
+            "",
+            "## Light-dependent reactions",
+            "In the thylakoid membranes, light energy splits water, releases oxygen and produces ATP and NADPH.",
+            "",
+            "## Calvin cycle",
+            "In the stroma, the Calvin cycle fixes carbon dioxide into sugars, using the ATP and NADPH of the first stage.",
+          ].join("\n"),
+        },
+      );
+      expect(tree.name).toMatch(/photosynthesis/i);
+      const topics = tree.children.map((c) => c.name.toLowerCase()).join(" | ");
+      expect(topics).toMatch(/light/);
+      expect(topics).toMatch(/calvin/);
+      // Self-contained descriptions keep the facts of the source.
+      const text = JSON.stringify(tree);
+      expect(text).toMatch(/NADPH/);
+      expect(text).toMatch(/stroma/);
     });
   });
 });

@@ -11,9 +11,10 @@ can check what the AI is asked, and they can be **overridden** in a wiki: a
 | `flashcards.md` | New flashcards on an existing atomic knowledge item (§8.1). |
 | `summarize.md` | Description of a sub-wiki, or summary of a discussion (§11.2). |
 | `evaluate.md` | Comparing a quiz answer with the expected answer: feedback and score in [0, 1] (§8.3). |
-| `discuss.md` | Eugenia's role in a discussion opened from a page (§8.4). |
-| `note.md` | Answer to a quick note: candidate knowledge, points to check, source leads (§8.4). |
-| `ask.md` | Questions about the tree: exploring the descriptions, then answering with citations (§8.5). |
+| `discuss.md` | Eugenia's role in a discussion opened from a page, answering from the knowledge of the wiki only (§8.4). |
+| `note.md` | Answer to a quick note: candidate knowledge, what the wiki says about it, source leads (§8.4). |
+| `ask.md` | Questions about the tree: exploring the common hierarchy (categories, knowledge, sources and the sections of their index, discussions), then answering from what was read only, with citations (§8.5). |
+| `index-source.md` | Indexing a source: describing its whole content as a knowledge tree (`_tree.json`), read later at low cost (§8.6). |
 | `categories.md` | Suggesting subcategories for a category (§8.1). |
 
 An optional YAML frontmatter is ignored. Available variables: `{{wiki_title}}`, `{{today}}`.

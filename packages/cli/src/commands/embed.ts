@@ -1,15 +1,19 @@
 /**
- * `eugenia embed`: computes the missing or stale page embeddings, for the app's semantic search
- * (`_embedding.json` next to each `index.md`, never published).
+ * `eugenia embed`: computes the missing or stale embeddings, for the app's search by meaning
+ * across the common hierarchy: pages (`_embedding.json` next to each `index.md`), discussions
+ * (`<discussions>/_embeddings/`) and the sections of the source indexes
+ * (`_tree.embeddings.json`). They are never published.
  */
-import { writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import {
+  buildHierarchy,
   descendants,
-  embeddingEntries,
-  embeddingPath,
-  newEmbeddingDocument,
-  serializeEmbedding,
+  discussionInBranch,
+  embeddingChanges,
+  isInBranch,
+  vectorItems,
+  type WikiNode,
 } from "@openeugenia/core";
 import {
   AIError,
@@ -65,39 +69,58 @@ export async function embedCommand(options: EmbedOptions, log: Logger): Promise<
   const provider =
     options.providerInstance ?? createProvider(embeddingProviderFromEnvironment(options));
   const { label, model, local } = provider.info;
-  // Without --node: the whole wiki and the whole library.
-  const roots = options.node
-    ? [findBranch(wiki, options.node)]
-    : [wiki.tree.rootId, wiki.tree.libraryId].map((id) => wiki.tree.nodes.get(id)!);
-  const entries = await embeddingEntries(
-    wiki.view,
-    model,
-    roots.flatMap((root) => [root, ...descendants(wiki.tree, root.id)]),
+  // Without --node: the whole wiki, the whole library and the discussions.
+  const tree = wiki.tree;
+  const hierarchy = buildHierarchy(
+    tree,
+    [...wiki.discussions].map(([path, meta]) => ({ path, meta })),
   );
-  let plan = entries.filter((e) => options.force || e.status !== "current");
-  const privateCount = plan.filter((e) => !e.node.isPublic).length;
+  const branch = options.node ? findBranch(wiki, options.node) : undefined;
+  const pages: WikiNode[] = branch
+    ? [
+        branch,
+        ...descendants(tree, branch.id),
+        // Sources filed in the branch (common hierarchy).
+        ...[...tree.nodes.values()].filter(
+          (n) => n.type === "source" && n.id !== branch.id && isInBranch(tree, branch.id, n),
+        ),
+      ]
+    : [...tree.nodes.values()];
+  const discussions = [...wiki.discussions]
+    .filter(([path]) => !branch || discussionInBranch(tree, hierarchy, branch.id, path))
+    .map(([path, meta]) => ({ path, meta }));
+  const items = await vectorItems(wiki.view, model, { nodes: pages, discussions });
+  let plan = items.filter((e) => options.force || e.status !== "current");
+  const privateCount = plan.filter((e) => !e.isPublic).length;
   if (!local && privateCount > 0) {
     if (options.localOnlyPrivate) {
-      plan = plan.filter((e) => e.node.isPublic);
+      plan = plan.filter((e) => e.isPublic);
       log.warn(
-        yellow(`${privateCount} private page(s) skipped: remote provider (--local-only-private).`),
+        yellow(
+          `${privateCount} private element(s) skipped: remote provider (--local-only-private).`,
+        ),
       );
     } else {
       log.warn(
         yellow(
-          `The content of ${privateCount} private page(s) is going to be sent to ${label} (${model}).`,
+          `The content of ${privateCount} private element(s) is going to be sent to ${label} (${model}).`,
         ),
       );
     }
   }
-  const current = entries.filter((e) => e.status === "current").length;
+  const current = items.filter((e) => e.status === "current").length;
+  const count = (kind: string): number => plan.filter((e) => e.kind === kind).length;
   log.info(
-    bold(`${plan.length} embedding(s) to compute with ${label} (${model}), ${current} current.`),
+    bold(
+      `${plan.length} embedding(s) to compute with ${label} (${model}): ${count("page")} page(s), ${count("discussion")} discussion(s), ${count("section")} section(s) of source indexes; ${current} current.`,
+    ),
   );
   if (plan.length === 0) return 0;
   if (options.dryRun) {
-    for (const e of plan)
-      log.info(`  ${e.status === "missing" ? "new" : "redo"} ${embeddingPath(e.node)}`);
+    for (const e of plan) {
+      const what = e.kind === "section" ? `${e.file} [${e.sectionKey}]` : e.file;
+      log.info(`  ${e.status === "missing" ? "new" : "redo"} ${what}`);
+    }
     return 0;
   }
 
@@ -112,13 +135,15 @@ export async function embedCommand(options: EmbedOptions, log: Logger): Promise<
     if (error instanceof AIError) throw new CliError(error.message);
     throw error;
   }
-  for (const [i, entry] of plan.entries()) {
-    const path = embeddingPath(entry.node);
-    const doc = newEmbeddingDocument({ model, textSha: entry.textSha, vector: vectors[i]! });
-    await writeFile(join(wiki.dir, path), serializeEmbedding(doc));
-    log.info(`  ${green("written")} ${path}`);
+  const computed = new Map(plan.map((e, i) => [e.id, vectors[i]!]));
+  const changes = embeddingChanges(items, computed, model);
+  for (const change of changes) {
+    if (change.op !== "write") continue;
+    await mkdir(dirname(join(wiki.dir, change.path)), { recursive: true });
+    await writeFile(join(wiki.dir, change.path), change.content);
+    log.info(`  ${green("written")} ${change.path}`);
   }
-  log.info(bold(`${plan.length} embedding(s) written.`));
-  log.info(dim("Commit them: the app's semantic search uses them."));
+  log.info(bold(`${plan.length} embedding(s) written in ${changes.length} file(s).`));
+  log.info(dim("Commit them: the app's search by meaning uses them."));
   return 0;
 }
