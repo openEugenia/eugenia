@@ -10,7 +10,8 @@ import {
   dirname,
   discussionAncestors,
   discussionText,
-  findKnowledgeNode,
+  findIndexNode,
+  indexAncestry,
   hierarchyAncestors,
   isCategory,
   isSearchableDiscussion,
@@ -21,13 +22,15 @@ import {
   parseKnowledgeBody,
   parsePage,
   parseSectionId,
-  parseSourceTree,
+  readSourceIndex,
   parseSummary,
   PROMPTS_DIR,
   scopedChildren,
   sectionId,
+  type ExtractionPlan,
   type Hierarchy,
-  type KnowledgeNode,
+  type KnowledgeCandidate,
+  type SourceIndexNode,
   type PageType,
   type PlacedDiscussion,
   type SummaryDocument,
@@ -36,7 +39,10 @@ import {
   type WikiView,
 } from "@openeugenia/core";
 import { isPromptName, type PromptOverrides } from "./prompts/index.ts";
+import { isAbortError } from "./errors.ts";
 import type { TreeEntry, TreeNavigator } from "./tasks/ask.ts";
+import { categorizeKnowledge } from "./tasks/categorize.ts";
+import type { TaskContext } from "./tasks/context.ts";
 import type { CategoryOption } from "./tasks/extract.ts";
 import type { SummaryInput } from "./tasks/summarize.ts";
 
@@ -188,14 +194,13 @@ export function treeNavigator(
   const visible = (node: WikiNode): boolean => scope === "private" || node.isPublic;
   const visibleDiscussion = (d: PlacedDiscussion): boolean =>
     isSearchableDiscussion(d.meta) && (scope === "private" || d.meta.visibility === "public");
-  const indexes = new Map<string, Promise<KnowledgeNode | null>>();
-  const indexOf = (source: WikiNode): Promise<KnowledgeNode | null> => {
-    const file = source.sourceTree;
-    if (!file || !view.files.has(file.path)) return Promise.resolve(null);
+  const indexes = new Map<string, Promise<SourceIndexNode | null>>();
+  const indexOf = (source: WikiNode): Promise<SourceIndexNode | null> => {
+    if (!source.sourceIndex?.root) return Promise.resolve(null);
     let loaded = indexes.get(source.id);
     if (!loaded) {
-      loaded = view.readText(file.path).then(
-        (text) => parseSourceTree(text).root,
+      loaded = readSourceIndex(view, source).then(
+        (doc) => doc?.root ?? null,
         () => null,
       );
       indexes.set(source.id, loaded);
@@ -240,14 +245,9 @@ export function treeNavigator(
     if (withPath) entry.path = pagePath(node);
     return entry;
   };
-  const sectionEntry = (
-    source: WikiNode,
-    key: string,
-    node: KnowledgeNode,
-    path?: string[],
-  ): TreeEntry => {
+  const sectionEntry = (source: WikiNode, node: SourceIndexNode, path?: string[]): TreeEntry => {
     const entry: TreeEntry = {
-      id: sectionId(source.id, key),
+      id: sectionId(source.id, node.key),
       title: node.name,
       type: "section",
       hasChildren: node.children.length > 0,
@@ -270,13 +270,13 @@ export function treeNavigator(
   /** Source and node of a section, if visible. */
   const section = async (
     id: string,
-  ): Promise<{ source: WikiNode; key: string; node: KnowledgeNode } | undefined> => {
+  ): Promise<{ source: WikiNode; index: SourceIndexNode; node: SourceIndexNode } | undefined> => {
     const ref = parseSectionId(id);
     const source = ref ? tree.nodes.get(ref.sourceId) : undefined;
     if (!ref || !source || source.type !== "source" || !visible(source)) return undefined;
     const index = await indexOf(source);
-    const node = index ? findKnowledgeNode(index, ref.key) : undefined;
-    return node ? { source, key: ref.key, node } : undefined;
+    const node = index ? findIndexNode(index, ref.key) : undefined;
+    return index && node ? { source, index, node } : undefined;
   };
   const discussion = (id: string): PlacedDiscussion | undefined => {
     const d = hierarchy.discussionById.get(id);
@@ -301,30 +301,23 @@ export function treeNavigator(
       if (node) return visible(node) && !node.virtual ? pageEntry(node, true) : undefined;
       const found = await section(id);
       if (found) {
-        const index = (await indexOf(found.source))!;
-        const keys = found.key.split(".");
-        const path = [...pagePath(found.source), found.source.title];
-        for (let i = 1; i < keys.length; i++) {
-          path.push(findKnowledgeNode(index, keys.slice(0, i).join("."))!.name);
-        }
-        return sectionEntry(found.source, found.key, found.node, path);
+        // Enclosing sections, between the source and the section.
+        const between = indexAncestry(found.index, found.node.key).slice(1, -1);
+        const path = [...pagePath(found.source), found.source.title, ...between.map((n) => n.name)];
+        return sectionEntry(found.source, found.node, path);
       }
       const d = discussion(id);
       return d ? discussionEntry(d, true) : undefined;
     },
     async children(id) {
       const found = await section(id);
-      if (found) {
-        return found.node.children.map((child, i) =>
-          sectionEntry(found.source, `${found.key}.${i + 1}`, child),
-        );
-      }
+      if (found) return found.node.children.map((child) => sectionEntry(found.source, child));
       const node = tree.nodes.get(id);
       if (!node || !visible(node)) return [];
       const out: TreeEntry[] = await Promise.all(navigable(node).map((n) => pageEntry(n, false)));
       if (node.type === "source") {
         const index = await indexOf(node);
-        index?.children.forEach((child, i) => out.push(sectionEntry(node, String(i + 1), child)));
+        for (const child of index?.children ?? []) out.push(sectionEntry(node, child));
       }
       for (const d of discussionsAt(node.id)) out.push(discussionEntry(d, false));
       return out;
@@ -336,6 +329,9 @@ export function treeNavigator(
         const subsections = node.children.map((c) => c.name);
         return [
           node.description,
+          node.knowledge.length > 0
+            ? `Key facts:\n${node.knowledge.map((k) => `- ${markdownToText(k.statement)}`).join("\n")}`
+            : "",
           subsections.length > 0 ? `Subsections: ${subsections.join("; ")}.` : "",
         ]
           .filter(Boolean)
@@ -376,6 +372,45 @@ export function treeNavigator(
       return cards.length > 0 ? `${text}\n\nFlashcards:\n${cards.join("\n")}` : text;
     },
   };
+}
+
+/**
+ * Plan to add the knowledge proposed by the index of a source to the wiki, without review:
+ * Eugenia files it in the categories of the wiki, as for an extraction (§8.1), creating the
+ * categories that group it best. If she cannot, everything goes to the category of the source.
+ */
+export async function indexExtractionPlan(
+  context: TaskContext,
+  view: WikiView,
+  source: WikiNode,
+  candidates: readonly KnowledgeCandidate[],
+  summary?: string,
+): Promise<ExtractionPlan & { categorized: boolean }> {
+  const fallback = source.filedIn ?? view.tree.rootId;
+  const all = (): ExtractionPlan & { categorized: boolean } => ({
+    sourceId: source.id,
+    knowledge: candidates.map((c) => ({ ...c, category: fallback })),
+    categorized: false,
+  });
+  if (candidates.length === 0) return all();
+  try {
+    const plan = await categorizeKnowledge(context, {
+      document: source.title,
+      ...(summary ? { excerpt: summary } : {}),
+      categories: categoryOptions(view),
+      knowledge: candidates.map((c) => ({ title: c.title, knowledge: c.statement })),
+      fallbackId: fallback,
+    });
+    return {
+      sourceId: source.id,
+      categories: plan.newCategories.map((c) => ({ key: c.key, title: c.title, parent: c.parent })),
+      knowledge: candidates.map((c, i) => ({ ...c, category: plan.assignments[i] ?? fallback })),
+      categorized: true,
+    };
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    return all();
+  }
 }
 
 /** Prompts overridden by the wiki: `.notes/prompts/<name>.md`. */

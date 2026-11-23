@@ -1,6 +1,7 @@
 /**
  * Discussions: all the exchanges with Eugenia in one place (free discussions, questions about
- * the tree, quizzes, quick notes), filterable by kind, with the page each one is attached to.
+ * the tree, quizzes, quick notes), filterable by kind and by branch of the wiki (common
+ * hierarchy), with the page each one is attached to.
  */
 import { useMemo, useState } from "react";
 import {
@@ -10,8 +11,9 @@ import {
   MessagesSquare,
   Search,
   StickyNote,
+  X,
 } from "lucide-react";
-import { DISCUSSION_KINDS, type DiscussionKind } from "@openeugenia/core";
+import { discussionsInBranch, DISCUSSION_KINDS, type DiscussionKind } from "@openeugenia/core";
 import {
   DiscussionKindIcon,
   DISCUSSION_KIND_LABELS,
@@ -34,17 +36,40 @@ function period(value: string | undefined, now: Date): string {
   return date.toLocaleDateString("en", { month: "long", year: "numeric" });
 }
 
-export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string }) {
+export function DiscussionsView({
+  kind,
+  q,
+  category,
+}: {
+  kind?: DiscussionKind;
+  q?: string;
+  /** Only the discussions placed in this branch of the wiki. */
+  category?: string;
+}) {
   const derived = useDerived();
   const owner = useIsOwner();
   const editable = useCanEdit();
   const [query, setQuery] = useState(q ?? "");
+  const branch = category ? derived.tree.nodes.get(category) : undefined;
+  const inBranch = useMemo(
+    () =>
+      branch
+        ? new Set(
+            discussionsInBranch(derived.tree, derived.hierarchy, branch.id).map((d) => d.path),
+          )
+        : null,
+    [branch, derived.tree, derived.hierarchy],
+  );
+  const listed = useMemo(
+    () => derived.discussions.filter((d) => !inBranch || inBranch.has(d.path)),
+    [derived.discussions, inBranch],
+  );
 
   const counts = useMemo(() => {
     const out = new Map<DiscussionKind, number>();
-    for (const d of derived.discussions) out.set(d.meta.kind, (out.get(d.meta.kind) ?? 0) + 1);
+    for (const d of listed) out.set(d.meta.kind, (out.get(d.meta.kind) ?? 0) + 1);
     return out;
-  }, [derived.discussions]);
+  }, [listed]);
 
   const quizScores = useMemo(() => {
     const out = new Map<string, { sum: number; count: number }>();
@@ -62,7 +87,7 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
     const words = normalizeTerm(query.trim()).split(/\s+/).filter(Boolean);
     const now = new Date();
     const out: { label: string; entries: DiscussionEntry[] }[] = [];
-    for (const entry of derived.discussions) {
+    for (const entry of listed) {
       if (kind && entry.meta.kind !== kind) continue;
       if (words.length > 0) {
         const related = [entry.meta.about, entry.meta.scope_node]
@@ -79,11 +104,16 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
       else out.push({ label, entries: [entry] });
     }
     return out;
-  }, [derived.discussions, derived.tree, kind, query]);
+  }, [listed, derived.tree, kind, query]);
 
   const setKind = (next: DiscussionKind | undefined): void =>
     navigate(
-      { name: "discussions", ...(next ? { kind: next } : {}), ...(query ? { q: query } : {}) },
+      {
+        name: "discussions",
+        ...(next ? { kind: next } : {}),
+        ...(query ? { q: query } : {}),
+        ...(category ? { category } : {}),
+      },
       { replace: true },
     );
 
@@ -153,6 +183,17 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
             aria-label="Search the discussions"
           />
         </label>
+        {branch && (
+          <div className="chips" role="group" aria-label="Branch">
+            <a
+              className="chip is-active"
+              href={href({ name: "discussions", ...(kind ? { kind } : {}) })}
+              title="Show the discussions of the whole wiki"
+            >
+              In {branch.title} <X aria-hidden="true" className="inline-icon" />
+            </a>
+          </div>
+        )}
         <div className="chips" role="group" aria-label="Kind of discussion">
           <button
             type="button"
@@ -160,7 +201,7 @@ export function DiscussionsView({ kind, q }: { kind?: DiscussionKind; q?: string
             aria-pressed={!kind}
             onClick={() => setKind(undefined)}
           >
-            All <span className="chip__count">{derived.discussions.length}</span>
+            All <span className="chip__count">{listed.length}</span>
           </button>
           {DISCUSSION_KINDS.map((k) => (
             <button

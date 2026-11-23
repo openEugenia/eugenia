@@ -485,7 +485,7 @@ function DiscussionList({ entries }: { entries: DiscussionEntry[] }) {
   );
 }
 
-export function NodeView({ id, section }: { id: string; section?: string }) {
+export function NodeView({ id }: { id: string }) {
   const derived = useDerived();
   const owner = useIsOwner();
   const editable = useCanEdit();
@@ -811,9 +811,7 @@ export function NodeView({ id, section }: { id: string; section?: string }) {
         </section>
       )}
 
-      {isSource && !isRecord && !node.virtual && (
-        <SourceIndexPanel node={node} {...(section ? { section } : {})} />
-      )}
+      {isSource && !isRecord && !node.virtual && <SourceIndexPanel node={node} />}
 
       {isSource && (
         <section className="section">

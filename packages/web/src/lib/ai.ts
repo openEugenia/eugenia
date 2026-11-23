@@ -66,15 +66,17 @@ export async function embeddingAccess(sendsPrivate = false): Promise<EmbeddingAc
 }
 
 /**
- * Context of the indexing of a source (Mistral Large by default). A private source follows the
- * "local AI for private content" rule: with a remote indexing provider, it is refused.
+ * Context of the indexing of a source (the preset of the settings, or `preset`). A private
+ * source follows the "local AI for private content" rule: with a remote indexing provider, it is
+ * refused.
  */
 export async function indexingContext(
   isPrivate: boolean,
   signal?: AbortSignal,
+  preset?: string,
 ): Promise<TaskContext> {
   const { AIError, createProvider } = await import("@openeugenia/ai");
-  const config = indexingConfig(useSettings.getState().settings);
+  const config = indexingConfig(useSettings.getState().settings, preset);
   if (!config) {
     throw new AIError(
       "config",

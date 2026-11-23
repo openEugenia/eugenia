@@ -1,17 +1,15 @@
 /**
- * Wiki tree (side panel): the common hierarchy (§5.10) — categories and atomic knowledge, the
- * sources filed in the categories and, on demand, the discussions placed under the pages —
- * collapsible, badges, gauges, drag and drop (a source dropped on a category is filed in it)
- * (§9.2). Flashcards are viewed from their knowledge item.
+ * Wiki tree (side panel): categories and atomic knowledge, collapsible, badges, gauges, drag and
+ * drop (§9.2). Flashcards are viewed from their knowledge item. The library and the discussions
+ * share this hierarchy (§5.10): each branch shows, discreetly, how many sources and discussions
+ * it holds, which open the library or the discussions filtered on it.
  */
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Library, MessagesSquare } from "lucide-react";
 import {
   hierarchyAncestors,
   isAncestorOf,
-  isCategory,
   placementProblem,
-  type PlacedDiscussion,
   type WikiNode,
   type WikiTree,
 } from "@openeugenia/core";
@@ -19,7 +17,7 @@ import { branchMasteryMap } from "../lib/mastery.ts";
 import { href } from "../lib/router.ts";
 import type { Derived } from "../lib/workspace.ts";
 import { MasteryMeter } from "./charts.tsx";
-import { DiscussionKindIcon, TypeIcon, UnsourcedBadge, VisibilityBadge } from "./common.tsx";
+import { TypeIcon, UnsourcedBadge, VisibilityBadge } from "./common.tsx";
 
 interface TreeViewProps {
   derived: Derived;
@@ -33,20 +31,32 @@ interface TreeViewProps {
 
 const DRAG_TYPE = "application/x-eugenia-node";
 
-interface Shown {
-  sources: boolean;
-  discussions: boolean;
-}
-
-function loadShown(): Shown {
-  try {
-    const raw = localStorage.getItem("eugenia:tree:shown");
-    return raw
-      ? { sources: true, discussions: false, ...(JSON.parse(raw) as Partial<Shown>) }
-      : { sources: true, discussions: false };
-  } catch {
-    return { sources: true, discussions: false };
+/**
+ * Number of sources and discussions in each branch: a source counts for the category it is filed
+ * in and its ancestors, a discussion for the page it is placed under and its ancestors.
+ */
+function branchCounts(derived: Derived): {
+  sources: Map<string, number>;
+  discussions: Map<string, number>;
+} {
+  const { tree, hierarchy } = derived;
+  const add = (counts: Map<string, number>, node: WikiNode | undefined): void => {
+    if (!node) return;
+    for (const n of [...hierarchyAncestors(tree, node), node]) {
+      counts.set(n.id, (counts.get(n.id) ?? 0) + 1);
+    }
+  };
+  const sources = new Map<string, number>();
+  for (const list of hierarchy.sourcesAt.values()) {
+    for (const source of list) add(sources, tree.nodes.get(source.filedIn!));
   }
+  const discussions = new Map<string, number>();
+  for (const place of hierarchy.placeOf.values()) {
+    const node = tree.nodes.get(place);
+    // A discussion about a source counts in the category of the source.
+    add(discussions, node?.type === "source" ? tree.nodes.get(node.filedIn ?? "") : node);
+  }
+  return { sources, discussions };
 }
 
 function loadExpanded(key: string): Set<string> {
@@ -67,25 +77,9 @@ export function TreeView({
   onMove,
   onNavigate,
 }: TreeViewProps) {
-  const { tree, mastery, summaryStates, pendingNodes, config, hierarchy } = derived;
+  const { tree, mastery, summaryStates, pendingNodes, config } = derived;
   const [expanded, setExpanded] = useState<Set<string>>(() => loadExpanded(storageKey));
-  const [shown, setShown] = useState<Shown>(loadShown);
-  const toggleShown = (key: keyof Shown): void =>
-    setShown((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try {
-        localStorage.setItem("eugenia:tree:shown", JSON.stringify(next));
-      } catch {
-        // storage unavailable
-      }
-      return next;
-    });
-  const filedSources = (id: string): WikiNode[] =>
-    shown.sources ? (hierarchy.sourcesAt.get(id) ?? []) : [];
-  const placedDiscussions = (id: string): PlacedDiscussion[] =>
-    shown.discussions
-      ? (hierarchy.discussionsAt.get(id) ?? []).filter((d) => d.meta.kind !== "quiz")
-      : [];
+  const counts = useMemo(() => branchCounts(derived), [derived]);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const branch = useMemo(() => branchMasteryMap(tree, mastery), [tree, mastery]);
@@ -122,11 +116,6 @@ export function TreeView({
 
   const canDrop = (targetId: string): boolean => {
     const moving = dragging ? tree.nodes.get(dragging) : undefined;
-    // A source is filed in a category by dropping it there.
-    if (moving?.type === "source") {
-      const target = tree.nodes.get(targetId);
-      return target !== undefined && isCategory(target) && moving.filedIn !== targetId;
-    }
     return (
       moving !== undefined &&
       moving.id !== targetId &&
@@ -142,9 +131,9 @@ export function TreeView({
       node.type === "knowledge"
         ? []
         : node.childIds.filter((id) => tree.nodes.get(id)?.type !== "flashcard");
-    const sources = node.type === "category" ? filedSources(node.id) : [];
-    const discussions = node.type === "source" ? [] : placedDiscussions(node.id);
-    const hasChildren = visibleChildren.length + sources.length + discussions.length > 0;
+    const hasChildren = visibleChildren.length > 0;
+    const sourceCount = counts.sources.get(node.id) ?? 0;
+    const discussionCount = counts.discussions.get(node.id) ?? 0;
     const stale =
       owner && ["stale", "missing"].includes(summaryStates.private.get(node.id)?.status ?? "");
     const branchMastery = branch.get(node.id);
@@ -205,11 +194,36 @@ export function TreeView({
             href={href({ name: "node", id: node.id })}
             aria-current={node.id === highlighted ? "page" : undefined}
             onClick={onNavigate}
+            title={node.title}
           >
             <TypeIcon node={node} tree={tree} />
             <span className="title">{node.title}</span>
           </a>
           <span className="tree-flags">
+            {sourceCount > 0 && (
+              <a
+                className="tree-count"
+                href={href({ name: "library", category: node.id })}
+                title={`${sourceCount} source(s) in this branch`}
+                aria-label={`Sources of this branch: ${sourceCount}`}
+                onClick={onNavigate}
+              >
+                <Library aria-hidden="true" />
+                {sourceCount}
+              </a>
+            )}
+            {discussionCount > 0 && (
+              <a
+                className="tree-count"
+                href={href({ name: "discussions", category: node.id })}
+                title={`${discussionCount} discussion(s) in this branch`}
+                aria-label={`Discussions of this branch: ${discussionCount}`}
+                onClick={onNavigate}
+              >
+                <MessagesSquare aria-hidden="true" />
+                {discussionCount}
+              </a>
+            )}
             {node.type === "knowledge" && !node.sourced && <UnsourcedBadge compact />}
             {owner && branchMastery?.value !== undefined && (
               <MasteryMeter
@@ -233,97 +247,6 @@ export function TreeView({
         {hasChildren && open && (
           <ul className="tree">
             {visibleChildren.map((id) => renderNode(tree.nodes.get(id)!, tree))}
-            {sources.map((source) => renderSource(source))}
-            {discussions.map((d) => (
-              <li key={d.path}>
-                <div className="tree-row tree-row--secondary">
-                  <span className="tree-spacer" />
-                  <a
-                    href={href({ name: "discussion", path: d.path })}
-                    onClick={onNavigate}
-                    title={d.meta.preview ?? d.meta.title}
-                  >
-                    <DiscussionKindIcon kind={d.meta.kind} />
-                    <span className="title">{d.meta.title || "Discussion"}</span>
-                  </a>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </li>
-    );
-  };
-
-  /** A source filed in a category: a leaf, which can be dragged onto another category. */
-  const renderSource = (source: WikiNode): React.ReactNode => {
-    const discussions = placedDiscussions(source.id);
-    const open = expanded.has(source.id);
-    return (
-      <li key={source.id}>
-        <div
-          className={`tree-row tree-row--secondary${source.id === highlighted ? " is-current" : ""}`}
-          {...(canEdit
-            ? {
-                draggable: true,
-                onDragStart: (e: DragEvent) => {
-                  e.dataTransfer.setData(DRAG_TYPE, source.id);
-                  e.dataTransfer.effectAllowed = "move";
-                  setDragging(source.id);
-                },
-                onDragEnd: () => {
-                  setDragging(null);
-                  setDropTarget(null);
-                },
-              }
-            : {})}
-        >
-          {discussions.length > 0 ? (
-            <button
-              type="button"
-              className="tree-toggle"
-              onClick={() => toggle(source.id)}
-              aria-label={open ? `Collapse ${source.title}` : `Expand ${source.title}`}
-              aria-expanded={open}
-            >
-              {open ? <ChevronDown /> : <ChevronRight />}
-            </button>
-          ) : (
-            <span className="tree-spacer" />
-          )}
-          <a
-            href={href({ name: "node", id: source.id })}
-            aria-current={source.id === highlighted ? "page" : undefined}
-            onClick={onNavigate}
-          >
-            <TypeIcon node={source} tree={tree} />
-            <span className="title">{source.title}</span>
-          </a>
-          <span className="tree-flags">
-            {pendingNodes.has(source.id) && (
-              <span
-                className="flag-dot flag-dot--pending"
-                title="Changed, not saved to the repository yet"
-              />
-            )}
-            {owner && (
-              <VisibilityBadge visibility={source.isPublic ? "public" : "private"} compact />
-            )}
-          </span>
-        </div>
-        {open && discussions.length > 0 && (
-          <ul className="tree">
-            {discussions.map((d) => (
-              <li key={d.path}>
-                <div className="tree-row tree-row--secondary">
-                  <span className="tree-spacer" />
-                  <a href={href({ name: "discussion", path: d.path })} onClick={onNavigate}>
-                    <DiscussionKindIcon kind={d.meta.kind} />
-                    <span className="title">{d.meta.title || "Discussion"}</span>
-                  </a>
-                </div>
-              </li>
-            ))}
           </ul>
         )}
       </li>
@@ -333,23 +256,8 @@ export function TreeView({
   const root = tree.nodes.get(tree.rootId);
   if (!root) return null;
   return (
-    <>
-      <div className="chips tree-filters" role="group" aria-label="Shown in the tree">
-        {(["sources", "discussions"] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            className={`chip${shown[key] ? " is-active" : ""}`}
-            aria-pressed={shown[key]}
-            onClick={() => toggleShown(key)}
-          >
-            {key === "sources" ? "Sources" : "Discussions"}
-          </button>
-        ))}
-      </div>
-      <ul className="tree" aria-label="Wiki tree">
-        {renderNode(root, tree)}
-      </ul>
-    </>
+    <ul className="tree" aria-label="Wiki tree">
+      {renderNode(root, tree)}
+    </ul>
   );
 }

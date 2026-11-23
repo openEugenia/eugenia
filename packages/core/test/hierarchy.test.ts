@@ -7,23 +7,27 @@ import {
   deleteNode,
   discussionInBranch,
   embeddingChanges,
-  findKnowledgeNode,
+  discussionsInBranch,
+  findIndexNode,
   hierarchyAncestors,
+  indexAncestry,
+  indexKnowledge,
   isInBranch,
   metasFromIndex,
-  newSourceTreeDocument,
+  normalizeKnowledgeTree,
   parsePage,
   parseSectionEmbeddings,
   parseSectionId,
-  parseSourceTree,
+  readSourceIndex,
   sectionId,
-  serializeSourceTree,
+  sourceIndexChanges,
+  sourceIndexState,
+  sourceIndexStatus,
   sourceIndexText,
   sourceIndexTextSha,
   sourceSections,
   sourcesIn,
   sourcesInBranch,
-  sourceTreeStatus,
   updatePage,
   validateWiki,
   vectorItems,
@@ -40,6 +44,14 @@ const TREE: KnowledgeNode = {
     {
       name: "Origins",
       description: "Lilith comes from Mesopotamian demonology.",
+      knowledge: [
+        {
+          title: "Mesopotamian origin of Lilith",
+          statement: "**Lilith** comes from Mesopotamian demonology.",
+          question: "Where does the figure of Lilith come from?",
+          answer: "Mesopotamian demonology",
+        },
+      ],
       children: [{ name: "Lilitu", description: "Mesopotamian wind demons.", children: [] }],
     },
     { name: "Black Moon", description: "In astrology, the apogee of the Moon.", children: [] },
@@ -187,47 +199,114 @@ describe("common hierarchy", () => {
   });
 });
 
-describe("index of a source (_tree.json)", () => {
-  it("reads back the tree and addresses its sections", async () => {
-    const doc = newSourceTreeDocument({
-      model: "mistral-large-latest",
-      textSha: "abc1234",
-      root: TREE,
-      now: new Date("2026-11-23T10:00:00.500Z"),
-    });
-    const text = serializeSourceTree(doc);
-    expect(JSON.parse(text)).toMatchObject({
-      format: "eugenia-source-tree",
-      version: 1,
-      model: "mistral-large-latest",
-      text_sha: "abc1234",
-      generated: "2026-11-23T10:00:00Z",
-      root: { name: "Article on Lilith" },
-    });
-    expect(parseSourceTree(text)).toEqual(doc);
-    expect(() => parseSourceTree('{"format": "other"}')).toThrow();
+/** Files of the index of the article, generated like the app does. */
+async function indexed(files: Files, root: KnowledgeNode = TREE): Promise<Files> {
+  const wiki = await memoryWiki(files);
+  const changes = sourceIndexChanges(wiki.view, wiki.tree.nodes.get("SRC")!, {
+    model: "mistral-large-latest",
+    textSha: "abc1234",
+    root,
+    now: new Date("2026-11-23T10:00:00.500Z"),
+  });
+  return applyChanges(files, changes);
+}
+
+describe("index of a source (_index/, one page per node)", () => {
+  it("writes one Markdown page per node, like the wiki, and reads the tree back", async () => {
+    const files = await indexed(BASE);
+    expect(Object.keys(files).filter((p) => p.startsWith("library/article/_index/"))).toEqual([
+      "library/article/_index/index.md",
+      "library/article/_index/origins/index.md",
+      "library/article/_index/origins/lilitu/index.md",
+      "library/article/_index/black-moon/index.md",
+    ]);
+    expect(files["library/article/_index/index.md"]).toBe(
+      "---\ntype: source-index\ntitle: Article on Lilith\nmodel: mistral-large-latest\ntext_sha: abc1234\ngenerated: 2026-11-23T10:00:00Z\n---\n\nThe figure of Lilith, from Mesopotamia to astrology.\n",
+    );
+    expect(files["library/article/_index/origins/index.md"]).toBe(
+      [
+        "---",
+        "type: section",
+        "title: Origins",
+        "order: 1",
+        "---",
+        "",
+        "Lilith comes from Mesopotamian demonology.",
+        "",
+        "## Knowledge to extract",
+        "",
+        "### Mesopotamian origin of Lilith",
+        "**Lilith** comes from Mesopotamian demonology.",
+        "",
+        "- Question: Where does the figure of Lilith come from?",
+        "- Answer: Mesopotamian demonology",
+        "",
+      ].join("\n"),
+    );
+    const wiki = await memoryWiki(files);
+    const source = wiki.tree.nodes.get("SRC")!;
+    expect(source.sourceIndex?.root?.path).toBe("library/article/_index/index.md");
+    expect(source.sourceIndex?.pages).toHaveLength(4);
+    // The pages of the index are not pages of the library.
+    expect(wiki.tree.problems.filter((p) => p.code === "nested-source")).toEqual([]);
+    const doc = (await readSourceIndex(wiki.view, source))!;
+    expect(doc).toMatchObject({ model: "mistral-large-latest", textSha: "abc1234" });
+    expect(doc.root.children.map((c) => c.key)).toEqual(["origins", "black-moon"]);
+    expect(doc.root.children[0]!.knowledge).toEqual(TREE.children[0]!.knowledge);
 
     const sections = sourceSections("SRC", doc.root);
     expect(sections.map((s) => `${s.key} ${s.name} [${s.path.join("/")}]`)).toEqual([
-      "1 Origins []",
-      "1.1 Lilitu [Origins]",
-      "2 Black Moon []",
+      "origins Origins []",
+      "origins/lilitu Lilitu [Origins]",
+      "black-moon Black Moon []",
     ]);
-    expect(sections[0]!.childKeys).toEqual(["1.1"]);
-    expect(sectionId("SRC", "1.1")).toBe("SRC#1.1");
-    expect(parseSectionId("SRC#1.1")).toEqual({ sourceId: "SRC", key: "1.1" });
+    expect(sections[0]!.childKeys).toEqual(["origins/lilitu"]);
+    expect(sectionId("SRC", "origins/lilitu")).toBe("SRC#origins/lilitu");
+    expect(parseSectionId("SRC#origins/lilitu")).toEqual({
+      sourceId: "SRC",
+      key: "origins/lilitu",
+    });
     expect(parseSectionId("SRC")).toBeNull();
-    expect(findKnowledgeNode(doc.root, "1.1")?.name).toBe("Lilitu");
-    expect(findKnowledgeNode(doc.root, "3")).toBeUndefined();
+    expect(findIndexNode(doc.root, "origins/lilitu")?.name).toBe("Lilitu");
+    expect(findIndexNode(doc.root, "origins/other")).toBeUndefined();
+    expect(indexAncestry(doc.root, "origins/lilitu").map((n) => n.name)).toEqual([
+      "Article on Lilith",
+      "Origins",
+      "Lilitu",
+    ]);
+    expect(indexKnowledge(doc.root).map((k) => k.key)).toEqual(["origins"]);
+  });
+
+  it("replaces a previous index, and follows its source when it is renamed", async () => {
+    const files = await indexed(BASE);
+    const again = await indexed(
+      {
+        ...files,
+        "library/article/_tree.json": "{}",
+        "library/article/_tree.embeddings.json": "{}",
+      },
+      { ...TREE, children: [TREE.children[1]!] },
+    );
+    // The first format of the index (JSON) is replaced.
+    expect(again["library/article/_tree.json"]).toBeUndefined();
+    expect(again["library/article/_tree.embeddings.json"]).toBeUndefined();
+    expect(Object.keys(again).filter((p) => p.includes("/_index/"))).toEqual([
+      "library/article/_index/index.md",
+      "library/article/_index/black-moon/index.md",
+    ]);
+    const wiki = await memoryWiki(files);
+    const renamed = applyChanges(files, await updatePage(wiki.view, "SRC", { title: "Lilith" }));
+    expect(renamed["library/lilith/_index/origins/lilitu/index.md"]).toBe(
+      files["library/article/_index/origins/lilitu/index.md"],
+    );
   });
 
   it("cleans the generated tree and detects a changed source", async () => {
-    const doc = newSourceTreeDocument({
-      model: "m",
-      textSha: "x",
-      root: {
+    expect(
+      normalizeKnowledgeTree({
         name: "  Root  ",
         description: " About ",
+        knowledge: [{ title: "", statement: "  A **fact**. ", question: "Q?", answer: "A" }],
         children: [
           {
             name: " ",
@@ -235,25 +314,26 @@ describe("index of a source (_tree.json)", () => {
             children: [{ name: "Kept", description: "", children: [] }],
           },
         ],
-      },
-    });
-    expect(doc.root).toEqual({
+      }),
+    ).toEqual({
       name: "Root",
       description: "About",
-      children: [{ name: "Kept", description: "", children: [] }],
+      knowledge: [{ title: "Knowledge", statement: "A **fact**.", question: "Q?", answer: "A" }],
+      children: [{ name: "Kept", description: "", knowledge: [], children: [] }],
     });
-    const content = BASE["library/article/index.md"]!;
-    const text = sourceIndexText(content);
+    const text = sourceIndexText(BASE["library/article/index.md"]!);
     expect(text).toBe("# Article on Lilith\n\nLilith comes from Mesopotamia.");
     const sha = await sourceIndexTextSha(text);
-    expect(sourceTreeStatus({ ...doc, textSha: sha }, sha)).toBe("current");
-    expect(sourceTreeStatus({ ...doc, textSha: "0000000" }, sha)).toBe("stale");
-    expect(sourceTreeStatus(undefined, sha)).toBe("missing");
+    const wiki = await memoryWiki(await indexed(BASE));
+    const state = await sourceIndexState(wiki.view, wiki.tree.nodes.get("SRC")!);
+    expect(state.status).toBe("stale");
+    expect(sourceIndexStatus(state.meta, sha)).toBe("stale");
+    expect(sourceIndexStatus({ ...state.meta!, textSha: sha }, sha)).toBe("current");
+    expect(sourceIndexStatus(null, sha)).toBe("missing");
   });
 
   it("reports an unreadable index", async () => {
-    const wiki = await memoryWiki({ ...BASE, "library/article/_tree.json": "{ broken" });
-    expect(wiki.tree.nodes.get("SRC")?.sourceTree?.path).toBe("library/article/_tree.json");
+    const wiki = await memoryWiki({ ...BASE, "library/article/_index/origins/index.md": "x" });
     const problems = await validateWiki(wiki.view);
     expect(problems.map((p) => p.code)).toContain("invalid-source-index");
   });
@@ -261,10 +341,9 @@ describe("index of a source (_tree.json)", () => {
 
 describe("search by meaning across the hierarchy", () => {
   const unit = (i: number): number[] => Array.from({ length: 8 }, (_, j) => (j === i ? 1 : 0));
-  const tree = serializeSourceTree(newSourceTreeDocument({ model: "m", textSha: "x", root: TREE }));
 
   it("lists pages, discussions (except quizzes) and the sections of the indexes", async () => {
-    const wiki = await memoryWiki({ ...BASE, "library/article/_tree.json": tree });
+    const wiki = await memoryWiki(await indexed(BASE));
     const items = await vectorItems(wiki.view, "mistral-embed");
     const byKind = (kind: string): string[] =>
       items
@@ -272,16 +351,20 @@ describe("search by meaning across the hierarchy", () => {
         .map((i) => i.id)
         .sort();
     expect(byKind("discussion")).toEqual(["D1", "D2", "N"]);
-    expect(byKind("section")).toEqual(["SRC#1", "SRC#1.1", "SRC#2"]);
+    expect(byKind("section")).toEqual(["SRC#black-moon", "SRC#origins", "SRC#origins/lilitu"]);
     expect(byKind("page")).toContain("SRC");
     expect(byKind("page")).not.toContain("C");
-    const lilitu = items.find((i) => i.id === "SRC#1.1")!;
+    const lilitu = items.find((i) => i.id === "SRC#origins/lilitu")!;
     expect(lilitu.text).toBe("Article on Lilith › Origins › Lilitu\n\nMesopotamian wind demons.");
     expect(lilitu).toMatchObject({
       status: "missing",
       isPublic: true,
-      file: "library/article/_tree.embeddings.json",
+      file: "library/article/_index/_embeddings.json",
     });
+    // The knowledge proposed by a section is part of its meaning.
+    expect(items.find((i) => i.id === "SRC#origins")!.text).toContain(
+      "**Lilith** comes from Mesopotamian demonology.",
+    );
     const d1 = items.find((i) => i.id === "D1")!;
     expect(d1.text).toBe("About the card\n\nUser: Who is Lilith?\n\nEugenia: A demon.");
     expect(d1.file).toBe("discussions/_embeddings/2026-01-01-1000-about-card.json");
@@ -289,49 +372,50 @@ describe("search by meaning across the hierarchy", () => {
   });
 
   it("writes the vectors and keeps the current ones of the other sections", async () => {
-    const files = { ...BASE, "library/article/_tree.json": tree };
+    const files = await indexed(BASE);
     const wiki = await memoryWiki(files);
     const items = await vectorItems(wiki.view, "mistral-embed");
     const vectors = new Map(items.map((item, i) => [item.id, unit(i % 8)]));
     const changes = embeddingChanges(items, vectors, "mistral-embed");
     const written = applyChanges(files, changes);
     expect(Object.keys(written)).toContain("discussions/_embeddings/2026-01-01-1300-note.json");
-    const sections = parseSectionEmbeddings(written["library/article/_tree.embeddings.json"]!);
-    expect([...sections.items.keys()]).toEqual(["1", "1.1", "2"]);
+    const sections = parseSectionEmbeddings(written["library/article/_index/_embeddings.json"]!);
+    expect([...sections.items.keys()]).toEqual(["origins", "origins/lilitu", "black-moon"]);
 
     // Every vector is current; only one section changes.
     const again = await memoryWiki(written);
+    expect(again.tree.nodes.get("SRC")?.sourceIndex?.embeddings).toBeDefined();
     const current = await vectorItems(again.view, "mistral-embed");
     expect(current.filter((i) => i.status !== "current")).toEqual([]);
     expect(current.find((i) => i.id === "D1")?.vector).toBeDefined();
-    const one = new Map([["SRC#2", unit(3)]]);
+    const one = new Map([["SRC#black-moon", unit(3)]]);
     const [change] = embeddingChanges(current, one, "mistral-embed");
     const updated = parseSectionEmbeddings((change as { content: string }).content);
     expect(updated.items.size).toBe(3);
-    expect(cosineSimilarity(updated.items.get("2")!.vector, unit(3))).toBeGreaterThan(0.99);
+    expect(cosineSimilarity(updated.items.get("black-moon")!.vector, unit(3))).toBeGreaterThan(
+      0.99,
+    );
     expect(
-      cosineSimilarity(updated.items.get("1")!.vector, sections.items.get("1")!.vector),
+      cosineSimilarity(updated.items.get("origins")!.vector, sections.items.get("origins")!.vector),
     ).toBeGreaterThan(0.99);
   });
 });
 
-describe("publication of the common hierarchy", () => {
+describe("publication of the common hierarchy", async () => {
   const files: Files = {
-    ...BASE,
-    "library/article/_tree.json": serializeSourceTree(
-      newSourceTreeDocument({ model: "m", textSha: "x", root: TREE }),
-    ),
-    "library/article/_tree.embeddings.json": "{}",
-    "library/book/_tree.json": "{}",
+    ...(await indexed(BASE)),
+    "library/article/_index/_embeddings.json": "{}",
+    "library/book/_index/index.md": "---\ntype: source-index\ntext_sha: x\n---\n",
   };
 
   it("publishes the index of a public source, and a category only if it is public", async () => {
     const wiki = await memoryWiki(files);
     const publication = await buildPublication(wiki.view);
     const paths = publication.files.map((f) => f.path);
-    expect(paths).toContain("library/article/_tree.json");
-    expect(paths).not.toContain("library/article/_tree.embeddings.json");
-    expect(paths).not.toContain("library/book/_tree.json");
+    expect(paths).toContain("library/article/_index/index.md");
+    expect(paths).toContain("library/article/_index/origins/lilitu/index.md");
+    expect(paths).not.toContain("library/article/_index/_embeddings.json");
+    expect(paths).not.toContain("library/book/_index/index.md");
     expect(publication.stats.indexes).toBe(1);
     const content = (path: string): string =>
       (publication.files.find((f) => f.path === path) as { content: string }).content;
@@ -354,6 +438,21 @@ describe("publication of the common hierarchy", () => {
     });
     const metas = metasFromIndex(index);
     expect(metas.get("library/article/index.md")?.category).toBe("MYT");
+  });
+});
+
+describe("discussions of a branch", () => {
+  it("counts the discussions placed in a branch", async () => {
+    const wiki = await memoryWiki(BASE);
+    const hierarchy = buildHierarchy(
+      wiki.tree,
+      [...wiki.discussions].map(([path, meta]) => ({ path, meta })),
+    );
+    const ids = (id: string): string[] =>
+      discussionsInBranch(wiki.tree, hierarchy, id).map((d) => d.meta.id);
+    expect(ids("MYT")).toEqual(["D2", "D1"]);
+    expect(ids("REL")).toEqual(["Q", "D2", "D1"]);
+    expect(ids("R")).toHaveLength(4);
   });
 });
 

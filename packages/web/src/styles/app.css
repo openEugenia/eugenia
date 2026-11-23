@@ -1693,6 +1693,89 @@ dialog.modal::backdrop {
   color: var(--oe-color-text-muted);
 }
 
-.tree-filters {
-  margin: 0 0 var(--oe-space-2);
+/* Sources and discussions of a branch, in the wiki tree: discreet counters. */
+.tree-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.1rem;
+  border-radius: var(--oe-radius-sm);
+  color: var(--oe-color-text-muted);
+  font-size: var(--oe-font-size-xs);
+  text-decoration: none;
+}
+
+.tree-count:hover,
+.tree-count:focus-visible {
+  background-color: var(--oe-color-primary-subtle);
+  color: var(--oe-color-text);
+}
+
+.tree-count svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.preset-list {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--oe-space-1);
+}
+
+.index-summary {
+  margin: var(--oe-space-2) 0 var(--oe-space-4);
+}
+
+.proposed-knowledge {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--oe-space-2);
+}
+
+.proposed-knowledge > li {
+  display: grid;
+  gap: var(--oe-space-1);
+  padding: var(--oe-space-3);
+}
+
+.proposed-knowledge__title {
+  font-weight: var(--oe-font-weight-semibold);
+}
+
+.section-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--oe-space-2);
+}
+
+.indexing-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oe-space-2);
+}
+
+.index-status--current {
+  color: var(--oe-color-success);
+}
+
+.index-status--stale,
+.index-status--invalid {
+  color: var(--oe-color-warning);
+}
+
+.side-panel__filter {
+  align-self: flex-start;
+  margin-bottom: var(--oe-space-2);
+  text-decoration: none;
+}
+
+.proposed-knowledge__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--oe-space-2);
 }

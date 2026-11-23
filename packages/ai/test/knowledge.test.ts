@@ -3,8 +3,7 @@ import {
   buildHierarchy,
   gitBlobSha,
   loadWiki,
-  newSourceTreeDocument,
-  serializeSourceTree,
+  sourceIndexChanges,
   type KnowledgeNode,
 } from "@openeugenia/core";
 import {
@@ -14,6 +13,7 @@ import {
   createProvider,
   discussionRequest,
   gatherKnowledge,
+  indexExtractionPlan,
   indexSource,
   KnowledgeNodeSchema,
   messageText,
@@ -29,6 +29,7 @@ import { FakeProvider } from "./fake.ts";
 const leaf = (name: string, description = `About ${name}.`): KnowledgeNode => ({
   name,
   description,
+  knowledge: [],
   children: [],
 });
 
@@ -37,6 +38,7 @@ describe("indexing a source", () => {
     const tree = {
       name: "A",
       description: "a",
+      knowledge: [{ title: "Fact", statement: "**A** is a fact.", question: "What?", answer: "A" }],
       children: [{ ...leaf("B"), children: [leaf("C")] }],
     };
     expect(KnowledgeNodeSchema.parse(tree)).toEqual(tree);
@@ -47,6 +49,7 @@ describe("indexing a source", () => {
     const tree = {
       name: "Photosynthesis",
       description: "Light into sugar.",
+      knowledge: [],
       children: [leaf("Calvin cycle")],
     };
     const provider = new FakeProvider({ json: [tree] });
@@ -71,10 +74,16 @@ describe("indexing a source", () => {
     const text = Array.from({ length: 6 }, (_, i) => paragraph(i)).join("\n\n");
     const provider = new FakeProvider({
       json: [
-        { name: "Part 1", description: "First.", children: [leaf("Origins"), leaf("Myths")] },
+        {
+          name: "Part 1",
+          description: "First.",
+          knowledge: [],
+          children: [leaf("Origins"), leaf("Myths")],
+        },
         {
           name: "Part 2",
           description: "Second.",
+          knowledge: [],
           children: [leaf("Origins", "More origins."), leaf("Astrology")],
         },
         {
@@ -105,6 +114,7 @@ describe("indexing a source", () => {
     expect(result.children[0]).toEqual({
       name: "Origins",
       description: "About Origins.\n\nMore origins.",
+      knowledge: [],
       children: [],
     });
     expect(progress.some((p) => p.assembling)).toBe(true);
@@ -122,7 +132,12 @@ describe("indexing a source", () => {
       if (calls === 1) throw new AIError("invalid_output", "cut off");
       if (request.name === "assembly")
         return { name: "Whole", description: "All.", groups: [] } as T;
-      return { name: `Half ${calls}`, description: "", children: [leaf(`Topic ${calls}`)] } as T;
+      return {
+        name: `Half ${calls}`,
+        description: "",
+        knowledge: [],
+        children: [leaf(`Topic ${calls}`)],
+      } as T;
     };
     const result = await indexSource({ provider }, { title: "Long", text }, { minPartSize: 100 });
     expect(result.name).toBe("Whole");
@@ -193,24 +208,6 @@ describe("reasoning models (content in chunks)", () => {
 });
 
 describe("search in the common hierarchy", async () => {
-  const index = serializeSourceTree(
-    newSourceTreeDocument({
-      model: "m",
-      textSha: "x",
-      root: {
-        name: "Article on Lilith",
-        description: "From Mesopotamia to astrology.",
-        children: [
-          {
-            name: "Origins",
-            description: "Lilith comes from Mesopotamia.",
-            children: [leaf("Lilitu", "Wind demons.")],
-          },
-          leaf("Black Moon", "The apogee of the Moon."),
-        ],
-      },
-    }),
-  );
   const source: Record<string, string> = {
     ".notes/config.yml": "title: Test\nroot: wiki/\n",
     "wiki/index.md": "---\nid: R\ntitle: Root\nvisibility: public\n---\n",
@@ -219,7 +216,6 @@ describe("search in the common hierarchy", async () => {
       "---\nid: K\ntype: knowledge\ntitle: Lilith\nvisibility: public\n---\n\n**Lilith** is a demon.\n",
     "library/article/index.md":
       "---\nid: SRC\ntype: source\ntitle: Article on Lilith\ncategory: REL\nvisibility: public\n---\n\nFull text.\n",
-    "library/article/_tree.json": index,
     "library/secret/index.md":
       "---\nid: SEC\ntype: source\ntitle: Secret\ncategory: REL\n---\n\nHidden.\n",
     "discussions/2026-01-01-1000-chat.md":
@@ -227,6 +223,41 @@ describe("search in the common hierarchy", async () => {
     "discussions/2026-01-01-1100-quiz.md":
       "---\nid: Q\ntype: discussion\nkind: quiz\ntitle: Quiz\nscope_node: REL\n---\n",
   };
+  // The index of the article, written like the app does: one page per node.
+  const before = await Promise.all(
+    Object.entries(source).map(async ([path, text]) => ({ path, sha: await gitBlobSha(text) })),
+  );
+  const unindexed = await loadWiki({ files: before, readText: async (p) => source[p]! });
+  const index = sourceIndexChanges(
+    { config: unindexed.config, files: unindexed.files },
+    unindexed.tree.nodes.get("SRC")!,
+    {
+      model: "m",
+      textSha: "x",
+      root: {
+        name: "Article on Lilith",
+        description: "From Mesopotamia to astrology.",
+        knowledge: [],
+        children: [
+          {
+            name: "Origins",
+            description: "Lilith comes from Mesopotamia.",
+            knowledge: [
+              {
+                title: "Mesopotamian origin",
+                statement: "**Lilith** comes from Mesopotamia.",
+                question: "Where does Lilith come from?",
+                answer: "Mesopotamia",
+              },
+            ],
+            children: [leaf("Lilitu", "Wind demons.")],
+          },
+          leaf("Black Moon", "The apogee of the Moon."),
+        ],
+      },
+    },
+  );
+  for (const change of index) if (change.op === "write") source[change.path] = change.content;
   const files = await Promise.all(
     Object.entries(source).map(async ([path, text]) => ({ path, sha: await gitBlobSha(text) })),
   );
@@ -250,17 +281,20 @@ describe("search in the common hierarchy", async () => {
     expect(children[1]!.description).toBe("From Mesopotamia to astrology.");
     expect((await navigator.children("K")).map((c) => c.id)).toEqual(["D"]);
     expect((await navigator.children("SRC")).map((c) => `${c.id} ${c.title}`)).toEqual([
-      "SRC#1 Origins",
-      "SRC#2 Black Moon",
+      "SRC#origins Origins",
+      "SRC#black-moon Black Moon",
     ]);
-    expect((await navigator.children("SRC#1")).map((c) => c.id)).toEqual(["SRC#1.1"]);
-    expect(await navigator.content("SRC#1")).toBe(
-      "Lilith comes from Mesopotamia.\n\nSubsections: Lilitu.",
+    expect((await navigator.children("SRC#origins")).map((c) => c.id)).toEqual([
+      "SRC#origins/lilitu",
+    ]);
+    // The content of a section includes the knowledge it proposes.
+    expect(await navigator.content("SRC#origins")).toBe(
+      "Lilith comes from Mesopotamia.\n\nKey facts:\n- Lilith comes from Mesopotamia.\n\nSubsections: Lilitu.",
     );
     expect(await navigator.content("SRC")).toContain("Summary of the source (from its index)");
     expect(await navigator.content("SRC")).not.toContain("Full text.");
     expect(await navigator.content("D")).toBe("Chat\n\nUser: Is Lilith a demon?");
-    expect(await navigator.resolve("SRC#1.1")).toMatchObject({
+    expect(await navigator.resolve("SRC#origins/lilitu")).toMatchObject({
       title: "Lilitu",
       type: "section",
       path: ["Root", "Religion", "Article on Lilith", "Origins"],
@@ -281,7 +315,7 @@ describe("search in the common hierarchy", async () => {
     const navigator = treeNavigator(view, "private", { hierarchy });
     const provider = new FakeProvider({
       json: [{ explore: [], read: [], enough: true }],
-      text: ["Lilith comes from [Origins](eugenia:SRC#1). [Unread](eugenia:K)"],
+      text: ["Lilith comes from [Origins](eugenia:SRC#origins). [Unread](eugenia:K)"],
     });
     const events: AskEvent[] = [];
     for await (const event of askTree(
@@ -291,7 +325,7 @@ describe("search in the common hierarchy", async () => {
         scopeId: "R",
         navigator,
         candidates: [
-          { id: "SRC#1", score: 0.82 },
+          { id: "SRC#origins", score: 0.82 },
           { id: "Q", score: 0.8 },
         ],
         autoRead: 1,
@@ -299,18 +333,53 @@ describe("search in the common hierarchy", async () => {
     ))
       events.push(event);
     expect(events.slice(0, 2)).toEqual([
-      { type: "found", ids: ["SRC#1"] },
-      { type: "read", ids: ["SRC#1"] },
+      { type: "found", ids: ["SRC#origins"] },
+      { type: "read", ids: ["SRC#origins"] },
     ]);
     const exploration = provider.calls[0]!.messages[0]!.content;
     expect(exploration).toContain(
-      "- SRC#1 | Origins | section | has children | in: Root › Religion › Article on Lilith | found by meaning (82%)",
+      "- SRC#origins | Origins | section | has children | in: Root › Religion › Article on Lilith | found by meaning (82%)",
     );
     expect(exploration).toContain(
-      "### Origins (section, SRC#1)\nIn: Root › Religion › Article on Lilith",
+      "### Origins (section, SRC#origins)\nIn: Root › Religion › Article on Lilith",
     );
     expect(provider.calls[1]!.system).toContain("using only what you have read");
-    expect(events.at(-1)).toMatchObject({ type: "done", cited: ["SRC#1"], consulted: ["SRC#1"] });
+    expect(events.at(-1)).toMatchObject({
+      type: "done",
+      cited: ["SRC#origins"],
+      consulted: ["SRC#origins"],
+    });
+  });
+
+  it("files the knowledge proposed by the index, or puts it in the category of the source", async () => {
+    const candidates = [
+      { title: "Lilitu", statement: "**Lilitu** are wind demons.", question: "Q?", answer: "A" },
+      { title: "Origin", statement: "**Lilith** is Mesopotamian.", question: "Q?", answer: "A" },
+    ];
+    const source = wiki.tree.nodes.get("SRC")!;
+    const provider = new FakeProvider({
+      json: [
+        {
+          new_categories: [{ key: "n1", title: "Demons", parent: "REL", reason: "Groups demons." }],
+          assignments: [
+            { item: 1, category: "n1" },
+            { item: 2, category: "REL" },
+          ],
+        },
+      ],
+    });
+    const plan = await indexExtractionPlan({ provider }, view, source, candidates, "Summary.");
+    expect(plan.categorized).toBe(true);
+    expect(plan.sourceId).toBe("SRC");
+    expect(plan.categories).toEqual([{ key: "new:1", title: "Demons", parent: "REL" }]);
+    expect(plan.knowledge.map((k) => k.category)).toEqual(["new:1", "REL"]);
+    expect(provider.calls[0]!.messages[0]!.content).toContain("Excerpt:\nSummary.");
+
+    // Without an answer of Eugenia: the category of the source.
+    const failing = new FakeProvider({ json: [{ nothing: true }] });
+    const fallback = await indexExtractionPlan({ provider: failing }, view, source, candidates);
+    expect(fallback.categorized).toBe(false);
+    expect(fallback.knowledge.map((k) => k.category)).toEqual(["REL", "REL"]);
   });
 
   it("grounds a discussion in the knowledge found", async () => {
@@ -318,23 +387,54 @@ describe("search in the common hierarchy", async () => {
     const provider = new FakeProvider({
       json: [
         // A section can only be read once its source has been explored.
-        { explore: ["SRC"], read: ["SRC#2"], enough: false },
-        { explore: [], read: ["SRC#2"], enough: true },
+        { explore: ["SRC"], read: ["SRC#black-moon"], enough: false },
+        { explore: [], read: ["SRC#black-moon"], enough: true },
       ],
     });
     const knowledge = await gatherKnowledge(
       { provider },
       { question: "Black Moon?", scopeId: "REL", navigator, maxRounds: 2 },
     );
-    expect(knowledge.map((k) => k.id)).toEqual(["SRC#2"]);
+    expect(knowledge.map((k) => k.id)).toEqual(["SRC#black-moon"]);
     expect(knowledge[0]!.path).toEqual(["Root", "Religion", "Article on Lilith"]);
     const request: GenerateRequest = discussionRequest(
       { provider },
       { related: [], knowledge, history: [{ role: "user", content: "Black Moon?" }] },
     );
     expect(request.system).toContain("based only on the user's wiki");
-    expect(request.system).toContain("<knowledge>\n### Black Moon (section, SRC#2)");
+    expect(request.system).toContain("<knowledge>\n### Black Moon (section, SRC#black-moon)");
     const empty = discussionRequest({ provider }, { related: [], history: [] });
     expect(empty.system).toContain("(nothing found in the wiki for this message)");
+  });
+});
+
+describe("reasoning of the model", () => {
+  it("sends the reasoning effort of the preset, only to chat requests", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({
+        choices: [{ message: { content: "Paris" }, finish_reason: "stop" }],
+        data: [{ index: 0, embedding: [1, 0] }],
+      });
+    }) as typeof fetch;
+    const small = createProvider(
+      {
+        kind: "openai",
+        baseUrl: "https://api.mistral.ai/v1",
+        model: "mistral-small-latest",
+        apiKey: "k",
+        reasoningEffort: "none",
+      },
+      { fetch: fetchImpl },
+    );
+    await small.complete({ system: "S", messages: [] });
+    await small.embed!(["text"]);
+    const ministral = createProvider(
+      { kind: "openai", baseUrl: "https://api.mistral.ai/v1", model: "ministral-8b-latest" },
+      { fetch: fetchImpl },
+    );
+    await ministral.complete({ system: "S", messages: [] });
+    expect(bodies.map((b) => b.reasoning_effort)).toEqual(["none", undefined, undefined]);
   });
 });

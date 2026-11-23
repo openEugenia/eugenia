@@ -5,7 +5,8 @@ import type { ProviderConfig, ProviderKind } from "@openeugenia/ai";
 import {
   DEFAULT_ANTHROPIC_MODEL,
   DEFAULT_EMBEDDING_MODEL,
-  DEFAULT_INDEX_MODEL,
+  DEFAULT_INDEX_PRESET,
+  INDEX_MODEL_PRESETS,
   DEFAULT_MISTRAL_URL,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_OLLAMA_URL,
@@ -13,7 +14,7 @@ import {
 import { forgetRepo, listRecents, localSize, type RecentWiki } from "../lib/db.ts";
 import { formatBytes } from "../lib/format.ts";
 import { GitHubClient } from "../lib/github.ts";
-import { indexingConfig, type Settings, type Theme } from "../lib/settings.ts";
+import { CUSTOM_INDEX_PRESET, indexingConfig, type Settings, type Theme } from "../lib/settings.ts";
 import { useSettings } from "../store/settings.ts";
 import { confirmDialog, errorMessage, toast } from "../store/ui.ts";
 import { useWiki } from "../store/wiki.ts";
@@ -274,13 +275,15 @@ function EmbeddingEditor({
 }
 
 /**
- * Model of the indexing of sources: a large Mistral model by default, with the key of the
- * semantic search unless another one is given.
+ * Model of the indexing of sources: a preset, from Ministral to Mistral Large, with or without
+ * reasoning (or another model), with the key of the semantic search unless another one is
+ * given.
  */
 function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: Settings): void }) {
   const indexing = draft.ai.indexing;
+  const preset = draft.ai.indexingPreset ?? DEFAULT_INDEX_PRESET;
   const [fields, setFields] = useState({
-    model: indexing?.model ?? DEFAULT_INDEX_MODEL,
+    model: indexing?.model ?? "",
     apiKey: indexing?.apiKey ?? "",
     baseUrl: indexing?.baseUrl ?? DEFAULT_MISTRAL_URL,
   });
@@ -290,6 +293,7 @@ function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: S
     setFields(next);
     const baseUrl = next.baseUrl.trim() || DEFAULT_MISTRAL_URL;
     const apiKey = next.apiKey.trim();
+    const model = next.model.trim();
     onChange({
       ...draft,
       ai: {
@@ -297,9 +301,8 @@ function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: S
         indexing: {
           kind: "openai",
           baseUrl,
-          model: next.model.trim() || DEFAULT_INDEX_MODEL,
+          ...(model ? { model } : {}),
           ...(apiKey ? { apiKey } : {}),
-          ...(baseUrl === DEFAULT_MISTRAL_URL ? { label: "Mistral" } : {}),
         },
       },
     });
@@ -311,13 +314,14 @@ function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: S
     try {
       const { createProvider } = await import("@openeugenia/ai");
       const provider = createProvider(effective);
+      const started = Date.now();
       const text = await provider.complete({
         system: "Answer with one word.",
         messages: [{ role: "user", content: "Say OK." }],
         maxTokens: 2000,
       });
       toast(
-        `${provider.info.label} answers (${provider.info.model}): ${text.slice(0, 40)}`,
+        `${provider.info.label} answers (${provider.info.model}, ${((Date.now() - started) / 1000).toFixed(1)} s): ${text.slice(0, 40)}`,
         "success",
       );
     } catch (error) {
@@ -328,20 +332,56 @@ function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: S
   };
   return (
     <div className="form-grid">
-      <div className="form-row">
-        <div className="oe-field">
-          <label className="oe-label" htmlFor="indexing-model">
-            Indexing model
+      <fieldset className="oe-field preset-list">
+        <legend className="oe-label">Indexing model</legend>
+        {INDEX_MODEL_PRESETS.map((p) => (
+          <label key={p.id} className="check">
+            <input
+              type="radio"
+              name="indexing-preset"
+              checked={preset === p.id}
+              onChange={() => onChange({ ...draft, ai: { ...draft.ai, indexingPreset: p.id } })}
+            />
+            <span>
+              <strong>{p.label}</strong>
+              {p.id === DEFAULT_INDEX_PRESET ? " (recommended)" : ""}
+              <span className="muted small"> — {p.description}</span>
+            </span>
           </label>
+        ))}
+        <label className="check">
           <input
-            id="indexing-model"
-            className="oe-input"
-            value={fields.model}
-            placeholder={DEFAULT_INDEX_MODEL}
-            onChange={(e) => set({ model: e.target.value })}
+            type="radio"
+            name="indexing-preset"
+            checked={preset === CUSTOM_INDEX_PRESET}
+            onChange={() =>
+              onChange({ ...draft, ai: { ...draft.ai, indexingPreset: CUSTOM_INDEX_PRESET } })
+            }
           />
-          <span className="oe-help">A large model: it reads each source once.</span>
-        </div>
+          <span>
+            <strong>Another model</strong>
+            <span className="muted small">
+              {" "}
+              — of Mistral or of another OpenAI-compatible server
+            </span>
+          </span>
+        </label>
+      </fieldset>
+      <div className="form-row">
+        {preset === CUSTOM_INDEX_PRESET && (
+          <div className="oe-field">
+            <label className="oe-label" htmlFor="indexing-model">
+              Model
+            </label>
+            <input
+              id="indexing-model"
+              className="oe-input"
+              value={fields.model}
+              placeholder="mistral-medium-latest"
+              onChange={(e) => set({ model: e.target.value })}
+            />
+          </div>
+        )}
         <div className="oe-field">
           <label className="oe-label" htmlFor="indexing-key">
             API key
@@ -377,11 +417,25 @@ function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: S
         />
         <span>Index each new source automatically (and again when its content changes).</span>
       </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={draft.ai.autoExtract !== false}
+          onChange={(e) =>
+            onChange({ ...draft, ai: { ...draft.ai, autoExtract: e.target.checked } })
+          }
+        />
+        <span>
+          Add the knowledge proposed by each index to my wiki right away, without review: Eugenia
+          files it in my categories, with a first flashcard. Otherwise, I review it from the page
+          of the source.
+        </span>
+      </label>
       {effective ? (
         <div className="actions actions--start">
           <span className="muted small">
             Indexing with {effective.model}
-            {effective.apiKey ? "" : " (no key)"}.
+            {effective.reasoningEffort ? ` (reasoning: ${effective.reasoningEffort})` : ""}.
           </span>
           <button
             type="button"
@@ -597,13 +651,13 @@ export function SettingsView() {
       <section className="section oe-card">
         <h2 className="oe-card__title">Indexing of sources</h2>
         <p className="muted small">
-          Each source of your library is read once by a large model and described as a tree of
-          knowledge (topics, ideas, arguments, examples, conclusions), saved next to the source in
-          your private repository. Eugenia then answers your questions from this index, at low cost,
-          without reading the whole source again; with search by meaning, each part of the index is
-          also found by its meaning. The content of the sources is sent to this model: private
-          sources follow the "local AI for private content" rule above. The index of a public source
-          is published with it.
+          Each source of your library is read once by a model and described as a tree of knowledge
+          (topics, ideas, arguments, examples, conclusions), with the knowledge worth extracting,
+          saved next to the source in your private repository, one page per node. Eugenia then
+          answers your questions from this index, at low cost, without reading the whole source
+          again; with search by meaning, each part of the index is also found by its meaning. The
+          content of the sources is sent to this model: private sources follow the "local AI for
+          private content" rule above. The index of a public source is published with it.
         </p>
         <IndexingEditor draft={draft} onChange={setDraft} />
       </section>

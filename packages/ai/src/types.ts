@@ -29,6 +29,12 @@ export interface JsonRequest<T> extends GenerateRequest {
 
 export type ProviderKind = "anthropic" | "openai" | "ollama";
 
+/**
+ * Reasoning of a model that supports it (OpenAI-compatible `reasoning_effort`): `none` turns it
+ * off (Mistral Small 4), `low` keeps it short (Mistral Large 4). Not sent when absent.
+ */
+export type ReasoningEffort = "none" | "low" | "medium" | "high";
+
 export interface ProviderInfo {
   kind: ProviderKind;
   label: string;
@@ -58,4 +64,6 @@ export interface ProviderConfig {
   apiKey?: string;
   baseUrl?: string;
   label?: string;
+  /** OpenAI-compatible providers: reasoning of the model, if it supports it. */
+  reasoningEffort?: ReasoningEffort;
 }

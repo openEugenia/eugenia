@@ -82,9 +82,13 @@ test.describe("public reading (anonymous)", () => {
     await expect(page.locator(".source-filing")).toContainText(
       "Filed in Demo wiki › Science › Astronomy",
     );
-    await expect(page.locator("#source-index")).toContainText("Apogee of the lunar orbit");
-    expect(publicRepo.read("library/wikipedia-black-moon-lilith/_tree.json")).toBeDefined();
-    expect(publicRepo.read("library/article-on-lilith/_tree.json")).toBeUndefined();
+    await expect(page.locator("#source-index .child-card")).toHaveCount(4);
+    await page.locator(".child-card", { hasText: "Mean and true Black Moon" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Mean and true Black Moon", level: 1 }),
+    ).toBeVisible();
+    expect(publicRepo.read("library/wikipedia-black-moon-lilith/_index/index.md")).toBeDefined();
+    expect(publicRepo.read("library/article-on-lilith/_index/index.md")).toBeUndefined();
   });
 
   test("full-text search", async ({ page }) => {

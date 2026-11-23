@@ -72,10 +72,11 @@ export interface WikiNode {
   summaries: { private?: RepoFile; public?: RepoFile };
   /** Embedding of the page for semantic search (`_embedding.json`), never published. */
   embedding?: RepoFile;
-  /** Source: its index, a knowledge tree describing its content (`_tree.json`). */
-  sourceTree?: RepoFile;
-  /** Source: embeddings of the sections of its index (`_tree.embeddings.json`), never published. */
-  sourceTreeEmbeddings?: RepoFile;
+  /**
+   * Source: its index, a knowledge tree describing its content, stored like the wiki in its
+   * `_index/` folder (one `index.md` per node), and the embeddings of its sections.
+   */
+  sourceIndex?: SourceIndexFiles;
   /** Attached files (PDF, images…), including in subfolders that are not pages. */
   attachments: RepoFile[];
   /** Source: kind, authors, URL, publication date and personal file. */
@@ -123,10 +124,25 @@ export interface TreeInput {
 export const SUMMARY_FILE = "_summary.md";
 export const PUBLIC_SUMMARY_FILE = "_summary.public.md";
 export const EMBEDDING_FILE = "_embedding.json";
-/** Index of a source: a knowledge tree describing its content. */
-export const SOURCE_TREE_FILE = "_tree.json";
-/** Embeddings of the sections of the index of a source. */
-export const SOURCE_TREE_EMBEDDINGS_FILE = "_tree.embeddings.json";
+/** Folder of the index of a source: a knowledge tree describing its content (§8.6). */
+export const SOURCE_INDEX_DIR = "_index";
+/** Embeddings of the sections of the index of a source, in its index folder. */
+export const INDEX_EMBEDDINGS_FILE = "_embeddings.json";
+
+/** Files of the index of a source. */
+export interface SourceIndexFiles {
+  /** `_index/index.md`: the root, with the model and the fingerprint of the indexed text. */
+  root?: RepoFile;
+  /** Every page of the index (`index.md` files, root included). */
+  pages: RepoFile[];
+  /** `_index/_embeddings.json`, never published. */
+  embeddings?: RepoFile;
+}
+
+/** True if a path belongs to the index of a source (its pages or its embeddings). */
+export function isSourceIndexPath(path: string): boolean {
+  return path.split("/").includes(SOURCE_INDEX_DIR);
+}
 /** Folder of the discussion embeddings, inside the discussions folder. */
 export const DISCUSSION_EMBEDDINGS_DIR = "_embeddings";
 /** Per-page discussion folders of format v1, ignored (reported by `validate`). */
@@ -161,6 +177,8 @@ export function spaceRootPath(config: WikiConfig, space: Space): string {
 
 /** Paths whose Markdown content may contain links to pages. */
 export function isContentPath(config: WikiConfig, path: string): boolean {
+  // The pages of a source index are generated: they hold no link to rewrite.
+  if (isSourceIndexPath(path)) return false;
   return spaceOf(config, path) !== null || isUnder(config.discussions, path);
 }
 
@@ -389,8 +407,13 @@ export function buildTree(input: TreeInput): WikiTree {
         if (reserved === SUMMARY_FILE) owner.summaries.private = file;
         else if (reserved === PUBLIC_SUMMARY_FILE) owner.summaries.public = file;
         else if (reserved === EMBEDDING_FILE) owner.embedding = file;
-        else if (reserved === SOURCE_TREE_FILE) owner.sourceTree = file;
-        else if (reserved === SOURCE_TREE_EMBEDDINGS_FILE) owner.sourceTreeEmbeddings = file;
+      } else if (reserved === SOURCE_INDEX_DIR && owner.type === "source") {
+        const index = (owner.sourceIndex ??= { pages: [] });
+        if (rest.length === 1 && rest[0] === INDEX_EMBEDDINGS_FILE) index.embeddings = file;
+        else if (rest.at(-1) === "index.md" && !rest.slice(0, -1).some(isReservedName)) {
+          index.pages.push(file);
+          if (rest.length === 1) index.root = file;
+        }
       } else if (LEGACY_DISCUSSION_DIRS.includes(reserved) && base.endsWith(".md")) {
         problems.push({
           level: "warning",

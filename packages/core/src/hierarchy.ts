@@ -143,3 +143,20 @@ export function categoryForSource(
   for (const [id, count] of counts) if (count > (counts.get(best) ?? 0)) best = id;
   return best;
 }
+
+/** Discussions placed in a branch (the node and below), from newest to oldest. */
+export function discussionsInBranch(
+  tree: WikiTree,
+  hierarchy: Hierarchy,
+  nodeId: string,
+): PlacedDiscussion[] {
+  const out: PlacedDiscussion[] = [];
+  for (const [path, place] of hierarchy.placeOf) {
+    const node = tree.nodes.get(place);
+    if (place === nodeId || (node && hierarchyAncestors(tree, node).some((a) => a.id === nodeId))) {
+      const entry = [...hierarchy.discussionsAt.get(place)!].find((d) => d.path === path);
+      if (entry) out.push(entry);
+    }
+  }
+  return out.sort((a, b) => b.path.localeCompare(a.path));
+}

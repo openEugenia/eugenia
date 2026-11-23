@@ -59,7 +59,7 @@ export interface PublicationStats {
   attachments: number;
   summaries: number;
   discussions: number;
-  /** Indexes of public sources (`_tree.json`). */
+  /** Indexes of public sources (`_index/`). */
   indexes: number;
 }
 
@@ -169,7 +169,9 @@ export async function buildPublication(
     }
     // The index of a public source only describes its (public) content: it is published, so
     // that questions about the public part can use it. Its embeddings never are.
-    if (node.type === "source" && node.sourceTree) published.add(node.sourceTree.path);
+    if (node.type === "source") {
+      for (const page of node.sourceIndex?.pages ?? []) published.add(page.path);
+    }
     if (node.summaries.public) {
       const summary = parseSummary(await source.readText(node.summaries.public.path));
       const summaryProblems = publicSummaryProblems(tree, node, summary);
@@ -285,9 +287,10 @@ export async function buildPublication(
       files.push({ path: attachment.path, copyFrom: attachment.path, sha: attachment.sha });
       stats.attachments++;
     }
-    if (node.type === "source" && node.sourceTree && doc) {
-      const index = node.sourceTree;
-      files.push({ path: index.path, copyFrom: index.path, sha: index.sha });
+    if (node.type === "source" && node.sourceIndex?.root && doc) {
+      for (const page of node.sourceIndex.pages) {
+        files.push({ path: page.path, copyFrom: page.path, sha: page.sha });
+      }
       stats.indexes++;
     }
     const summary = publicSummaries.get(node.id);

@@ -236,29 +236,50 @@ test.describe("owner", () => {
     );
   });
 
-  test("files the sources in the categories of the wiki, with their index", async ({ page }) => {
+  test("files the sources in the categories: counters in the tree, filtered views", async ({
+    page,
+  }) => {
     const repos = await demoRepos();
     await openOwner(page, repos);
     await page.goto("?repo=alice/eugenia-wiki#/n/01M6B8TE80FWZWZ9A13320JP2Z");
     const sources = page.locator("section", { hasText: "Add a source" });
     await expect(sources.getByRole("link", { name: "Article on Lilith" })).toBeVisible();
     await expect(sources.getByRole("link", { name: "Wikipedia: Lilith" })).toBeVisible();
-    // In the tree, the sources appear under their category.
-    await sidebar(page).getByRole("button", { name: "Expand Science" }).click();
-    await sidebar(page).getByRole("button", { name: "Expand Astronomy" }).click();
+    // In the tree, each branch counts its sources and discussions, discreetly.
+    const row = (title: string) =>
+      sidebar(page).locator(".tree-row", {
+        has: page.getByRole("link", { name: title, exact: true }),
+      });
     await expect(
-      sidebar(page).getByRole("link", { name: "Wikipedia: Black Moon Lilith" }),
+      row("Demo wiki").getByRole("link", { name: "Sources of this branch: 4" }),
     ).toBeVisible();
+    await expect(
+      row("Demo wiki").getByRole("link", { name: "Discussions of this branch: 4" }),
+    ).toBeVisible();
+    await row("Religion and beliefs")
+      .getByRole("link", { name: "Sources of this branch: 2" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Library", level: 1 })).toBeVisible();
+    await expect(page.locator(".library-item")).toHaveCount(2);
+    await expect(sidebar(page).locator(".side-panel__filter")).toContainText(
+      "In Religion and beliefs",
+    );
+    await sidebar(page).getByRole("tab", { name: "Wiki" }).click();
+    await row("Religion and beliefs")
+      .getByRole("link", { name: "Discussions of this branch: 2" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Discussions", level: 1 })).toBeVisible();
+    await expect(page.locator(".discussion-item")).toHaveCount(2);
+    await expect(page.locator(".discussion-item").first()).toContainText(
+      "Lilith and the Black Moon",
+    );
 
-    // A source page: where it is filed, and the tree of its content.
-    await sources.getByRole("link", { name: "Article on Lilith" }).click();
+    // A source page: where it is filed.
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6BK4140P9T3R69AH4Y8K1PA");
     await expect(page.locator(".breadcrumb")).toContainText("Religion and beliefs");
     await expect(page.locator(".source-filing")).toContainText(
       "Filed in Demo wiki › Religion and beliefs",
     );
-    const index = page.locator("#source-index");
-    await expect(index).toContainText("Up to date");
-    await expect(index).toContainText("Lilith in medieval Jewish legends");
 
     // Filing a source elsewhere: one commit, the library follows.
     await page.goto("?repo=alice/eugenia-wiki#/n/01M6NACZ40H8ERX9S8220DYTMW");
@@ -272,6 +293,49 @@ test.describe("owner", () => {
     await page.goto("?repo=alice/eugenia-wiki#/library?category=01M6CEJY409R5NH5S6H1J8AM6Q");
     await expect(page.locator(".library-item")).toHaveCount(1);
     await expect(page.locator(".library-item")).toContainText("In History");
+  });
+
+  test("browses the index of a source like the wiki", async ({ page }) => {
+    const repos = await demoRepos();
+    await openOwner(page, repos);
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6G9KPP03D31H8CGR4EZWQ50");
+    const index = page.locator("#source-index");
+    await expect(index).toContainText("Up to date");
+    await expect(index).toContainText("the apogee of the Moon's orbit");
+    await expect(index.locator(".child-card")).toHaveCount(4);
+    await expect(
+      index.getByRole("link", { name: /Review and extract these 4 items/ }),
+    ).toBeVisible();
+    await index.locator(".child-card", { hasText: "Slow cycle of the Black Moon" }).click();
+
+    // A section: a page of its own, in the hierarchy of the wiki and of the source.
+    await expect(
+      page.getByRole("heading", { name: "Slow cycle of the Black Moon", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator(".breadcrumb")).toContainText(
+      "Demo wiki › Science › Astronomy › Wikipedia: Black Moon Lilith",
+    );
+    await expect(page.locator("main")).toContainText("nine years");
+    // The library panel shows the index of the source, with the open section.
+    const panel = sidebar(page);
+    await expect(panel.getByRole("tab", { name: "Library" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(panel.locator(".tree-row.is-current")).toContainText(
+      "Slow cycle of the Black Moon",
+    );
+    await page
+      .locator(".section-nav")
+      .getByRole("link", { name: /Name origin: Lilith/ })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Name origin: Lilith", level: 1 }),
+    ).toBeVisible();
+    await panel.getByRole("link", { name: "Point, not a celestial body" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Point, not a celestial body", level: 1 }),
+    ).toBeVisible();
   });
 
   test("gathers all the discussions, filterable by kind", async ({ page }) => {
@@ -394,36 +458,98 @@ test.describe("Eugenia (simulated AI)", () => {
     page,
   }) => {
     const repos = await demoRepos();
-    const religion = "01M6B8TE80FWZWZ9A13320JP2Z";
-    const article = "01M6BK4140P9T3R69AH4Y8K1PA";
+    const source = "01M6G9KPP03D31H8CGR4EZWQ50";
+    const section = `${source}#mean-and-true-black-moon`;
     const calls = await installFakeClaude(page, {
-      // Goes down into the category, then the source, then reads a section of its index.
-      exploration: () => ({ explore: [religion, article], read: [`${article}#3`], enough: false }),
-      reply: `In medieval legends, Lilith is Adam's first wife [Medieval legends](eugenia:${article}#3).`,
+      // Goes down into the source filed in the category, then reads a section of its index.
+      exploration: () => ({ explore: [source], read: [section], enough: false }),
+      reply: `Astrologers compute a mean and a true Black Moon [Mean and true](eugenia:${section}).`,
     });
     await openOwner(page, repos, { ai: true });
-    await page.goto("?repo=alice/eugenia-wiki#/ask");
-    await page.getByLabel("Your question").fill("Who was Adam's first wife?");
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6BSZRC0GMZD0N3KYADANR5K/ask");
+    await page.getByLabel("Your question").fill("How is the Black Moon computed?");
     await page.getByRole("button", { name: "Ask Eugenia" }).click();
     await page.getByRole("button", { name: "Understood, send" }).click();
     const log = page.locator(".steps-log");
-    await expect(log).toContainText('Goes down into "Religion and beliefs"');
-    await expect(log).toContainText('Goes down into "Article on Lilith"');
-    await expect(log).toContainText('Reads "Lilith in medieval Jewish legends"');
-    await expect(page.locator(".oe-card")).toContainText("Adam's first wife");
+    await expect(log).toContainText('Goes down into "Wikipedia: Black Moon Lilith"');
+    await expect(log).toContainText('Reads "Mean and true Black Moon"');
+    await expect(page.locator(".oe-card")).toContainText("a mean and a true Black Moon");
     const based = page.locator("section", { hasText: "Based on" });
-    const link = based.getByRole("link", { name: "Lilith in medieval Jewish legends" });
-    await expect(link).toHaveAttribute("href", `#/n/${article}?s=3`);
+    const link = based.getByRole("link", { name: "Mean and true Black Moon" });
+    await expect(link).toHaveAttribute("href", `#/n/${source}?s=mean-and-true-black-moon`);
     // The answer is based on what was read, and only on it.
     const answer = calls.at(-1)!;
     expect(answer.system).toContain("using only what you have read");
-    expect(answer.messages[0]!.content).toContain("Alphabet of Ben Sira");
-    // The cited section opens in the index of its source.
+    expect(answer.messages[0]!.content).toContain("averaged orbit");
+    // The cited section opens as a page of the index of its source.
     await link.click();
-    await expect(page.getByRole("heading", { name: "Article on Lilith", level: 1 })).toBeVisible();
-    await expect(page.locator(".outline__node.is-selected > summary")).toContainText(
-      "Lilith in medieval Jewish legends",
+    await expect(
+      page.getByRole("heading", { name: "Mean and true Black Moon", level: 1 }),
+    ).toBeVisible();
+  });
+
+  test("indexes sources in the background, with the chosen model, while browsing", async ({
+    page,
+  }) => {
+    const repos = await demoRepos();
+    const mistral = await installFakeMistral(page, { chatDelayMs: 1500 });
+    await openOwner(page, repos);
+    await page.goto("?repo=alice/eugenia-wiki#/settings");
+    await page.getByLabel("Mistral API key").fill("mistral-test");
+    // The models of the indexing: Mistral Small without reasoning by default.
+    await expect(page.getByLabel(/Mistral Small — without reasoning/)).toBeChecked();
+    await page.getByRole("button", { name: "Save the settings" }).click();
+    await expect(page.getByText("Settings saved.")).toBeVisible();
+
+    await page.goto("?repo=alice/eugenia-wiki#/indexes");
+    await expect(
+      page.getByRole("heading", { name: "Indexes of the sources", level: 1 }),
+    ).toBeVisible();
+    // The demo sources are already indexed.
+    await expect(page.locator(".index-status--current")).toHaveCount(4);
+    await expect(page.getByRole("button", { name: "Index 0 sources" })).toBeDisabled();
+    await page.getByLabel("Indexing model").selectOption({ label: "Ministral 8B" });
+    await page
+      .locator(".library-item", { hasText: "Wikipedia: Lilith" })
+      .getByRole("button", { name: "Index again" })
+      .click();
+    // The user keeps browsing: the progress shows in the app bar.
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6B8TE80FWZWZ9A13320JP2Z");
+    await expect(page.locator(".app-bar").getByText("Indexing 0/1")).toBeVisible();
+    await expect(page.getByText('"Wikipedia: Lilith" is indexed.')).toBeVisible();
+    await expect(page.locator(".app-bar").getByText(/Indexing/)).toHaveCount(0);
+    expect(mistral.chat).toEqual([{ model: "ministral-8b-latest", title: "Wikipedia: Lilith" }]);
+    expect(repos.privateRepo.log()[0]).toBe('Index of "Wikipedia: Lilith"');
+    expect(repos.privateRepo.read("library/wikipedia-lilith/_index/main-idea/index.md")).toContain(
+      "**Wikipedia: Lilith** sets out a main idea.",
     );
+    // With search by meaning set up, the sections are embedded in the same commit.
+    expect(
+      repos.privateRepo.read("library/wikipedia-lilith/_index/_embeddings.json"),
+    ).toBeDefined();
+  });
+
+  test("extracts the knowledge proposed by the index of a source", async ({ page }) => {
+    const repos = await demoRepos();
+    await installFakeClaude(page);
+    await openOwner(page, repos, { ai: true });
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6G9KPP03D31H8CGR4EZWQ50");
+    await page.getByRole("link", { name: /Review and extract these 4 items/ }).click();
+    await page.getByRole("button", { name: "Understood, send" }).click();
+    // No highlighting: the proposals of the index are ready to review, in categories.
+    await expect(page.getByRole("heading", { name: "4 knowledge items to create" })).toBeVisible();
+    await expect(page.locator(".proposal").first()).toContainText("Black Moon");
+    await page.getByRole("button", { name: "Create 4 knowledge items" }).click();
+    await expect(page.getByRole("heading", { name: "4 knowledge items created" })).toBeVisible();
+    await expect(page.getByText("Changes saved to the repository.")).toBeVisible();
+    const created = repos.privateRepo
+      .paths()
+      .filter(
+        (p) =>
+          p.endsWith("/index.md") &&
+          repos.privateRepo.read(p)!.includes("extracted_from: 01M6G9KPP03D31H8CGR4EZWQ50"),
+      );
+    expect(created).toHaveLength(4);
   });
 
   test("suggests subcategories and creates the chosen one", async ({ page }) => {
@@ -479,23 +605,24 @@ test.describe("Eugenia (simulated AI)", () => {
 
     await page.goto("?repo=alice/eugenia-wiki#/search");
     await page.getByLabel("By meaning").check();
-    // Categories, knowledge and sources; flashcards repeat their knowledge item.
     // Categories, knowledge and sources (flashcards repeat their knowledge item), discussions
-    // (except quizzes) and the sections of the source indexes: 16 + 3 + 11.
-    await expect(page.getByText("0 / 30 elements indexed")).toBeVisible();
-    await expect(page.getByText("30 elements to index")).toBeVisible();
-    await page.getByRole("button", { name: "Index 30 elements" }).click();
+    // (except quizzes) and the sections of the source indexes: 16 + 3 + 4.
+    await expect(page.getByText("0 / 23 elements indexed")).toBeVisible();
+    await expect(page.getByText("23 elements to index")).toBeVisible();
+    await page.getByRole("button", { name: "Index 23 elements" }).click();
     // Private pages go to Mistral: same confirmations as for Eugenia.
     await page.getByRole("button", { name: "No, use my provider" }).click();
     await page.getByRole("button", { name: "Understood, send" }).click();
     await expect(page.getByText("Changes saved to the repository.")).toBeVisible();
-    await expect(page.getByText("30 / 30 elements indexed")).toBeVisible();
-    expect(repos.privateRepo.log()[0]).toBe("Semantic index: 30 element(s)");
+    await expect(page.getByText("23 / 23 elements indexed")).toBeVisible();
+    expect(repos.privateRepo.log()[0]).toBe("Semantic index: 23 element(s)");
     expect(
       JSON.parse(repos.privateRepo.read("wiki/religion-and-beliefs/lilith/_embedding.json")!),
     ).toMatchObject({ format: "eugenia-embedding", model: "mistral-embed", dimensions: 64 });
     expect(
-      JSON.parse(repos.privateRepo.read("library/article-on-lilith/_tree.embeddings.json")!),
+      JSON.parse(
+        repos.privateRepo.read("library/wikipedia-black-moon-lilith/_index/_embeddings.json")!,
+      ),
     ).toMatchObject({ format: "eugenia-embeddings", model: "mistral-embed" });
     expect(
       repos.privateRepo.paths().filter((p) => p.startsWith("discussions/_embeddings/")),

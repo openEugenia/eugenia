@@ -41,6 +41,7 @@ export function createProvider(
         model: config.model ?? "",
         ...(config.apiKey ? { apiKey: config.apiKey } : {}),
         ...(label ? { label } : {}),
+        ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
         ...(options.fetch ? { fetch: options.fetch } : {}),
       });
     }

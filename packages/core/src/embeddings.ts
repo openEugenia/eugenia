@@ -19,11 +19,11 @@ import { parseFlashcardBody, parsePage } from "./pages.ts";
 import { joinPath } from "./paths.ts";
 import { base64ToBytes, bytesToBase64, gitBlobSha } from "./sha.ts";
 import {
-  parseSourceTree,
+  readSourceIndex,
   sectionEmbeddingText,
+  sourceIndexEmbeddingsPath,
   sourceSections,
-  sourceTreeEmbeddingsPath,
-} from "./source-tree.ts";
+} from "./source-index.ts";
 import { isoTimestamp } from "./time.ts";
 import { EMBEDDING_FILE, type WikiNode } from "./tree.ts";
 import type { FileChange } from "./types.ts";
@@ -237,7 +237,7 @@ export function rankBySimilarity(
 }
 
 // ---------------------------------------------------------------------------
-// Embeddings of the sections of a source index (`_tree.embeddings.json`)
+// Embeddings of the sections of a source index (`_index/_embeddings.json`)
 // ---------------------------------------------------------------------------
 
 export const SECTION_EMBEDDINGS_FORMAT = "eugenia-embeddings";
@@ -414,20 +414,19 @@ export async function vectorItems(
 
   if (options.sections !== false) {
     for (const source of nodes) {
-      if (source.type !== "source" || !source.sourceTree) continue;
+      if (source.type !== "source" || !source.sourceIndex?.root) continue;
       let sections;
       try {
-        sections = sourceSections(
-          source.id,
-          parseSourceTree(await view.readText(source.sourceTree.path)).root,
-        );
+        const index = await readSourceIndex(view, source);
+        if (!index) continue;
+        sections = sourceSections(source.id, index.root);
       } catch {
         continue;
       }
       let stored: SectionEmbeddingsDocument | undefined;
-      if (source.sourceTreeEmbeddings) {
+      if (source.sourceIndex.embeddings) {
         try {
-          stored = parseSectionEmbeddings(await view.readText(source.sourceTreeEmbeddings.path));
+          stored = parseSectionEmbeddings(await view.readText(source.sourceIndex.embeddings.path));
         } catch {
           stored = undefined;
         }
@@ -442,7 +441,7 @@ export async function vectorItems(
           title: section.name,
           node: source,
           sectionKey: section.key,
-          file: sourceTreeEmbeddingsPath(source),
+          file: sourceIndexEmbeddingsPath(source),
           text,
           textSha,
           status: !known

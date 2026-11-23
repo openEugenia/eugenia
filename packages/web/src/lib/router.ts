@@ -20,15 +20,19 @@ export type Route =
   | { name: "edit"; id: string }
   /** New page; a new source is filed in `category`. */
   | { name: "new"; parentId: string; type: PageType; category?: string }
-  /** Extraction from a page (source, category…), a discussion, or a new text. */
-  | { name: "extract"; id?: string; discussion?: string }
+  /**
+   * Extraction from a page (source, category…), a discussion, or a new text; `index`: from the
+   * knowledge proposed by the index of a source (`.` for the whole index, or a section).
+   */
+  | { name: "extract"; id?: string; discussion?: string; index?: string }
   | { name: "quiz"; id: string }
   /**
    * Discussion: existing (`path`), or new, from a page (`about`) or not; `kind: "note"` for a
    * quick note.
    */
   | { name: "discussion"; path?: string; about?: string; kind?: "note" }
-  | { name: "discussions"; kind?: DiscussionKind; q?: string }
+  /** Discussions; `category`: those placed in a branch of the wiki. */
+  | { name: "discussions"; kind?: DiscussionKind; q?: string; category?: string }
   /** Library; `category`: the sources filed in a category (`unfiled`: at the root). */
   | { name: "library"; kind?: SourceKind; q?: string; category?: string }
   | { name: "ask"; id?: string }
@@ -38,6 +42,8 @@ export type Route =
   | { name: "settings" }
   | { name: "changes" }
   | { name: "summaries"; id?: string }
+  /** Indexes of the sources: state, indexing in the background. */
+  | { name: "indexes" }
   | { name: "new-wiki" }
   | { name: "not-found" };
 
@@ -73,6 +79,7 @@ export function parseHash(hash: string): Route {
             name: "extract",
             id: second,
             ...optional("discussion", query.get("discussion")),
+            ...optional("index", query.get("index")),
           };
         case "quiz":
           return { name: "quiz", id: second };
@@ -95,6 +102,7 @@ export function parseHash(hash: string): Route {
         name: "discussions",
         ...(kind && DISCUSSION_KINDS.includes(kind) ? { kind } : {}),
         ...optional("q", query.get("q")),
+        ...optional("category", query.get("category")),
       };
     }
     case "library": {
@@ -120,6 +128,8 @@ export function parseHash(hash: string): Route {
       return { name: "changes" };
     case "summaries":
       return { name: "summaries", ...optional("id", query.get("root")) };
+    case "indexes":
+      return { name: "indexes" };
     case "ask":
       return { name: "ask" };
     case "new-wiki":
@@ -148,7 +158,7 @@ export function href(route: Route): string {
     case "new":
       return `#/n/${enc(route.parentId)}/new?type=${route.type}${route.category ? `&category=${enc(route.category)}` : ""}`;
     case "extract": {
-      const query = queryString({ discussion: route.discussion });
+      const query = queryString({ discussion: route.discussion, index: route.index });
       return route.id ? `#/n/${enc(route.id)}/extract${query}` : `#/extract${query}`;
     }
     case "quiz":
@@ -159,7 +169,7 @@ export function href(route: Route): string {
         return `#/n/${enc(route.about)}/${route.kind === "note" ? "note" : "discuss"}`;
       return route.kind === "note" ? "#/d/note" : "#/d/new";
     case "discussions":
-      return `#/discussions${queryString({ kind: route.kind, q: route.q })}`;
+      return `#/discussions${queryString({ kind: route.kind, q: route.q, category: route.category })}`;
     case "library":
       return `#/library${queryString({ kind: route.kind, q: route.q, category: route.category })}`;
     case "ask":
@@ -176,6 +186,8 @@ export function href(route: Route): string {
       return "#/changes";
     case "summaries":
       return route.id ? `#/summaries?root=${enc(route.id)}` : "#/summaries";
+    case "indexes":
+      return "#/indexes";
     case "new-wiki":
       return "#/new-wiki";
   }

@@ -47,6 +47,12 @@ const LibraryView = lazy(() =>
 const DiscussionsView = lazy(() =>
   import("./views/DiscussionsView.tsx").then((m) => ({ default: m.DiscussionsView })),
 );
+const IndexesView = lazy(() =>
+  import("./views/IndexesView.tsx").then((m) => ({ default: m.IndexesView })),
+);
+const SectionView = lazy(() =>
+  import("./views/SectionView.tsx").then((m) => ({ default: m.SectionView })),
+);
 const NewWikiView = lazy(() =>
   import("./views/NewWikiView.tsx").then((m) => ({ default: m.NewWikiView })),
 );
@@ -78,14 +84,17 @@ function WikiRoute({ route }: { route: Route }) {
       return rootId ? <NodeView id={rootId} key={rootId} /> : null;
     case "node":
       // The library root is the list of sources.
+      // The library root is the list of sources; a section is a page of the index of a source.
       return route.id === libraryId ? (
         <LibraryView />
-      ) : (
-        <NodeView
-          id={route.id}
-          {...(route.section ? { section: route.section } : {})}
-          key={route.id}
+      ) : route.section ? (
+        <SectionView
+          sourceId={route.id}
+          sectionKey={route.section}
+          key={`${route.id}#${route.section}`}
         />
+      ) : (
+        <NodeView id={route.id} key={route.id} />
       );
     case "library":
       return (
@@ -100,6 +109,7 @@ function WikiRoute({ route }: { route: Route }) {
         <DiscussionsView
           {...(route.kind ? { kind: route.kind } : {})}
           {...(route.q ? { q: route.q } : {})}
+          {...(route.category ? { category: route.category } : {})}
         />
       );
     case "edit":
@@ -119,7 +129,8 @@ function WikiRoute({ route }: { route: Route }) {
         <ExtractionView
           {...(route.id ? { id: route.id } : {})}
           {...(route.discussion ? { discussion: route.discussion } : {})}
-          key={`extract-${route.id ?? ""}-${route.discussion ?? ""}`}
+          {...(route.index ? { fromIndex: route.index } : {})}
+          key={`extract-${route.id ?? ""}-${route.discussion ?? ""}-${route.index ?? ""}`}
         />
       );
     case "quiz":
@@ -147,6 +158,8 @@ function WikiRoute({ route }: { route: Route }) {
       return <ChangesView />;
     case "summaries":
       return <SummariesView {...(route.id ? { rootId: route.id } : {})} />;
+    case "indexes":
+      return <IndexesView />;
     case "new-wiki":
       return <NewWikiView />;
     default:

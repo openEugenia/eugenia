@@ -1,6 +1,6 @@
 # Specification — Eugenia: a personal knowledge wiki, on git
 
-> Status: draft v0.8 — 2026-11-23 (common hierarchy of the wiki, the library and the discussions; indexing of sources as knowledge trees by Mistral Large; Eugenia's answers based on the tree only)
+> Status: draft v0.9 — 2026-11-23 (common hierarchy of the wiki, the library and the discussions; indexing of sources as knowledge trees stored like the wiki, with knowledge to extract, by a choice of Mistral models, in the background; Eugenia's answers based on the tree only)
 > This document is the starting point of the project's git repository. It turns the functional documentation of the [`functional_doc/`](functional_doc/) folder into a technical specification; the functional documentation remains the reference for the "what" and the "why". Open points are listed in §16.
 
 ---
@@ -68,8 +68,8 @@ The functional definitions come from `functional_doc/`. This table states how th
 | **Branch of the tree** | A node and all its descendants (not to be confused with a git branch). | — |
 | **Stale** | A summary at least one of whose sources changed since it was generated. | — |
 | **Common hierarchy** | The single tree formed by the wiki, the library and the discussions: each source is filed in a category, each discussion is placed under the page it was started from. | Computed from identifiers (§5.10). |
-| **Source index** | A tree of concepts that describes the whole content of a source, generated once by a large model and read at low cost. | `_tree.json` next to the source (§8.6). |
-| **Section** | A node of the index of a source, below its root. | `<source id>#<position>`, e.g. `01JD3S…#2.1`. |
+| **Source index** | A tree of concepts that describes the whole content of a source, with the knowledge worth extracting, generated once by a model and read at low cost. | `_index/` folder of the source, one `index.md` per node (§8.6). |
+| **Section** | A node of the index of a source, below its root. | `<source id>#<path>`, e.g. `01JD3S…#origins/lilitu`. |
 
 ## 4. General architecture
 
@@ -149,8 +149,10 @@ library/
 └── article-on-lilith/
     ├── index.md                          # source (type: source), filed in a category
     ├── article.pdf                       # personal file of the source
-    ├── _tree.json                        # index of the source: knowledge tree (§8.6)
-    └── _tree.embeddings.json             # embeddings of its sections (never published)
+    └── _index/                           # index of the source: knowledge tree (§8.6)
+        ├── index.md                      # root: summary of the source, knowledge to extract
+        ├── origins/index.md              # a section (subsections in subfolders)
+        └── _embeddings.json              # embeddings of its sections (never published)
 discussions/
 ├── 2026-11-12-1800-lilith-and-the-black-moon.md   # free discussion
 ├── 2026-11-14-0830-51-pegasi-b.md                  # quick note (kind: note)
@@ -386,7 +388,7 @@ The wiki, the library and the discussions form **a single tree**. The wiki gives
 - a **source** is filed in a category of the wiki (`category` field of the source, chosen by the user, proposed when the source is created from a category, or deduced from the knowledge extracted from it: the deepest category common to that knowledge, otherwise the one that holds most of it). Without a category, it is at the root;
 - a **discussion** finds its place under the node it was started from (`about`), otherwise under its scope (`scope_node`), otherwise at the root. A discussion started from a flashcard is placed under its knowledge item.
 
-The files do not move (the library stays a flat folder, the discussions a flat folder of files): the hierarchy is computed from identifiers, so renaming or moving a category does not touch its sources or discussions. Deleting a node moves up what was placed in it (its parent; for a deleted source, its category). In the interface, a category lists the sources filed in it, the side tree shows them (and, on demand, the discussions) under their category, a source is filed by dragging it onto a category, and the library is filtered by category.
+The files do not move (the library stays a flat folder, the discussions a flat folder of files): the hierarchy is computed from identifiers, so renaming or moving a category does not touch its sources or discussions. Deleting a node moves up what was placed in it (its parent; for a deleted source, its category). In the interface, a category lists the sources filed in it; in the side tree, each branch shows discreetly how many sources and discussions it holds (two icons with a count), which open the Library or the Discussions filtered on that branch; the library and the discussions can be filtered by branch.
 
 Every element of the hierarchy — category, knowledge item, source and the sections of its index, discussion — is searched together by Eugenia (§8.5). Quizzes are left out: their answers are the user's attempts, right or wrong.
 
@@ -514,13 +516,14 @@ The user asks a question about a given scope (whole wiki or branch). The search 
 
 ### 8.6 Indexing of sources
 
-Each source of the library is transformed into an **index**: a tree of concepts that describes its whole content exhaustively — topics, subtopics, key ideas, arguments, examples, facts, decisions, conclusions, relationships — each node with a name and a self-contained description, the root summing up the source. The plan of the source is followed when it gives one; duplicate concepts are merged; nothing is added that the source does not say.
+Each source of the library is transformed into an **index**: a tree of concepts that describes its whole content exhaustively — topics, subtopics, key ideas, arguments, examples, facts, decisions, conclusions, relationships — each node with a name and a self-contained description, the root summing up the source. The plan of the source is followed when it gives one; duplicate concepts are merged. **The model only writes what the source says**: even if it recognizes the source (a famous book, a Wikipedia article), it adds nothing from its own knowledge — a two-line summary gives a root alone.
 
-1. **Model**: a large model, Mistral Large (`mistral-large-latest`) by default, through Mistral's OpenAI-compatible API (any compatible provider can replace it). The index is generated once; it is then read at low cost by smaller models (§8.5).
-2. **When**: automatically for a new source and when the text of a source changes (option in the settings), on demand from the source page, or in a batch (`eugenia index`). An index is **stale** when the text of its source changed (fingerprint `text_sha`).
-3. **Long sources**: read in parts (about 60,000 characters each, several at the same time); each part gets its tree, then the model gathers the main topics of the parts into the top of the tree of the whole source. A part whose answer is cut off is split in two and read again.
-4. **Storage**: `_tree.json` next to the source (format in `docs/format.md`); its sections get embeddings (`_tree.embeddings.json`) for the exhaustive search.
-5. **Privacy**: a private source follows the "local AI for private content" rule (§11.1); the index of a public source is published with it, never the index of a private one.
+1. **Knowledge to extract**: each node also proposes the knowledge worth remembering (at most three per node): a title, a self-contained statement with its learning target in bold, and a first flashcard (question, answer). The extraction (§8.1) can start from them — from the source page, or from a section for its part of the source — skipping the highlighting: the user reviews the proposals, Eugenia proposes their categories, and they are created in one commit.
+2. **Models**: the user chooses, in the settings or for a batch, between presets of Mistral models (OpenAI-compatible API, `reasoning_effort` when the model supports it), measured on a 30 KB text: Mistral Large with reasoning (≈ 3½ min), Mistral Small with reasoning (≈ 45 s, the most detailed trees), **Mistral Small without reasoning (≈ 25 s, the default)**, Ministral 14B (≈ 30 s) and Ministral 8B (≈ 15 s); or another model. The index is generated once; it is then read at low cost by smaller models (§8.5).
+3. **When**: automatically for a new source and when the text of a source changes (option in the settings), on demand from the source page, from the **"Indexes" view** — the state of the index of every source, and the indexing of all the missing or stale ones with the chosen model — or in a batch (`eugenia index`). Indexing runs **in the background** (two sources at a time): the user keeps browsing, the progress shows in the app bar, and each index is committed when it is ready (with the source, if the source is not saved yet). An index is **stale** when the text of its source changed (fingerprint `text_sha`).
+4. **Long sources**: read in parts (about 60,000 characters each, three at the same time); each part gets its tree, then the model gathers the main topics of the parts into the top of the tree of the whole source. A part whose answer is cut off is split in two and read again.
+5. **Storage and browsing**: like the wiki, one folder per node with an `index.md`, in the `_index/` folder of the source (format in `docs/format.md`). The index is browsed like the wiki: the source page shows its summary, its sections as cards and its knowledge to extract; each section is a page (breadcrumb through the wiki, the source and the enclosing sections, subsections, previous and next sections); in the side panel, the open source unfolds its index as a tree. Its sections get embeddings (`_index/_embeddings.json`) for the exhaustive search.
+6. **Privacy**: a private source follows the "local AI for private content" rule (§11.1); the index of a public source is published with it, never the index of a private one.
 
 ## 9. Web interface
 
@@ -529,11 +532,11 @@ Each source of the library is transformed into an **index**: a tree of concepts 
 - Without a parameter: home page (presentation of Eugenia, repository input, recently viewed wikis, creation of a new wiki).
 
 ### 9.2 Views
-1. **Side panel** with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, with the sources filed in them and, on demand, the discussions (common hierarchy, §5.10), icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title), **Discussions** (recent exchanges).
+1. **Side panel** with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, each branch with two discreet counters of its sources and discussions (common hierarchy, §5.10) that open the filtered Library or Discussions, icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title; the open source unfolds its index as a tree), **Discussions** (recent exchanges); both follow the branch filter of the main view.
 2. **Category**: description at the top, introduction, subcategories and knowledge items with their short descriptions, the sources filed in it, backlinks, related discussions.
 3. **Knowledge item**: statement (target in bold), sources (with location), flashcards and their mastery, origin (source or discussion); **flashcard**: question, expected answer, tested knowledge, mastery curve.
-3a. **Library**: list of sources filterable by category, kind, tag and text, sorting, knowledge that needs a source; **source**: the category it is filed in (changeable), bibliographic record, personal file, content, its index (collapsible tree, state, generation), knowledge that cites it. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
-3b. **Discussions**: list of all the exchanges, filterable by kind, direct access to the quick note, the question, the quiz.
+3a. **Library**: list of sources filterable by category, kind, tag and text, sorting, knowledge that needs a source; **source**: the category it is filed in (changeable), bibliographic record, personal file, content, its index (state, generation in the background, summary, sections as cards, knowledge to extract), knowledge that cites it; **section** of an index: a page of its own, browsed like a category (§8.6); **indexes**: the state of the index of every source, and their indexing in the background with a chosen model. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
+3b. **Discussions**: list of all the exchanges, filterable by kind and by branch of the wiki, direct access to the quick note, the question, the quiz.
 4. **Extraction**: source text with highlights, panel of proposed knowledge and of the new categories proposed for the document (§8.1).
 5. **Quiz**: conversation with Eugenia, score and feedback after each answer, session progress.
 6. **Discussion**: chronological messages, Eugenia's answer streamed; quick note; quiz read-only.
@@ -580,7 +583,7 @@ Common `AIProvider` interface (`complete`, `stream`, `countTokens`, and `embed` 
 - **Ollama / local server**: requires allowing the `openeugenia.github.io` origin in CORS.
 - **OpenAI-compatible**: any other provider.
 
-**Indexing of sources** (§8.6): a separate provider, Mistral Large (`mistral-large-latest`) by default, with the Mistral key of the semantic search unless another one is given. Reasoning models (Mistral Large 4, Magistral…) answer with chunks of reasoning and text: only the text is kept; an answer cut off by the length limit is reported at once.
+**Indexing of sources** (§8.6): a separate provider, a preset of Mistral models (Mistral Small without reasoning by default), with the Mistral key of the semantic search unless another one is given. The reasoning of a model that supports it is set by `reasoning_effort` (`none` for Mistral Small 4; Mistral Large 4 always reasons). Reasoning models answer with chunks of reasoning and text: only the text is kept; an answer cut off by the length limit is reported at once.
 
 **Local AI for private content**: on first setup (then in the settings), the app **asks the user** whether they want to keep private nodes for a local AI.
 - If so: any task involving a private node (description, extraction, categorization, quiz, discussion, question about the tree) must go through the local provider. Otherwise, the action is blocked with an explanation.
@@ -659,5 +662,5 @@ None for now. Recent decisions:
 - the bibliographic record of a private source (title, kind, authors, date, URL) is public, so that public knowledge can cite it;
 - the knowledge extracted from a document is categorized together, Wikipedia-style, possibly in new categories reviewed by the user;
 - the common hierarchy of the wiki, the library and the discussions is computed from identifiers (`category` of a source, `about` of a discussion), without moving files: the library and the discussions stay flat folders, and moving a category touches nothing else;
-- the index of a source is a JSON knowledge tree (`_tree.json`) generated by a large Mistral model; it is read by tree search and by exhaustive search (embeddings of its sections);
+- the index of a source is a knowledge tree stored like the wiki (one Markdown page per node, in the `_index/` folder of the source), with the knowledge worth extracting, generated by a Mistral model chosen by the user (Mistral Small without reasoning by default: about nine times faster than Mistral Large, with as much knowledge proposed); it is read by tree search and by exhaustive search (embeddings of its sections);
 - Eugenia's answers (questions, discussions, quick notes) are based on the elements of the tree only, cited, with no knowledge of her own.

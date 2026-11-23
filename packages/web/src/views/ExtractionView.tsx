@@ -6,13 +6,14 @@
  * commit. A pasted text or a PDF becomes a library source; the extracted knowledge cites its
  * sources.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   FileUp,
   FolderPlus,
   Highlighter,
   Lightbulb,
+  ListTree,
   Plus,
   Scissors,
   Sparkles,
@@ -23,6 +24,9 @@ import {
   createFlashcard,
   categoryForSource,
   createPage,
+  findIndexNode,
+  indexKnowledge,
+  newCandidates,
   joinPath,
   markdownToText,
   parseDiscussion,
@@ -59,7 +63,7 @@ import { fileToBase64, safeFileName } from "../lib/files.ts";
 import { plural } from "../lib/format.ts";
 import { useCanEdit, useDerived, useText } from "../lib/hooks.ts";
 import { pdfToText } from "../lib/pdf.ts";
-import { autoIndex } from "../lib/indexing.ts";
+import { autoIndex, useSourceIndex } from "../lib/indexing.ts";
 import { href } from "../lib/router.ts";
 import { materializeSources, splitList, type NewSourceDraft } from "../lib/sources.ts";
 import { errorMessage, toast } from "../store/ui.ts";
@@ -131,7 +135,16 @@ function segments(
 
 const isPlanned = (id: string): boolean => id.startsWith(PLANNED_PREFIX);
 
-export function ExtractionView({ id, discussion }: { id?: string; discussion?: string }) {
+export function ExtractionView({
+  id,
+  discussion,
+  fromIndex,
+}: {
+  id?: string;
+  discussion?: string;
+  /** Starts from the knowledge proposed by the index of the source (`.`: the whole index). */
+  fromIndex?: string;
+}) {
   const derived = useDerived();
   const editable = useCanEdit();
   const node = id ? derived.tree.nodes.get(id) : undefined;
@@ -152,9 +165,32 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
   const [sourceAuthors, setSourceAuthors] = useState("");
   const [pdf, setPdf] = useState<{ name: string; base64: string; text: string } | null>(null);
   const [attachPdf, setAttachPdf] = useState(true);
-  // Default category of the knowledge: the category the extraction started from.
+  // Default category of the knowledge: the category the extraction started from, or the one the
+  // source is filed in.
   const defaultCategory =
-    node?.type === "category" && node.space === "wiki" ? node.id : derived.tree.rootId;
+    node?.type === "category" && node.space === "wiki"
+      ? node.id
+      : isSourceNode && node.filedIn
+        ? node.filedIn
+        : derived.tree.rootId;
+  // Knowledge proposed by the index of the source (all of it, or that of a section).
+  const { index } = useSourceIndex(isSourceNode ? node : undefined);
+  const indexed = useMemo(() => {
+    if (!index) return [];
+    const start =
+      fromIndex && fromIndex !== "." ? findIndexNode(index.root, fromIndex) : index.root;
+    if (!start || !node) return [];
+    // What is already in the wiki is not proposed again.
+    const kept = new Set(
+      newCandidates(
+        derived.tree,
+        node.id,
+        indexKnowledge(start).map((k) => k.candidate),
+      ),
+    );
+    return indexKnowledge(start).filter((k) => kept.has(k.candidate));
+  }, [index, fromIndex, derived.tree, node]);
+  const startedFromIndex = useRef(false);
   // Sources cited by all the extracted knowledge (on top of the imported text).
   const [citations, setCitations] = useState<SourceRef[]>(isSourceNode ? [{ ref: node.id }] : []);
   const [drafts, setDrafts] = useState<NewSourceDraft[]>([]);
@@ -170,6 +206,14 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
   }>({ knowledge: [], categories: [] });
   const textRef = useRef<HTMLDivElement>(null);
   const categories = useMemo(() => categoryOptions(derived), [derived]);
+
+  useEffect(() => {
+    if (!fromIndex || startedFromIndex.current || indexed.length === 0) return;
+    if (nodeText.data === undefined) return;
+    startedFromIndex.current = true;
+    void proposeFromIndex();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromIndex, indexed, nodeText.data]);
 
   if (id && !node)
     return (
@@ -262,6 +306,61 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
     setSource(next);
     setHighlights([]);
     setStep("highlight");
+  };
+
+  /**
+   * Review of the knowledge proposed by the index: no highlighting nor proposal step, the
+   * categories are proposed for all of it together.
+   */
+  const proposeFromIndex = async (): Promise<void> => {
+    if (!node || nodeText.data === undefined || indexed.length === 0) return;
+    const next: Source = {
+      kind: "source",
+      title: node.title,
+      text: markdownToText(parsePage(nodeText.data).body),
+      originId: node.id,
+      isPublic: node.isPublic,
+    };
+    setKind("source");
+    setSource(next);
+    setHighlights([]);
+    let plan: CategoryPlan = {
+      newCategories: [],
+      assignments: indexed.map(() => defaultCategory),
+    };
+    setBusy("Eugenia is filing the knowledge into categories…");
+    try {
+      const context = await taskContext(
+        !node.isPublic || categories.some((c) => derived.tree.nodes.get(c.id)?.isPublic === false),
+      );
+      plan = await categorizeKnowledge(context, {
+        document: next.title,
+        excerpt: next.text,
+        categories,
+        knowledge: indexed.map((k) => ({
+          title: k.candidate.title,
+          knowledge: k.candidate.statement,
+        })),
+        fallbackId: defaultCategory,
+      });
+    } catch (error) {
+      toast(`Eugenia could not propose categories: ${errorMessage(error)}`, "error");
+    } finally {
+      setBusy(null);
+    }
+    setPlanned(plan.newCategories);
+    setProposals(
+      indexed.map((k, i) => ({
+        key: `index-${i}`,
+        include: true,
+        title: k.candidate.title,
+        knowledge: k.candidate.statement,
+        question: k.candidate.question,
+        answer: k.candidate.answer,
+        categoryId: plan.assignments[i] ?? defaultCategory,
+      })),
+    );
+    setStep("propose");
   };
 
   const autoHighlight = async (): Promise<void> => {
@@ -756,6 +855,18 @@ export function ExtractionView({ id, discussion }: { id?: string; discussion?: s
             </div>
           )}
           <div className="actions">
+            {kind === "source" && indexed.length > 0 && (
+              <button
+                type="button"
+                className="oe-button oe-button--secondary"
+                onClick={() => void proposeFromIndex()}
+                disabled={Boolean(busy) || nodeText.loading}
+                title="The knowledge proposed when the source was indexed: review it, without highlighting"
+              >
+                <ListTree aria-hidden="true" /> Use the {plural(indexed.length, "item")} proposed by
+                the index
+              </button>
+            )}
             <button
               type="button"
               className="oe-button"

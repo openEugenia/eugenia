@@ -219,17 +219,21 @@ export function Breadcrumb({
   tree,
   node,
   trail,
+  tail,
 }: {
   tree: WikiTree;
   node?: WikiNode;
   /** Extra steps, first (e.g. "Discussions"). */
   trail?: { label: string; href: string }[];
+  /** Extra steps, last (e.g. the sections of the index of a source). */
+  tail?: { label: string; href: string }[];
 }) {
   // Common hierarchy: a source is shown in the category it is filed in.
   const chain = node ? hierarchyAncestors(tree, node) : [];
   const steps = [
     ...(trail ?? []),
     ...chain.map((a) => ({ label: a.title, href: nodeHref(tree, a) })),
+    ...(tail ?? []),
   ];
   if (steps.length === 0) return null;
   return (

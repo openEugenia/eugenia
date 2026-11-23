@@ -1,7 +1,7 @@
 /** Entry point of the `eugenia` CLI. */
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import type { SummaryScope } from "@openeugenia/core";
-import type { ProviderKind } from "@openeugenia/ai";
+import type { ProviderKind, ReasoningEffort } from "@openeugenia/ai";
 import { embedCommand } from "./commands/embed.ts";
 import { indexCommand } from "./commands/index-sources.ts";
 import { initCommand } from "./commands/init.ts";
@@ -56,12 +56,18 @@ Commands:
       --local-only-private     Never sends private content to a remote provider
       --dry-run                Shows the descriptions without writing them
 
-  index [folder]        Generates the missing or stale source indexes: a large model reads
-                        each source and describes its whole content as a knowledge tree
-                        (_tree.json), then read at low cost to answer questions.
+  index [folder]        Generates the missing or stale source indexes: a model reads each source
+                        and describes its whole content as a knowledge tree, with the knowledge
+                        worth extracting, in its _index/ folder (one index.md per node).
       --force                  Also regenerates current indexes
       --node <id|folder>       One source, or the sources filed in a category
-      --model <model>          Model (default: mistral-large-latest, or EUGENIA_INDEX_MODEL)
+      --extract                Also adds the proposed knowledge to the wiki (new items
+                               only), filed in its categories by the model
+      --preset <preset>        Model and reasoning (default: small, or EUGENIA_INDEX_PRESET):
+                               large, small-reasoning, small, ministral-14b,
+                               ministral-8b
+      --model <model>          Another model (or EUGENIA_INDEX_MODEL)
+      --reasoning <effort>     Reasoning of the model: none, low, medium or high
       --base-url <url>         OpenAI-compatible server (default: Mistral, or
                                EUGENIA_INDEX_BASE_URL); key MISTRAL_API_KEY or
                                EUGENIA_INDEX_API_KEY
@@ -241,13 +247,21 @@ export async function main(argv: string[], log: Logger = consoleLogger): Promise
       const { values, dir } = parse(rest, {
         force: { type: "boolean", default: false },
         node: { type: "string" },
+        preset: { type: "string" },
         model: { type: "string" },
+        reasoning: { type: "string" },
+        extract: { type: "boolean", default: false },
         "base-url": { type: "string" },
         "local-only-private": { type: "boolean", default: false },
         "dry-run": { type: "boolean", default: false },
       });
       const node = str(values.node);
       const model = str(values.model);
+      const preset = str(values.preset);
+      const reasoning = str(values.reasoning);
+      if (reasoning && !["none", "low", "medium", "high"].includes(reasoning)) {
+        throw new CliError("--reasoning: none, low, medium or high.", 2);
+      }
       const baseUrl = str(values["base-url"]);
       return indexCommand(
         {
@@ -255,8 +269,11 @@ export async function main(argv: string[], log: Logger = consoleLogger): Promise
           force: values.force === true,
           dryRun: values["dry-run"] === true,
           localOnlyPrivate: values["local-only-private"] === true,
+          extract: values.extract === true,
           ...(node ? { node } : {}),
+          ...(preset ? { preset } : {}),
           ...(model ? { model } : {}),
+          ...(reasoning ? { reasoning: reasoning as ReasoningEffort } : {}),
           ...(baseUrl ? { baseUrl } : {}),
         },
         log,

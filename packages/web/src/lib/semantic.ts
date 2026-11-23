@@ -38,8 +38,8 @@ function catalogFiles(derived: Derived): RepoFile[] {
     if (!isEmbeddable(node)) continue;
     add(derived.files.get(node.indexPath));
     add(node.embedding);
-    add(node.sourceTree);
-    add(node.sourceTreeEmbeddings);
+    for (const page of node.sourceIndex?.pages ?? []) add(page);
+    add(node.sourceIndex?.embeddings);
   }
   for (const entry of derived.discussions) {
     if (entry.meta.kind === "quiz") continue;

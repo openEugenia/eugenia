@@ -84,13 +84,13 @@ repository ("Contents" write access).
    node;
 2. builds the public tree: public pages (links to unpublished content turned into text, personal
    files of sources removed), attached files, public descriptions (`_summary.public.md` renamed
-   `_summary.md`), the indexes of public sources (`_tree.json`), the bibliographic records of
+   `_summary.md`), the indexes of public sources (`_index/`), the bibliographic records of
    private sources (see below), discussions marked public, a reduced `.notes/config.yml`, a
    `README.md` and `.notes/index.json`;
 3. pushes a **single commit** whose message repeats nothing from the private repository,
    replacing the history of the public repository.
 
-Quizzes, personal files and embeddings (`_embedding.json`, `_tree.embeddings.json`,
+Quizzes, personal files and embeddings (`_embedding.json`, `_index/_embeddings.json`,
 `discussions/_embeddings/`) are never published.
 
 The category a source is filed in (`category`) is only published if that category is public;
@@ -98,7 +98,7 @@ otherwise the source appears at the root of the public part.
 
 ## Indexes of sources
 
-The index of a public source (`_tree.json`, see [the storage format](format.md#index-of-a-source))
+The index of a public source (its `_index/` pages, see [the storage format](format.md#index-of-a-source))
 only describes its public content: it is published with it, so that questions asked about the
 public part of the wiki can use it. The index of a private source is never published, not even
 with its bibliographic record.

@@ -174,6 +174,9 @@ export function LibraryView({
             <a className="oe-button oe-button--secondary" href={href({ name: "extract" })}>
               <FileUp aria-hidden="true" /> Import a text or a PDF
             </a>
+            <a className="oe-button oe-button--secondary" href={href({ name: "indexes" })}>
+              <ListTree aria-hidden="true" /> Indexes
+            </a>
           </div>
         )}
       </header>
@@ -309,7 +312,7 @@ export function LibraryView({
                             .map((c) => c.title)
                             .join(" › ")}`
                         : "Not filed in a category yet"}
-                      {s.sourceTree && (
+                      {s.sourceIndex?.root && (
                         <>
                           {" · "}
                           <ListTree aria-hidden="true" className="inline-icon" /> indexed

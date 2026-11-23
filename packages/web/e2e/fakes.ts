@@ -423,9 +423,13 @@ export async function installFakeClaude(
   return calls;
 }
 
-/** Requests received by the fake Mistral: texts of each call to /embeddings. */
+/**
+ * Requests received by the fake Mistral: texts of each call to /embeddings, model, reasoning and
+ * source of each indexing request.
+ */
 export interface MistralCalls {
   embeddings: string[][];
+  chat: { model: string; reasoning?: string; title: string }[];
 }
 
 /**
@@ -433,8 +437,11 @@ export interface MistralCalls {
  * letters without accents) of the words of 4 letters or more. Two texts that share words are
  * therefore close, as with a real model on these simple examples.
  */
-export async function installFakeMistral(page: Page): Promise<MistralCalls> {
-  const calls: MistralCalls = { embeddings: [] };
+export async function installFakeMistral(
+  page: Page,
+  options: { chatDelayMs?: number } = {},
+): Promise<MistralCalls> {
+  const calls: MistralCalls = { embeddings: [], chat: [] };
   const embed = (text: string): number[] => {
     const vector = new Array<number>(64).fill(0);
     const words = text
@@ -458,6 +465,55 @@ export async function installFakeMistral(page: Page): Promise<MistralCalls> {
       "access-control-allow-methods": "*",
     };
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    if (request.url().endsWith("/chat/completions")) {
+      // Indexing of a source: a tree named after the source, with one section and knowledge.
+      const body = JSON.parse(request.postData() ?? "{}") as {
+        model: string;
+        reasoning_effort?: string;
+        messages: { role: string; content: string }[];
+      };
+      const user = body.messages.at(-1)?.content ?? "";
+      const title = /<title>(.*)<\/title>/.exec(user)?.[1] ?? "Source";
+      calls.chat.push({
+        model: body.model,
+        ...(body.reasoning_effort ? { reasoning: body.reasoning_effort } : {}),
+        title,
+      });
+      if (options.chatDelayMs) await new Promise((r) => setTimeout(r, options.chatDelayMs));
+      const tree = {
+        name: title,
+        description: `Summary of "${title}".`,
+        knowledge: [],
+        children: [
+          {
+            name: "Main idea",
+            description: `The main idea of "${title}".`,
+            knowledge: [
+              {
+                title: `Main idea of ${title}`,
+                statement: `**${title}** sets out a main idea.`,
+                question: `What does ${title} set out?`,
+                answer: "A main idea",
+              },
+            ],
+            children: [],
+          },
+        ],
+      };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: cors,
+        body: JSON.stringify({
+          choices: [
+            {
+              message: { role: "assistant", content: JSON.stringify(tree) },
+              finish_reason: "stop",
+            },
+          ],
+        }),
+      });
+    }
     const body = JSON.parse(request.postData() ?? "{}") as { model: string; input: string[] };
     calls.embeddings.push(body.input);
     return route.fulfill({

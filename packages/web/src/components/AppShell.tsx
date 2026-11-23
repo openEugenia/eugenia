@@ -4,6 +4,10 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  ListTree,
+  X,
   CloudOff,
   FolderTree,
   Globe,
@@ -19,13 +23,19 @@ import {
   Settings,
   StickyNote,
 } from "lucide-react";
-import { librarySources } from "@openeugenia/core";
+import {
+  discussionsInBranch,
+  isInBranch,
+  librarySources,
+  type SourceIndexNode,
+  type WikiNode,
+} from "@openeugenia/core";
+import { useIndexing, useSourceIndex } from "../lib/indexing.ts";
 import { formatDate } from "../lib/format.ts";
 import { uncommittedPaths } from "../lib/pending.ts";
 import { href, navigate, openRepo, useRoute, type Route } from "../lib/router.ts";
 import { normalizeTerm } from "../lib/text.ts";
 import type { Derived } from "../lib/workspace.ts";
-import { errorMessage, toast } from "../store/ui.ts";
 import { canEdit, useWiki } from "../store/wiki.ts";
 import {
   DiscussionKindIcon,
@@ -35,7 +45,6 @@ import {
   VisibilityBadge,
 } from "./common.tsx";
 import { moveWithConfirmation } from "./NodeActions.tsx";
-import { fileSource } from "./SourcePanels.tsx";
 import { TreeView } from "./TreeView.tsx";
 
 function SyncIndicator() {
@@ -77,11 +86,98 @@ function SyncIndicator() {
   );
 }
 
+/** Sources being indexed in the background: progress, link to the indexes. */
+function IndexingIndicator() {
+  const jobs = useIndexing((s) => s.jobs);
+  const finished = useIndexing((s) => s.finished);
+  const count = Object.keys(jobs).length;
+  if (count === 0) return null;
+  const total = finished + count;
+  return (
+    <a
+      className="oe-button oe-button--ghost oe-button--sm"
+      href={href({ name: "indexes" })}
+      title="Sources being indexed in the background"
+    >
+      <Spinner small label="Indexing" />
+      <span className="app-bar__label">
+        Indexing {finished}/{total}
+      </span>
+    </a>
+  );
+}
+
+/** Index of the open source, in the library panel: its sections, collapsible like the wiki. */
+function IndexTree({
+  source,
+  currentSection,
+  onNavigate,
+}: {
+  source: WikiNode;
+  currentSection: string | undefined;
+  onNavigate(): void;
+}) {
+  const { index } = useSourceIndex(source);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  // The open section is always visible: its ancestors are expanded.
+  useEffect(() => {
+    if (!currentSection) return;
+    const parts = currentSection.split("/");
+    const chain = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join("/"));
+    setOpen((prev) => (chain.every((k) => prev.has(k)) ? prev : new Set([...prev, ...chain])));
+  }, [currentSection]);
+  if (!index || index.root.children.length === 0) return null;
+  const render = (nodes: readonly SourceIndexNode[]): ReactNode => (
+    <ul className="tree">
+      {nodes.map((n) => {
+        const expanded = open.has(n.key);
+        const current = n.key === currentSection;
+        return (
+          <li key={n.key}>
+            <div className={`tree-row${current ? " is-current" : ""}`}>
+              {n.children.length > 0 ? (
+                <button
+                  type="button"
+                  className="tree-toggle"
+                  onClick={() =>
+                    setOpen((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(n.key)) next.delete(n.key);
+                      else next.add(n.key);
+                      return next;
+                    })
+                  }
+                  aria-label={expanded ? `Collapse ${n.name}` : `Expand ${n.name}`}
+                  aria-expanded={expanded}
+                >
+                  {expanded ? <ChevronDown /> : <ChevronRight />}
+                </button>
+              ) : (
+                <span className="tree-spacer" />
+              )}
+              <a
+                href={href({ name: "node", id: source.id, section: n.key })}
+                aria-current={current ? "page" : undefined}
+                onClick={onNavigate}
+              >
+                <ListTree aria-hidden="true" />
+                <span className="title">{n.name}</span>
+              </a>
+            </div>
+            {expanded && n.children.length > 0 && render(n.children)}
+          </li>
+        );
+      })}
+    </ul>
+  );
+  return <div aria-label={`Index of ${source.title}`}>{render(index.root.children)}</div>;
+}
+
 export type Section = "wiki" | "library" | "discussions";
 
 /** Space matching the open page. */
 function sectionFor(route: Route, derived: Derived, currentId: string | undefined): Section {
-  if (route.name === "library") return "library";
+  if (route.name === "library" || route.name === "indexes") return "library";
   if (route.name === "discussions" || route.name === "discussion" || route.name === "ask")
     return "discussions";
   if (route.name === "extract" && route.discussion) return "discussions";
@@ -100,18 +196,28 @@ const SECTIONS: { id: Section; label: string; icon: ReactNode }[] = [
 function LibraryPanel({
   derived,
   currentId,
+  currentSection,
+  branchId,
   owner,
   onNavigate,
 }: {
   derived: Derived;
   currentId: string | undefined;
+  /** Open section of the index of the current source. */
+  currentSection: string | undefined;
+  /** Only the sources filed in this branch (library filtered by category). */
+  branchId: string | undefined;
   owner: boolean;
   onNavigate(): void;
 }) {
   const [filter, setFilter] = useState("");
+  const branch = branchId ? derived.tree.nodes.get(branchId) : undefined;
   const sources = useMemo(
-    () => librarySources(derived.tree).sort((a, b) => a.title.localeCompare(b.title, "en")),
-    [derived.tree],
+    () =>
+      librarySources(derived.tree)
+        .filter((s) => !branch || isInBranch(derived.tree, branch.id, s))
+        .sort((a, b) => a.title.localeCompare(b.title, "en")),
+    [derived.tree, branch],
   );
   const q = normalizeTerm(filter.trim());
   const visible = q
@@ -119,6 +225,16 @@ function LibraryPanel({
     : sources;
   return (
     <div className="side-panel">
+      {branch && (
+        <a
+          className="chip is-active side-panel__filter"
+          href={href({ name: "library" })}
+          onClick={onNavigate}
+          title="Show the whole library"
+        >
+          In {branch.title} <X aria-hidden="true" className="inline-icon" />
+        </a>
+      )}
       {sources.length > 8 && (
         <input
           className="oe-input oe-input--sm"
@@ -137,11 +253,13 @@ function LibraryPanel({
         <ul className="tree">
           {visible.map((s) => (
             <li key={s.id}>
-              <div className={`tree-row${s.id === currentId ? " is-current" : ""}`}>
+              <div
+                className={`tree-row${s.id === currentId && !currentSection ? " is-current" : ""}`}
+              >
                 <span className="tree-spacer" />
                 <a
                   href={href({ name: "node", id: s.id })}
-                  aria-current={s.id === currentId ? "page" : undefined}
+                  aria-current={s.id === currentId && !currentSection ? "page" : undefined}
                   onClick={onNavigate}
                 >
                   <SourceKindIcon kind={s.sourceKind} />
@@ -157,6 +275,9 @@ function LibraryPanel({
                   {!owner && !s.isPublic && <RecordBadge compact />}
                 </span>
               </div>
+              {s.id === currentId && s.sourceIndex?.root && (
+                <IndexTree source={s} currentSection={currentSection} onNavigate={onNavigate} />
+              )}
             </li>
           ))}
         </ul>
@@ -172,15 +293,35 @@ function LibraryPanel({
 function DiscussionsPanel({
   derived,
   currentPath,
+  branchId,
   onNavigate,
 }: {
   derived: Derived;
   currentPath: string | undefined;
+  /** Only the discussions placed in this branch. */
+  branchId: string | undefined;
   onNavigate(): void;
 }) {
-  const recent = derived.discussions.slice(0, 40);
+  const branch = branchId ? derived.tree.nodes.get(branchId) : undefined;
+  const recent = useMemo(() => {
+    if (!branch) return derived.discussions.slice(0, 40);
+    const paths = new Set(
+      discussionsInBranch(derived.tree, derived.hierarchy, branch.id).map((d) => d.path),
+    );
+    return derived.discussions.filter((d) => paths.has(d.path)).slice(0, 40);
+  }, [derived, branch]);
   return (
     <div className="side-panel">
+      {branch && (
+        <a
+          className="chip is-active side-panel__filter"
+          href={href({ name: "discussions" })}
+          onClick={onNavigate}
+          title="Show all the discussions"
+        >
+          In {branch.title} <X aria-hidden="true" className="inline-icon" />
+        </a>
+      )}
       {recent.length === 0 ? (
         <p className="muted small side-panel__empty">
           No discussions. Write a quick note or ask a question about your wiki.
@@ -342,6 +483,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
               )}
             </a>
           )}
+          {owner && <IndexingIndicator />}
           {owner && <SyncIndicator />}
           <a
             className="oe-button oe-button--ghost oe-button--sm icon-only"
@@ -432,16 +574,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
             owner={owner}
             canEdit={editable}
             storageKey={workspace.key}
-            onMove={(id, parent) => {
-              const moving = derived.tree.nodes.get(id);
-              const target = derived.tree.nodes.get(parent);
-              // A source dropped on a category is filed in it (the library stays flat).
-              if (moving?.type === "source" && target) {
-                fileSource(moving, target).catch((error: unknown) =>
-                  toast(errorMessage(error), "error"),
-                );
-              } else void moveWithConfirmation(id, parent);
-            }}
+            onMove={(id, parent) => void moveWithConfirmation(id, parent)}
             onNavigate={() => setSidebarOpen(false)}
           />
         )}
@@ -449,6 +582,8 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
           <LibraryPanel
             derived={derived}
             currentId={currentId}
+            currentSection={route.name === "node" ? route.section : undefined}
+            branchId={route.name === "library" ? route.category : undefined}
             owner={owner}
             onNavigate={() => setSidebarOpen(false)}
           />
@@ -457,6 +592,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
           <DiscussionsPanel
             derived={derived}
             currentPath={route.name === "discussion" ? route.path : undefined}
+            branchId={route.name === "discussions" ? route.category : undefined}
             onNavigate={() => setSidebarOpen(false)}
           />
         )}

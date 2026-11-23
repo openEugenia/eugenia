@@ -1,7 +1,9 @@
 /**
- * Indexing a source (§8.6): a large model (Mistral Large by default) reads the whole text of a
- * source once and describes it as a knowledge tree, stored in `_tree.json`. Eugenia then reads
- * this tree at low cost, even with a smaller model, instead of the source.
+ * Indexing a source (§8.6): a model (Mistral, from Ministral to Mistral Large) reads the whole
+ * text of a source once and describes it as a knowledge tree, stored like the wiki in the
+ * `_index/` folder of the source. Each node also proposes the knowledge worth extracting, with
+ * a first flashcard. Eugenia then reads this tree at low cost, even with a smaller model,
+ * instead of the source.
  *
  * A long source is read in parts: each part gets its own tree, then the model gathers the main
  * topics of the parts into the top of the tree of the whole source. A part whose tree is cut off
@@ -12,9 +14,17 @@ import type { KnowledgeNode } from "@openeugenia/core";
 import { AIError } from "../errors.ts";
 import { excerpt, splitText, systemPrompt, withSignal, type TaskContext } from "./context.ts";
 
+export const KnowledgeCandidateSchema = z.object({
+  title: z.string(),
+  statement: z.string(),
+  question: z.string(),
+  answer: z.string(),
+});
+
 export const KnowledgeNodeSchema = z.object({
   name: z.string(),
   description: z.string(),
+  knowledge: z.array(KnowledgeCandidateSchema),
   get children(): z.ZodArray<typeof KnowledgeNodeSchema> {
     return z.array(KnowledgeNodeSchema);
   },
@@ -71,7 +81,7 @@ function normalizedName(name: string): string {
     .trim();
 }
 
-/** Merges the nodes that have the same name (their children are put together). */
+/** Merges the nodes that have the same name (their knowledge and children are put together). */
 export function mergeDuplicates(nodes: readonly KnowledgeNode[]): KnowledgeNode[] {
   const out: KnowledgeNode[] = [];
   const byName = new Map<string, KnowledgeNode>();
@@ -84,6 +94,7 @@ export function mergeDuplicates(nodes: readonly KnowledgeNode[]): KnowledgeNode[
       if (key) byName.set(key, copy);
       continue;
     }
+    existing.knowledge = [...(existing.knowledge ?? []), ...(node.knowledge ?? [])];
     if (node.description && !existing.description.includes(node.description)) {
       existing.description = existing.description
         ? `${existing.description}\n\n${node.description}`
@@ -124,6 +135,7 @@ export function assembleTree(
         : {
             name: group.name.trim() || nodes[0]!.name,
             description: group.description,
+            knowledge: [],
             children: nodes,
           },
     );
@@ -138,6 +150,8 @@ export function assembleTree(
   return {
     name: plan?.name.trim() || title,
     description,
+    // The knowledge proposed by the root of each part is about the whole source.
+    knowledge: trees.flatMap((t) => (t.children.length > 0 ? (t.knowledge ?? []) : [])),
     children: mergeDuplicates([...children, ...left]),
   };
 }

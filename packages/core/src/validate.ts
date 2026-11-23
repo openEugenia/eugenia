@@ -5,7 +5,7 @@ import type { WikiView } from "./operations.ts";
 import { knowledgeStatement, parseFlashcardBody, parsePage } from "./pages.ts";
 import { joinPath, normalizePath } from "./paths.ts";
 import { publicSummaryProblems } from "./publish.ts";
-import { parseSourceTree } from "./source-tree.ts";
+import { readSourceIndex } from "./source-index.ts";
 import { parseSummary } from "./summaries.ts";
 import type { Problem } from "./types.ts";
 
@@ -51,13 +51,14 @@ export async function validateWiki(
     if (node.type === "knowledge" && !knowledgeStatement(doc.body)) {
       warn("knowledge-empty", `The knowledge item "${node.title}" has no statement.`);
     }
-    if (node.type === "source" && node.sourceTree) {
+    if (node.type === "source" && node.sourceIndex) {
       try {
-        parseSourceTree(await view.readText(node.sourceTree.path));
+        if (!(await readSourceIndex(view, node)))
+          throw new Error("Its root (_index/index.md) is missing.");
       } catch (error) {
         warn(
           "invalid-source-index",
-          `The index of the source "${node.title}" (${node.sourceTree.path}) cannot be read: ${error instanceof Error ? error.message : String(error)} Generate it again.`,
+          `The index of the source "${node.title}" cannot be read: ${error instanceof Error ? error.message : String(error)} Generate it again.`,
         );
       }
     }

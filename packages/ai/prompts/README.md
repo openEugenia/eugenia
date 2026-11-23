@@ -14,7 +14,7 @@ can check what the AI is asked, and they can be **overridden** in a wiki: a
 | `discuss.md` | Eugenia's role in a discussion opened from a page, answering from the knowledge of the wiki only (§8.4). |
 | `note.md` | Answer to a quick note: candidate knowledge, what the wiki says about it, source leads (§8.4). |
 | `ask.md` | Questions about the tree: exploring the common hierarchy (categories, knowledge, sources and the sections of their index, discussions), then answering from what was read only, with citations (§8.5). |
-| `index-source.md` | Indexing a source: describing its whole content as a knowledge tree (`_tree.json`), read later at low cost (§8.6). |
+| `index-source.md` | Indexing a source: describing its whole content as a knowledge tree, with the knowledge worth extracting (stored in the `_index/` folder of the source), read later at low cost (§8.6). |
 | `categories.md` | Suggesting subcategories for a category (§8.1). |
 
 An optional YAML frontmatter is ignored. Available variables: `{{wiki_title}}`, `{{today}}`.

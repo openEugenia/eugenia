@@ -12,6 +12,7 @@ import type {
   JsonRequest,
   ProviderInfo,
   ProviderKind,
+  ReasoningEffort,
 } from "../types.ts";
 import { DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, DEFAULT_OPENAI_URL } from "../constants.ts";
 
@@ -25,6 +26,8 @@ export interface OpenAICompatibleOptions {
   label?: string;
   /** Forces the local flag (otherwise deduced from the URL). */
   local?: boolean;
+  /** Reasoning of the model (`reasoning_effort`), for the models that support it. */
+  reasoningEffort?: ReasoningEffort;
   fetch?: typeof fetch;
 }
 
@@ -80,12 +83,14 @@ export class OpenAICompatibleProvider implements AIProvider {
   readonly info: ProviderInfo;
   private readonly baseUrl: string;
   private readonly apiKey: string | undefined;
+  private readonly reasoningEffort: ReasoningEffort | undefined;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: OpenAICompatibleOptions) {
     if (!options.model) throw new AIError("config", "Missing model name.");
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey || undefined;
+    this.reasoningEffort = options.reasoningEffort;
     this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.info = {
       kind: options.kind,
@@ -104,6 +109,9 @@ export class OpenAICompatibleProvider implements AIProvider {
     signal?: AbortSignal,
     endpoint = "/chat/completions",
   ): Promise<Response> {
+    if (endpoint === "/chat/completions" && this.reasoningEffort) {
+      body = { ...body, reasoning_effort: this.reasoningEffort };
+    }
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.baseUrl}${endpoint}`, {
