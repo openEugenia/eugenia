@@ -20,7 +20,7 @@ export interface IndexModelPreset {
 
 /**
  * Models offered to index the sources (§8.6), from the slowest to the fastest. A model that
- * reasons thinks before writing the tree. Timings measured on a 30 KB text (2026-11).
+ * reasons thinks before writing the tree. Lengths and timings measured on a 30 KB text (2026-11).
  */
 export const INDEX_MODEL_PRESETS: readonly IndexModelPreset[] = [
   {
@@ -28,34 +28,34 @@ export const INDEX_MODEL_PRESETS: readonly IndexModelPreset[] = [
     label: "Mistral Large — with reasoning",
     model: "mistral-large-latest",
     reasoningEffort: "high",
-    description: "Thinks the longest before writing; about 3½ minutes for a 30 KB text.",
+    description:
+      "The most detailed descriptions (about 130 words per node); about 5 minutes for a 30 KB text.",
   },
   {
     id: "small-reasoning",
     label: "Mistral Small — with reasoning",
     model: "mistral-small-latest",
     reasoningEffort: "high",
-    description: "The most detailed trees in our tests; about 45 s for a 30 KB text.",
+    description: "Fine-grained trees (about 60 words per node); about 40 s for a 30 KB text.",
   },
   {
     id: "small",
     label: "Mistral Small — without reasoning",
     model: "mistral-small-latest",
     reasoningEffort: "none",
-    description:
-      "Fast and cheap, with plenty of knowledge to extract; about 25 s for a 30 KB text.",
+    description: "Fast and cheap (about 50 words per node); about 25 s for a 30 KB text.",
   },
   {
     id: "ministral-14b",
     label: "Ministral 14B",
     model: "ministral-14b-latest",
-    description: "Without reasoning; detailed trees, less knowledge to extract; about 30 s.",
+    description: "Without reasoning (about 70 words per node); about 45 s for a 30 KB text.",
   },
   {
     id: "ministral-8b",
     label: "Ministral 8B",
     model: "ministral-8b-latest",
-    description: "The fastest and cheapest, with shallower trees; about 15 s.",
+    description: "The cheapest (about 60 words per node); about 35 s for a 30 KB text.",
   },
 ];
 

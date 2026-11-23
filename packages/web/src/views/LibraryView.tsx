@@ -174,7 +174,7 @@ export function LibraryView({
             <a className="oe-button oe-button--secondary" href={href({ name: "extract" })}>
               <FileUp aria-hidden="true" /> Import a text or a PDF
             </a>
-            <a className="oe-button oe-button--secondary" href={href({ name: "indexes" })}>
+            <a className="oe-button oe-button--secondary" href={href({ name: "tasks" })}>
               <ListTree aria-hidden="true" /> Indexes
             </a>
           </div>

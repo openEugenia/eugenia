@@ -34,6 +34,7 @@ import {
   flashcardsUnder,
   knowledgeOf,
   masteryCurve,
+  pageVector,
   parseFlashcardBody,
   parseKnowledgeBody,
   parsePage,
@@ -62,6 +63,7 @@ import {
   UnsourcedBadge,
   VisibilityBadge,
 } from "../components/common.tsx";
+import { EmbeddingPanel } from "../components/EmbeddingPanel.tsx";
 import { FlashcardSuggestions } from "../components/FlashcardSuggestions.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import { NodePicker } from "../components/NodePicker.tsx";
@@ -865,6 +867,13 @@ export function NodeView({ id }: { id: string }) {
             })}
           </ul>
         </section>
+      )}
+
+      {!node.virtual && node.type !== "flashcard" && (
+        <EmbeddingPanel
+          name={node.title}
+          load={() => pageVector(useWiki.getState().workspace!, node)}
+        />
       )}
 
       {backlinks.length > 0 && (

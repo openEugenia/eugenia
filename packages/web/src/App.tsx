@@ -47,8 +47,8 @@ const LibraryView = lazy(() =>
 const DiscussionsView = lazy(() =>
   import("./views/DiscussionsView.tsx").then((m) => ({ default: m.DiscussionsView })),
 );
-const IndexesView = lazy(() =>
-  import("./views/IndexesView.tsx").then((m) => ({ default: m.IndexesView })),
+const TasksView = lazy(() =>
+  import("./views/TasksView.tsx").then((m) => ({ default: m.TasksView })),
 );
 const SectionView = lazy(() =>
   import("./views/SectionView.tsx").then((m) => ({ default: m.SectionView })),
@@ -158,8 +158,8 @@ function WikiRoute({ route }: { route: Route }) {
       return <ChangesView />;
     case "summaries":
       return <SummariesView {...(route.id ? { rootId: route.id } : {})} />;
-    case "indexes":
-      return <IndexesView />;
+    case "tasks":
+      return <TasksView />;
     case "new-wiki":
       return <NewWikiView />;
     default:

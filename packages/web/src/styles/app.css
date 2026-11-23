@@ -1779,3 +1779,36 @@ dialog.modal::backdrop {
   align-items: center;
   gap: var(--oe-space-2);
 }
+
+.task-list > li {
+  flex-wrap: wrap;
+}
+
+/* Embedding vector of an indexed element. */
+.embedding-panel > summary {
+  cursor: pointer;
+  font-weight: var(--oe-font-weight-semibold);
+}
+
+.embedding-panel__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--oe-space-1);
+}
+
+.embedding-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 0 var(--oe-space-2);
+  max-height: 16rem;
+  overflow: auto;
+  margin: 0;
+  padding: var(--oe-space-2);
+  list-style: none;
+  font-family: var(--oe-font-mono);
+  font-size: var(--oe-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  border: var(--oe-border-width) solid var(--oe-color-border);
+  border-radius: var(--oe-radius-md);
+}

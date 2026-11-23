@@ -347,25 +347,34 @@ describe("eugenia index", () => {
       }
       const title = /<title>(.*)<\/title>/.exec(request.messages[0]!.content)?.[1] ?? "?";
       this.titles.push(title);
+      // Drawn from the text of the source: the index only keeps what the source says.
+      const body = /<source>\n[^\n]*\n(?:[A-Z][a-z]+: [^\n]*\n)*\n([\s\S]*?)\n<\/source>/.exec(
+        request.messages[0]!.content,
+      )?.[1];
+      const sentence = (body ?? title)
+        .replace(/[>*]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .split(/(?<=\.)\s/)[0]!;
       return {
         name: title,
-        description: `What "${title}" says.`,
+        description: sentence,
         knowledge: [],
         children: [
           {
             name: "First idea",
-            description: "The first idea.",
+            description: sentence,
             knowledge: [
               {
                 title: "First fact",
-                statement: `**${title}** states the first fact.`,
+                statement: `**${title}**: ${sentence}`,
                 question: "Which source states the first fact?",
                 answer: title,
               },
             ],
             children: [],
           },
-          { name: "Second idea", description: "The second idea.", knowledge: [], children: [] },
+          { name: "Second idea", description: sentence, knowledge: [], children: [] },
         ],
       } as T;
     }
@@ -425,7 +434,7 @@ describe("eugenia index", () => {
     expect(tree).toMatchObject({ model: "test-model", root: { name: "Wikipedia: Lilith" } });
     expect(tree!.root.children).toHaveLength(2);
     expect(tree!.root.children[0]!.knowledge[0]!.statement).toBe(
-      "**Wikipedia: Lilith** states the first fact.",
+      "**Wikipedia: Lilith**: Article of the collaborative encyclopedia on the figure of Lilith, from Mesopotamian mythology to medieval Jewish traditions.",
     );
     // The model receives the record and the content of the source.
     const request = provider.requests.find((r) =>

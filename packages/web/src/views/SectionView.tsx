@@ -4,7 +4,9 @@
  * subsections, and the sections before and after it.
  */
 import { ChevronLeft, ChevronRight, ListTree, MessageSquare } from "lucide-react";
-import { indexAncestry, indexKnowledge } from "@openeugenia/core";
+import { indexAncestry, indexKnowledge, sectionVector } from "@openeugenia/core";
+import { EmbeddingPanel } from "../components/EmbeddingPanel.tsx";
+import { useWiki } from "../store/wiki.ts";
 import { Breadcrumb, ErrorBox, Loading, VisibilityBadge } from "../components/common.tsx";
 import {
   IndexCards,
@@ -104,6 +106,11 @@ export function SectionView({ sourceId, sectionKey }: { sourceId: string; sectio
       )}
 
       <ProposedKnowledge source={source} node={node} />
+
+      <EmbeddingPanel
+        name={`${source.title} ${node.name}`}
+        load={() => sectionVector(useWiki.getState().workspace!, source, node.key)}
+      />
 
       {(previous || next) && (
         <nav className="section-nav section" aria-label="Neighbouring parts">

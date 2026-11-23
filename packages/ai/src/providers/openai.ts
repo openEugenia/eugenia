@@ -197,16 +197,34 @@ export class OpenAICompatibleProvider implements AIProvider {
             model: this.info.model,
             messages: this.messages({ ...request, system }),
             max_tokens: request.maxTokens ?? 16000,
-            stream: false,
+            stream: request.stream === true,
             ...(format ? { response_format: format } : {}),
           },
           request.signal,
         );
-        const data = (await response.json()) as { choices?: ChatChoice[] };
-        const choice = data.choices?.[0];
+        let finish: string | null | undefined;
+        if (request.stream) {
+          if (!response.body) throw new AIError("network", "Empty response from the provider.");
+          text = "";
+          for await (const event of readSSE(response.body)) {
+            if (event.data === "[DONE]") break;
+            let chunk: { choices?: ChatChoice[] };
+            try {
+              chunk = JSON.parse(event.data) as { choices?: ChatChoice[] };
+            } catch {
+              continue;
+            }
+            const choice = chunk.choices?.[0];
+            text += messageText(choice?.delta?.content);
+            finish = choice?.finish_reason ?? finish;
+          }
+        } else {
+          const data = (await response.json()) as { choices?: ChatChoice[] };
+          finish = data.choices?.[0]?.finish_reason;
+          text = messageText(data.choices?.[0]?.message?.content);
+        }
         // A truncated answer would be just as truncated in another format: give up now.
-        if (choice?.finish_reason === "length") throw truncated(this.info.label);
-        text = messageText(choice?.message?.content);
+        if (finish === "length") throw truncated(this.info.label);
       } catch (error) {
         // Output format not supported: try the next one.
         if (error instanceof AIError && error.status === 400) {

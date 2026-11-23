@@ -25,10 +25,10 @@ import {
   addProposedKnowledge,
   cancelIndexing,
   indexSourceNode,
-  useIndexing,
   useSourceIndex,
 } from "../lib/indexing.ts";
 import { href } from "../lib/router.ts";
+import { useTasks } from "../lib/tasks.ts";
 import { hasIndexing } from "../lib/settings.ts";
 import { useSettings } from "../store/settings.ts";
 import { errorMessage, toast } from "../store/ui.ts";
@@ -113,20 +113,18 @@ export const INDEX_STATUS_LABELS: Record<SourceIndexStatus, string> = {
 
 /** Progress of the indexing of a source, if it is queued or running. */
 export function IndexingProgress({ sourceId }: { sourceId: string }) {
-  const job = useIndexing((s) => s.jobs[sourceId]);
+  const job = useTasks((s) => s.tasks[sourceId]);
   if (!job) return null;
   return (
     <span className="indexing-progress small">
       <Spinner small label="Indexing" />
       {job.status === "queued"
         ? "Waiting to be indexed…"
-        : job.extracting
-          ? "Adding the proposed knowledge to your wiki…"
-          : job.assembling
-            ? "Gathering the parts of the source…"
-            : job.total > 1
-              ? `Reading the source: part ${Math.min(job.done + 1, job.total)} of ${job.total}…`
-              : "Eugenia is reading the source…"}
+        : job.assembling
+          ? "Gathering the parts of the source…"
+          : job.total > 1
+            ? `Reading the source: part ${Math.min(job.done + 1, job.total)} of ${job.total}…`
+            : "Eugenia is reading the source…"}
       <button
         type="button"
         className="oe-button oe-button--ghost oe-button--sm"
@@ -181,14 +179,16 @@ export function IndexCards({
 }
 
 /**
- * Knowledge proposed by a node of the index (and, in a count, by the nodes below it): what is
- * already in the wiki links to it; the rest is added in one click, without review (or reviewed
- * first in the extraction).
+ * Knowledge proposed by a node of the index (and, in a count, by the nodes below it). It is not
+ * in the wiki until the user adds it: one item or all of them in one click, without review, or
+ * reviewed first in the extraction. What is already in the wiki links to it. It is filed in the
+ * category of the source or below it.
  */
 export function ProposedKnowledge({ source, node }: { source: WikiNode; node: SourceIndexNode }) {
   const derived = useDerived();
   const editable = useCanEdit();
-  const [adding, setAdding] = useState(false);
+  // `""`: all of them; otherwise the title of the item being added.
+  const [adding, setAdding] = useState<string | null>(null);
   const all = indexKnowledge(node).map((k) => k.candidate);
   if (all.length === 0) return null;
   // Knowledge of the wiki drawn from this source, by title.
@@ -199,15 +199,15 @@ export function ProposedKnowledge({ source, node }: { source: WikiNode; node: So
     }
   }
   const remaining = newCandidates(derived.tree, source.id, all).length;
-  const add = async (): Promise<void> => {
-    setAdding(true);
+  const add = async (title?: string): Promise<void> => {
+    setAdding(title ?? "");
     try {
-      const added = await addProposedKnowledge(source.id, node.key);
+      const added = await addProposedKnowledge(source.id, node.key, title);
       toast(`${plural(added, "knowledge item")} added to your wiki.`, "success");
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
-      setAdding(false);
+      setAdding(null);
     }
   };
   return (
@@ -225,10 +225,10 @@ export function ProposedKnowledge({ source, node }: { source: WikiNode; node: So
             <button
               type="button"
               className="oe-button oe-button--secondary oe-button--sm"
-              disabled={adding}
+              disabled={adding !== null}
               onClick={() => void add()}
             >
-              {adding ? <Spinner small label="Adding" /> : <Plus aria-hidden="true" />} Add{" "}
+              {adding === "" ? <Spinner small label="Adding" /> : <Plus aria-hidden="true" />} Add{" "}
               {remaining > 1 ? `these ${remaining} items` : "it"} to my wiki
             </button>
           </div>
@@ -243,10 +243,27 @@ export function ProposedKnowledge({ source, node }: { source: WikiNode; node: So
               <li key={i} className="oe-card">
                 <span className="proposed-knowledge__title">
                   {k.title}
-                  {existing && (
+                  {existing ? (
                     <a className="oe-badge" href={href({ name: "node", id: existing.id })}>
                       In your wiki
                     </a>
+                  ) : (
+                    editable && (
+                      <button
+                        type="button"
+                        className="oe-button oe-button--ghost oe-button--sm"
+                        disabled={adding !== null}
+                        onClick={() => void add(k.title)}
+                        aria-label={`Add "${k.title}" to my wiki`}
+                      >
+                        {adding === k.title ? (
+                          <Spinner small label="Adding" />
+                        ) : (
+                          <Plus aria-hidden="true" />
+                        )}{" "}
+                        Add to my wiki
+                      </button>
+                    )
                   )}
                 </span>
                 <Markdown text={k.statement} path={source.indexPath} className="prose knowledge" />
@@ -280,7 +297,7 @@ export function SourceIndexPanel({ node }: { node: WikiNode }) {
   const owner = useIsOwner();
   const editable = useCanEdit();
   const settings = useSettings((s) => s.settings);
-  const job = useIndexing((s) => s.jobs[node.id]);
+  const job = useTasks((s) => s.tasks[node.id]);
   const { index, loading } = useSourceIndex(node);
   const [status, setStatus] = useState<SourceIndexStatus | null>(null);
 
@@ -328,7 +345,7 @@ export function SourceIndexPanel({ node }: { node: WikiNode }) {
             .{" "}
             {editable &&
               (configured ? (
-                <a href={href({ name: "indexes" })}>All the indexes</a>
+                <a href={href({ name: "tasks" })}>All the indexes</a>
               ) : (
                 <>
                   Add a Mistral key in the <a href={href({ name: "settings" })}>settings</a> to

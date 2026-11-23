@@ -409,28 +409,7 @@ function IndexingEditor({ draft, onChange }: { draft: Settings; onChange(next: S
           />
         </div>
       </div>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={draft.ai.autoIndex !== false}
-          onChange={(e) => onChange({ ...draft, ai: { ...draft.ai, autoIndex: e.target.checked } })}
-        />
-        <span>Index each new source automatically (and again when its content changes).</span>
-      </label>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={draft.ai.autoExtract !== false}
-          onChange={(e) =>
-            onChange({ ...draft, ai: { ...draft.ai, autoExtract: e.target.checked } })
-          }
-        />
-        <span>
-          Add the knowledge proposed by each index to my wiki right away, without review: Eugenia
-          files it in my categories, with a first flashcard. Otherwise, I review it from the page
-          of the source.
-        </span>
-      </label>
+
       {effective ? (
         <div className="actions actions--start">
           <span className="muted small">
@@ -660,6 +639,38 @@ export function SettingsView() {
           private content" rule above. The index of a public source is published with it.
         </p>
         <IndexingEditor draft={draft} onChange={setDraft} />
+      </section>
+
+      <section className="section oe-card">
+        <h2 className="oe-card__title">Background tasks</h2>
+        <p className="muted small">
+          Eugenia works in the background while you browse: she indexes your sources and keeps the
+          descriptions of your sub-wikis up to date, saving each result as soon as it is done.
+          Follow them, or start them yourself, in her <a href="#/tasks">tasks</a>.
+        </p>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={draft.ai.autoIndex !== false}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, ai: { ...d.ai, autoIndex: e.target.checked } }))
+            }
+          />
+          <span>Index each new source automatically (and again when its content changes).</span>
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={draft.ai.autoSummarize !== false}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, ai: { ...d.ai, autoSummarize: e.target.checked } }))
+            }
+          />
+          <span>
+            Re-evaluate the stale descriptions automatically, from the deepest sub-wiki to the root,
+            without asking for each one.
+          </span>
+        </label>
       </section>
 
       <section className="section oe-card">

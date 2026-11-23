@@ -1,6 +1,6 @@
 # Specification — Eugenia: a personal knowledge wiki, on git
 
-> Status: draft v0.9 — 2026-11-23 (common hierarchy of the wiki, the library and the discussions; indexing of sources as knowledge trees stored like the wiki, with knowledge to extract, by a choice of Mistral models, in the background; Eugenia's answers based on the tree only)
+> Status: draft v0.10 — 2026-11-23 (common hierarchy of the wiki, the library and the discussions; indexing of sources as detailed knowledge trees stored like the wiki, checked against the source, with knowledge proposed for the user to add; a choice of Mistral models; Eugenia's tasks in the background — indexes and descriptions; embedding vectors of every indexed element; Eugenia's answers based on the tree only)
 > This document is the starting point of the project's git repository. It turns the functional documentation of the [`functional_doc/`](functional_doc/) folder into a technical specification; the functional documentation remains the reference for the "what" and the "why". Open points are listed in §16.
 
 ---
@@ -27,7 +27,7 @@ The user **never handles files**: they only see a hierarchy of nodes. The storag
 1. Browse a hierarchical personal wiki from a given git repository.
 2. Create, edit, move and delete nodes from the interface, with a commit to the repository.
 3. Extract atomic knowledge from texts (notes, imported documents) with Eugenia's help, and file it into categories.
-4. Generate and maintain the sub-wiki descriptions (summaries) in semi-automatic mode.
+4. Generate and maintain the sub-wiki descriptions (summaries), re-evaluated in the background when they become stale.
 5. Reinforce knowledge through conversational quizzes, tracking mastery and decay.
 6. Discuss with Eugenia from any node, and ask her about the whole tree.
 7. Reliably separate public and private knowledge.
@@ -452,7 +452,7 @@ The single instance `openeugenia.github.io/eugenia/` has no server secret and no
 
 - Navigation in the tree: each sub-wiki shows its **description** (§5.5), its children with their short descriptions, and a **mastery gauge**.
 - Mastery of a category: average current mastery of the flashcards it contains (descendants included).
-- Descriptions are maintained in **semi-automatic** mode (§11.2).
+- Descriptions are kept up to date by Eugenia in the background, or reviewed by the user (§11.2).
 
 ### 8.3 Quiz and reinforcement ([§3](functional_doc/3_reinforcement.qmd))
 
@@ -516,14 +516,17 @@ The user asks a question about a given scope (whole wiki or branch). The search 
 
 ### 8.6 Indexing of sources
 
-Each source of the library is transformed into an **index**: a tree of concepts that describes its whole content exhaustively — topics, subtopics, key ideas, arguments, examples, facts, decisions, conclusions, relationships — each node with a name and a self-contained description, the root summing up the source. The plan of the source is followed when it gives one; duplicate concepts are merged. **The model only writes what the source says**: even if it recognizes the source (a famous book, a Wikipedia article), it adds nothing from its own knowledge — a two-line summary gives a root alone.
+Each source of the library is transformed into an **index**: a tree of concepts that describes its whole content exhaustively — topics, subtopics, key ideas, arguments, examples, facts, decisions, conclusions, relationships — each node with a name and a **precise, self-contained description of what the source says at this node** (facts, figures, names, definitions, arguments, examples: up to about a hundred words when the source develops the part, never more than the source says), the root summing up the source. The plan of the source is followed when it gives one; duplicate concepts are merged. **The model only writes what the source says**: even if it recognizes the source (a famous book, a Wikipedia article), it adds nothing from its own knowledge — a two-line summary gives a root alone.
 
-1. **Knowledge to extract**: each node also proposes the knowledge worth remembering (at most three per node): a title, a self-contained statement with its learning target in bold, and a first flashcard (question, answer). The extraction (§8.1) can start from them — from the source page, or from a section for its part of the source — skipping the highlighting: the user reviews the proposals, Eugenia proposes their categories, and they are created in one commit.
-2. **Models**: the user chooses, in the settings or for a batch, between presets of Mistral models (OpenAI-compatible API, `reasoning_effort` when the model supports it), measured on a 30 KB text: Mistral Large with reasoning (≈ 3½ min), Mistral Small with reasoning (≈ 45 s, the most detailed trees), **Mistral Small without reasoning (≈ 25 s, the default)**, Ministral 14B (≈ 30 s) and Ministral 8B (≈ 15 s); or another model. The index is generated once; it is then read at low cost by smaller models (§8.5).
-3. **When**: automatically for a new source and when the text of a source changes (option in the settings), on demand from the source page, from the **"Indexes" view** — the state of the index of every source, and the indexing of all the missing or stale ones with the chosen model — or in a batch (`eugenia index`). Indexing runs **in the background** (two sources at a time): the user keeps browsing, the progress shows in the app bar, and each index is committed when it is ready (with the source, if the source is not saved yet). An index is **stale** when the text of its source changed (fingerprint `text_sha`).
-4. **Long sources**: read in parts (about 60,000 characters each, three at the same time); each part gets its tree, then the model gathers the main topics of the parts into the top of the tree of the whole source. A part whose answer is cut off is split in two and read again.
-5. **Storage and browsing**: like the wiki, one folder per node with an `index.md`, in the `_index/` folder of the source (format in `docs/format.md`). The index is browsed like the wiki: the source page shows its summary, its sections as cards and its knowledge to extract; each section is a page (breadcrumb through the wiki, the source and the enclosing sections, subsections, previous and next sections); in the side panel, the open source unfolds its index as a tree. Its sections get embeddings (`_index/_embeddings.json`) for the exhaustive search.
-6. **Privacy**: a private source follows the "local AI for private content" rule (§11.1); the index of a public source is published with it, never the index of a private one.
+**Check against the source**: small models tend to complete a short source with what they remember of the document it describes. Whatever the model writes, the app keeps only what the source backs: a proposed knowledge item whose content words are mostly absent from the source (less than half of them) is dropped, as is a sentence of a description (less than 40 %) and a section left with neither. On a real 30 KB source, the check removes nothing; on a two-line note, it removes what was invented.
+
+1. **Knowledge to extract**: each node also proposes the knowledge worth remembering (at most three per node): a title, a self-contained statement with its learning target in bold, and a first flashcard (question, answer). It is **proposed, never added to the wiki on its own**: the user adds it when they wish — one item, or all the items of the source or of a section, in one click, without review — or reviews it first in the extraction (§8.1), from the source page or from a section, skipping the highlighting. What is already in the wiki is shown as such and never added twice.
+2. **Where it goes**: the knowledge of a source stays **in the category of the source or below it** — Eugenia files it in the existing subcategories of that branch, or creates new subcategories there; a source not filed yet is filed where its knowledge goes. The review shows only the categories of that branch.
+3. **Models**: the user chooses, in the settings or for a batch, between presets of Mistral models (OpenAI-compatible API, `reasoning_effort` when the model supports it), measured on a 30 KB text: Mistral Large with reasoning (≈ 5 min, the most detailed descriptions: about 130 words per node), Mistral Small with reasoning (≈ 40 s, about 60 words), **Mistral Small without reasoning (≈ 25 s, about 50 words, the default)**, Ministral 14B (≈ 45 s, about 70 words) and Ministral 8B (≈ 35 s, about 60 words); or another model. Long answers are streamed: a model that thinks for minutes keeps the connection active. The index is generated once; it is then read at low cost by smaller models (§8.5).
+4. **When**: automatically for a new source and when the text of a source changes (option in the settings), on demand from the source page, from **Eugenia's tasks** (§11.4) — the state of the index of every source, and the indexing of all the missing or stale ones with the chosen model — or in a batch (`eugenia index`, `--extract` to also add the proposed knowledge). Indexing runs **in the background** (two sources at a time): the user keeps browsing, the progress shows in the app bar, and each index is committed when it is ready (with the source, if the source is not saved yet). An index is **stale** when the text of its source changed (fingerprint `text_sha`).
+5. **Long sources**: read in parts (about 60,000 characters each, three at the same time); each part gets its tree, then the model gathers the main topics of the parts into the top of the tree of the whole source. A part whose answer is cut off is split in two and read again.
+6. **Storage and browsing**: like the wiki, one folder per node with an `index.md`, in the `_index/` folder of the source (format in `docs/format.md`). The index is browsed like the wiki: the source page shows its summary, its sections as cards and its knowledge to extract; each section is a page (breadcrumb through the wiki, the source and the enclosing sections, subsections, previous and next sections); in the side panel, the open source unfolds its index as a tree. Its sections get embeddings (`_index/_embeddings.json`) for the exhaustive search; the page of every indexed element (page or section) gives access to its **embedding vector** (1,024 values with `mistral-embed`, its model and whether it is up to date), to copy or download — for the owner only, since embeddings are never published.
+7. **Privacy**: a private source follows the "local AI for private content" rule (§11.1); the index of a public source is published with it, never the index of a private one.
 
 ## 9. Web interface
 
@@ -535,7 +538,7 @@ Each source of the library is transformed into an **index**: a tree of concepts 
 1. **Side panel** with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, each branch with two discreet counters of its sources and discussions (common hierarchy, §5.10) that open the filtered Library or Discussions, icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title; the open source unfolds its index as a tree), **Discussions** (recent exchanges); both follow the branch filter of the main view.
 2. **Category**: description at the top, introduction, subcategories and knowledge items with their short descriptions, the sources filed in it, backlinks, related discussions.
 3. **Knowledge item**: statement (target in bold), sources (with location), flashcards and their mastery, origin (source or discussion); **flashcard**: question, expected answer, tested knowledge, mastery curve.
-3a. **Library**: list of sources filterable by category, kind, tag and text, sorting, knowledge that needs a source; **source**: the category it is filed in (changeable), bibliographic record, personal file, content, its index (state, generation in the background, summary, sections as cards, knowledge to extract), knowledge that cites it; **section** of an index: a page of its own, browsed like a category (§8.6); **indexes**: the state of the index of every source, and their indexing in the background with a chosen model. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
+3a. **Library**: list of sources filterable by category, kind, tag and text, sorting, knowledge that needs a source; **source**: the category it is filed in (changeable), bibliographic record, personal file, content, its index (state, generation in the background, summary, sections as cards, knowledge to extract), knowledge that cites it; **section** of an index: a page of its own, browsed like a category (§8.6); **Eugenia's tasks**: the tasks in progress, the descriptions to re-evaluate, the state of the index of every source and their indexing in the background with a chosen model (§11.4). Every indexed page and section gives access to its embedding vector. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
 3b. **Discussions**: list of all the exchanges, filterable by kind and by branch of the wiki, direct access to the quick note, the question, the quiz.
 4. **Extraction**: source text with highlights, panel of proposed knowledge and of the new categories proposed for the document (§8.1).
 5. **Quiz**: conversation with Eugenia, score and feedback after each answer, session progress.
@@ -591,11 +594,11 @@ Common `AIProvider` interface (`complete`, `stream`, `countTokens`, and `embed` 
 
 API keys are never committed; they are only stored in the browser.
 
-### 11.2 Sub-wiki descriptions (semi-automatic mode)
+### 11.2 Sub-wiki descriptions
 1. **Detection**: `core` compares the `sources` of each summary with the current SHAs of the children. A difference → the description is **stale**, which propagates to the ancestors.
 2. **Reporting**: badge in the tree and global counter "N stale descriptions".
-3. **Regeneration**: on demand, on a node, a branch or the whole wiki, from the deepest nodes to the root.
-4. **Review**: each regenerated description is shown as a diff before entering the commit; it can be edited then locked (`locked`).
+3. **Re-evaluation in the background**: once the user's changes are saved, Eugenia's tasks (§11.4) regenerate the stale or missing descriptions (both scopes), one at a time from the deepest node to the root — a parent is described from the new descriptions of its children — and commit each one right away, **without asking node by node** (option in the settings, on by default). They can also be started from Eugenia's tasks. A locked description is never regenerated; a failed one is not retried automatically.
+4. **Review** (on demand): in the "Descriptions" view, each regenerated description is shown as a diff before entering the commit; it can be edited then locked (`locked`).
 5. **Batch**: `cli summarize --stale`, locally or in CI.
 
 ### 11.3 Prompts
@@ -610,6 +613,9 @@ Eugenia's prompts are versioned in the app's repository, written in English, and
 - `note.md`: answer to a quick note, compared with what the wiki says;
 - `ask.md`: questions about the tree (exploration of the common hierarchy, answer from what was read only);
 - `index-source.md`: index of a source as a knowledge tree, and gathering of the parts of a long source.
+
+### 11.4 Eugenia's tasks
+What Eugenia does in the background is queued and run while the user keeps browsing: the **indexing of sources** (two at a time, each reading its parts in parallel) and the **re-evaluation of descriptions** (one at a time, deepest first). Each result is committed as soon as it is done; the saving of results is serialized so that concurrent tasks never overwrite each other's pending changes. The app bar shows the progress; the **"Eugenia's tasks"** view lists the tasks in progress (with their stop button), the descriptions to re-evaluate and the state of the index of every source, from which a batch is started with a chosen model.
 
 ## 12. Security and privacy
 - Data held by the user in their own repositories, without a central server.
@@ -662,5 +668,8 @@ None for now. Recent decisions:
 - the bibliographic record of a private source (title, kind, authors, date, URL) is public, so that public knowledge can cite it;
 - the knowledge extracted from a document is categorized together, Wikipedia-style, possibly in new categories reviewed by the user;
 - the common hierarchy of the wiki, the library and the discussions is computed from identifiers (`category` of a source, `about` of a discussion), without moving files: the library and the discussions stay flat folders, and moving a category touches nothing else;
+- the knowledge proposed by an index is never added to the wiki on its own: the user adds it (one item or all, without review, or reviewed), and it stays in the category of its source or below it;
+- what an index model writes is checked against the source: unbacked knowledge, sentences and sections are dropped;
+- stale descriptions are re-evaluated in the background, deepest first, without asking node by node;
 - the index of a source is a knowledge tree stored like the wiki (one Markdown page per node, in the `_index/` folder of the source), with the knowledge worth extracting, generated by a Mistral model chosen by the user (Mistral Small without reasoning by default: about nine times faster than Mistral Large, with as much knowledge proposed); it is read by tree search and by exhaustive search (embeddings of its sections);
 - Eugenia's answers (questions, discussions, quick notes) are based on the elements of the tree only, cited, with no knowledge of her own.

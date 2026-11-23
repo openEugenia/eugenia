@@ -30,7 +30,8 @@ import {
   type SourceIndexNode,
   type WikiNode,
 } from "@openeugenia/core";
-import { useIndexing, useSourceIndex } from "../lib/indexing.ts";
+import { useSourceIndex } from "../lib/indexing.ts";
+import { useTasks } from "../lib/tasks.ts";
 import { formatDate } from "../lib/format.ts";
 import { uncommittedPaths } from "../lib/pending.ts";
 import { href, navigate, openRepo, useRoute, type Route } from "../lib/router.ts";
@@ -86,22 +87,24 @@ function SyncIndicator() {
   );
 }
 
-/** Sources being indexed in the background: progress, link to the indexes. */
-function IndexingIndicator() {
-  const jobs = useIndexing((s) => s.jobs);
-  const finished = useIndexing((s) => s.finished);
-  const count = Object.keys(jobs).length;
-  if (count === 0) return null;
-  const total = finished + count;
+/** Eugenia's tasks running in the background: progress, link to the tasks. */
+function TasksIndicator() {
+  const tasks = useTasks((s) => s.tasks);
+  const finished = useTasks((s) => s.finished);
+  const list = Object.values(tasks);
+  if (list.length === 0) return null;
+  const total = finished + list.length;
+  const kinds = new Set(list.map((t) => t.kind));
+  const label = kinds.size > 1 ? "Eugenia" : kinds.has("index") ? "Indexing" : "Descriptions";
   return (
     <a
       className="oe-button oe-button--ghost oe-button--sm"
-      href={href({ name: "indexes" })}
-      title="Sources being indexed in the background"
+      href={href({ name: "tasks" })}
+      title="Eugenia's tasks in the background"
     >
-      <Spinner small label="Indexing" />
+      <Spinner small label="Eugenia is working" />
       <span className="app-bar__label">
-        Indexing {finished}/{total}
+        {label} {finished}/{total}
       </span>
     </a>
   );
@@ -177,7 +180,7 @@ export type Section = "wiki" | "library" | "discussions";
 
 /** Space matching the open page. */
 function sectionFor(route: Route, derived: Derived, currentId: string | undefined): Section {
-  if (route.name === "library" || route.name === "indexes") return "library";
+  if (route.name === "library") return "library";
   if (route.name === "discussions" || route.name === "discussion" || route.name === "ask")
     return "discussions";
   if (route.name === "extract" && route.discussion) return "discussions";
@@ -483,7 +486,7 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
               )}
             </a>
           )}
-          {owner && <IndexingIndicator />}
+          {owner && <TasksIndicator />}
           {owner && <SyncIndicator />}
           <a
             className="oe-button oe-button--ghost oe-button--sm icon-only"

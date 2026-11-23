@@ -205,7 +205,11 @@ export function ExtractionView({
     categories: { id: string; title: string }[];
   }>({ knowledge: [], categories: [] });
   const textRef = useRef<HTMLDivElement>(null);
-  const categories = useMemo(() => categoryOptions(derived), [derived]);
+  // The knowledge drawn from a source stays in its branch: its category or below it.
+  const categories = useMemo(
+    () => categoryOptions(derived, 400, isSourceNode ? node.filedIn : undefined),
+    [derived, isSourceNode, node],
+  );
 
   useEffect(() => {
     if (!fromIndex || startedFromIndex.current || indexed.length === 0) return;

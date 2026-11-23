@@ -23,10 +23,10 @@ export interface AISettings {
   /** Index each new or changed source automatically (default: yes). */
   autoIndex?: boolean;
   /**
-   * Add the knowledge proposed by each new index to the wiki without review, filed by Eugenia
+   * Re-evaluate the stale sub-wiki descriptions in the background, without asking node by node
    * (default: yes).
    */
-  autoExtract?: boolean;
+  autoSummarize?: boolean;
   /** Keep private nodes for the local AI; `null`: question not asked yet. */
   localOnlyForPrivate: boolean | null;
   /** The "private content to a remote provider" warning was acknowledged. */

@@ -1,23 +1,23 @@
 ---
 type: source-index
-title: Lilith in Jewish and Mesopotamian Tradition
+title: Lilith in Jewish Tradition
 model: mistral-small-latest
 text_sha: 2ac08bb
-generated: 2026-11-23T17:47:35Z
+generated: 2026-11-23T20:15:41Z
 ---
 
-This article explores the figure of Lilith, a female demon rooted in Jewish tradition but with origins in Mesopotamian mythology. Lilith is depicted as a deity of Mesopotamian origin who later became a prominent figure in Jewish legends, particularly during the Middle Ages. According to the Alphabet of Ben Sira, Lilith is identified as Adam's first wife, preceding Eve. The article highlights her dual heritage and her evolving role in religious and folkloric narratives.
+Lilith is a female demon originating from Mesopotamian mythology, later integrated into Jewish tradition. In medieval Jewish legends, particularly as described in the Alphabet of Ben Sira, Lilith is depicted as Adam's first wife, preceding Eve.
 
 ## Knowledge to extract
 
 ### Lilith as Adam's First Wife
-In Jewish legends, particularly the **Alphabet of Ben Sira**, **Lilith is described as Adam's first wife**, predating Eve.
+In Jewish legends from the Middle Ages, **Lilith is described as Adam's first wife**, preceding Eve, according to the Alphabet of Ben Sira.
 
-- Question: According to Jewish legends, who was Adam's first wife?
+- Question: Who is described as Adam's first wife in Jewish legends?
 - Answer: Lilith
 
-### Lilith's Mesopotamian Origin
-**Lilith is a female demon of Jewish tradition with a Mesopotamian origin**, representing a deity from ancient Mesopotamian mythology.
+### Lilith's Origin
+**Lilith is a female demon of Mesopotamian origin** who became part of Jewish tradition.
 
-- Question: What is the origin of Lilith in Jewish tradition?
+- Question: What is the origin of Lilith?
 - Answer: Mesopotamian

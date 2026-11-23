@@ -4,12 +4,12 @@ title: A slow cycle
 order: 3
 ---
 
-This section describes the cyclical movement of the Black Moon Lilith through the zodiac. Due to the slow rotation of the Moon's orbit, the Black Moon completes a full cycle in approximately nine years. This cycle is significant in astrological practices, as it influences interpretations based on its position in the zodiac.
+The Black Moon's cycle through the zodiac is slow due to the gradual rotation of the Moon's orbit. This extended duration distinguishes it from other lunar cycles.
 
 ## Knowledge to extract
 
-### Duration of the Black Moon's cycle
-The Black Moon Lilith completes a full cycle through the zodiac in approximately **nine years**.
+### Duration of the Black Moon's zodiac cycle
+The Black Moon completes a cycle through the zodiac in approximately **nine years**.
 
-- Question: How long does the Black Moon's cycle through the zodiac last?
+- Question: How long does the Black Moon's cycle through the zodiac take?
 - Answer: About nine years.

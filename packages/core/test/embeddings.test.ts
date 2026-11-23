@@ -156,3 +156,46 @@ describe("similarity", () => {
     expect(hits[0]!.score).toBeCloseTo(0.9939, 3);
   });
 });
+
+describe("vector of an element", async () => {
+  const { pageVector, sectionVector, sourceIndexChanges, vectorItems, embeddingChanges } =
+    await import("../src/index.ts");
+  const { applyChanges } = await import("./helpers.ts");
+
+  it("gives the 1024 values of a page or of a section of an index, and their state", async () => {
+    const files: Files = {
+      ".notes/config.yml": CONFIG,
+      "wiki/index.md": page({ id: "R", title: "Root" }, "My wiki."),
+      "library/moon/index.md": page({ id: "SRC", type: "source", title: "Moon" }, "Notes."),
+    };
+    const before = await memoryWiki(files);
+    const indexed = applyChanges(
+      files,
+      sourceIndexChanges(before.view, before.tree.nodes.get("SRC")!, {
+        model: "m",
+        textSha: "x",
+        root: {
+          name: "Moon",
+          description: "About the Moon.",
+          children: [{ name: "Apogee", description: "The farthest point.", children: [] }],
+        },
+      }),
+    );
+    const wiki = await memoryWiki(indexed);
+    const items = await vectorItems(wiki.view, "mistral-embed");
+    const vectors = new Map(items.map((item, i) => [item.id, vector(i + 1)]));
+    const embedded = await memoryWiki(
+      applyChanges(indexed, embeddingChanges(items, vectors, "mistral-embed")),
+    );
+    const root = await pageVector(embedded.view, embedded.tree.nodes.get("R")!);
+    expect(root).toMatchObject({ model: "mistral-embed", status: "current" });
+    expect(root!.values).toHaveLength(1024);
+    const source = embedded.tree.nodes.get("SRC")!;
+    const section = await sectionVector(embedded.view, source, "apogee");
+    expect(section).toMatchObject({ model: "mistral-embed", status: "current" });
+    expect(section!.values).toHaveLength(1024);
+    expect(cosineSimilarity(section!.values, vectors.get("SRC#apogee")!)).toBeGreaterThan(0.999);
+    expect(await sectionVector(embedded.view, source, "other")).toBeNull();
+    expect(await pageVector(wiki.view, wiki.tree.nodes.get("R")!)).toBeNull();
+  });
+});

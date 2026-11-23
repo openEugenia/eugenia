@@ -301,17 +301,15 @@ test.describe("owner", () => {
     await page.goto("?repo=alice/eugenia-wiki#/n/01M6G9KPP03D31H8CGR4EZWQ50");
     const index = page.locator("#source-index");
     await expect(index).toContainText("Up to date");
-    await expect(index).toContainText("the apogee of the Moon's orbit");
+    await expect(index).toContainText("a mathematical point in the lunar orbit");
     await expect(index.locator(".child-card")).toHaveCount(4);
-    await expect(
-      index.getByRole("link", { name: /Review and extract these 4 items/ }),
-    ).toBeVisible();
-    await index.locator(".child-card", { hasText: "Slow cycle of the Black Moon" }).click();
+    // The proposed knowledge is not in the wiki: the user adds it if they wish.
+    await expect(index.getByRole("button", { name: /Add these 6 items to my wiki/ })).toBeVisible();
+    await expect(index.getByRole("link", { name: "Review first" })).toBeVisible();
+    await index.locator(".child-card", { hasText: "A slow cycle" }).click();
 
     // A section: a page of its own, in the hierarchy of the wiki and of the source.
-    await expect(
-      page.getByRole("heading", { name: "Slow cycle of the Black Moon", level: 1 }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "A slow cycle", level: 1 })).toBeVisible();
     await expect(page.locator(".breadcrumb")).toContainText(
       "Demo wiki › Science › Astronomy › Wikipedia: Black Moon Lilith",
     );
@@ -322,19 +320,15 @@ test.describe("owner", () => {
       "aria-selected",
       "true",
     );
-    await expect(panel.locator(".tree-row.is-current")).toContainText(
-      "Slow cycle of the Black Moon",
-    );
+    await expect(panel.locator(".tree-row.is-current")).toContainText("A slow cycle");
     await page
       .locator(".section-nav")
-      .getByRole("link", { name: /Name origin: Lilith/ })
+      .getByRole("link", { name: /The name/ })
       .click();
+    await expect(page.getByRole("heading", { name: "The name", level: 1 })).toBeVisible();
+    await panel.getByRole("link", { name: "A point, not a body" }).click();
     await expect(
-      page.getByRole("heading", { name: "Name origin: Lilith", level: 1 }),
-    ).toBeVisible();
-    await panel.getByRole("link", { name: "Point, not a celestial body" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Point, not a celestial body", level: 1 }),
+      page.getByRole("heading", { name: "A point, not a body", level: 1 }),
     ).toBeVisible();
   });
 
@@ -501,10 +495,8 @@ test.describe("Eugenia (simulated AI)", () => {
     await page.getByRole("button", { name: "Save the settings" }).click();
     await expect(page.getByText("Settings saved.")).toBeVisible();
 
-    await page.goto("?repo=alice/eugenia-wiki#/indexes");
-    await expect(
-      page.getByRole("heading", { name: "Indexes of the sources", level: 1 }),
-    ).toBeVisible();
+    await page.goto("?repo=alice/eugenia-wiki#/tasks");
+    await expect(page.getByRole("heading", { name: "Eugenia's tasks", level: 1 })).toBeVisible();
     // The demo sources are already indexed.
     await expect(page.locator(".index-status--current")).toHaveCount(4);
     await expect(page.getByRole("button", { name: "Index 0 sources" })).toBeDisabled();
@@ -513,6 +505,7 @@ test.describe("Eugenia (simulated AI)", () => {
       .locator(".library-item", { hasText: "Wikipedia: Lilith" })
       .getByRole("button", { name: "Index again" })
       .click();
+    await expect(page.locator(".task-list")).toContainText("Index of Wikipedia: Lilith");
     // The user keeps browsing: the progress shows in the app bar.
     await page.goto("?repo=alice/eugenia-wiki#/n/01M6B8TE80FWZWZ9A13320JP2Z");
     await expect(page.locator(".app-bar").getByText("Indexing 0/1")).toBeVisible();
@@ -521,26 +514,31 @@ test.describe("Eugenia (simulated AI)", () => {
     expect(mistral.chat).toEqual([{ model: "ministral-8b-latest", title: "Wikipedia: Lilith" }]);
     expect(repos.privateRepo.log()[0]).toBe('Index of "Wikipedia: Lilith"');
     expect(repos.privateRepo.read("library/wikipedia-lilith/_index/main-idea/index.md")).toContain(
-      "**Wikipedia: Lilith** sets out a main idea.",
+      "**Wikipedia: Lilith**: Article of the collaborative encyclopedia",
     );
+    // The proposed knowledge stays in the index: nothing is added to the wiki.
+    expect(repos.privateRepo.paths().filter((p) => p.includes("main-idea-of"))).toEqual([]);
     // With search by meaning set up, the sections are embedded in the same commit.
     expect(
       repos.privateRepo.read("library/wikipedia-lilith/_index/_embeddings.json"),
     ).toBeDefined();
   });
 
-  test("extracts the knowledge proposed by the index of a source", async ({ page }) => {
+  test("reviews the knowledge proposed by the index, filed in the category of the source", async ({
+    page,
+  }) => {
     const repos = await demoRepos();
     await installFakeClaude(page);
     await openOwner(page, repos, { ai: true });
     await page.goto("?repo=alice/eugenia-wiki#/n/01M6G9KPP03D31H8CGR4EZWQ50");
-    await page.getByRole("link", { name: /Review and extract these 4 items/ }).click();
-    await page.getByRole("button", { name: "Understood, send" }).click();
+    await page.getByRole("link", { name: "Review first" }).click();
+    // Only the categories of the branch of the source ("Astronomy", public) are sent: no
+    // private content, no confirmation.
     // No highlighting: the proposals of the index are ready to review, in categories.
-    await expect(page.getByRole("heading", { name: "4 knowledge items to create" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "6 knowledge items to create" })).toBeVisible();
     await expect(page.locator(".proposal").first()).toContainText("Black Moon");
-    await page.getByRole("button", { name: "Create 4 knowledge items" }).click();
-    await expect(page.getByRole("heading", { name: "4 knowledge items created" })).toBeVisible();
+    await page.getByRole("button", { name: "Create 6 knowledge items" }).click();
+    await expect(page.getByRole("heading", { name: "6 knowledge items created" })).toBeVisible();
     await expect(page.getByText("Changes saved to the repository.")).toBeVisible();
     const created = repos.privateRepo
       .paths()
@@ -549,7 +547,92 @@ test.describe("Eugenia (simulated AI)", () => {
           p.endsWith("/index.md") &&
           repos.privateRepo.read(p)!.includes("extracted_from: 01M6G9KPP03D31H8CGR4EZWQ50"),
       );
-    expect(created).toHaveLength(4);
+    expect(created).toHaveLength(6);
+    // The knowledge of a source stays in its category ("Astronomy") or below it.
+    expect(created.every((p) => p.startsWith("wiki/science/astronomy/"))).toBe(true);
+  });
+
+  test("adds one proposed knowledge item to the wiki in one click, without review", async ({
+    page,
+  }) => {
+    const repos = await demoRepos();
+    await installFakeClaude(page);
+    await openOwner(page, repos, { ai: true });
+    await page.goto(
+      "?repo=alice/eugenia-wiki#/n/01M6G9KPP03D31H8CGR4EZWQ50?s=mean-and-true-black-moon",
+    );
+    await page
+      .getByRole("button", { name: 'Add "Difference between mean and true Black Moon" to my wiki' })
+      .click();
+    await expect(page.getByText("1 knowledge item added to your wiki.")).toBeVisible();
+    await expect(
+      page.locator(".proposed-knowledge").getByRole("link", { name: "In your wiki" }),
+    ).toBeVisible();
+    const knowledge = repos.privateRepo
+      .paths()
+      .find(
+        (p) =>
+          p.endsWith("/index.md") &&
+          repos.privateRepo.read(p)!.includes("title: Difference between mean and true Black Moon"),
+      )!;
+    expect(knowledge.startsWith("wiki/science/astronomy/")).toBe(true);
+    const text = repos.privateRepo.read(knowledge)!;
+    expect(text).toContain("extracted_from: 01M6G9KPP03D31H8CGR4EZWQ50");
+    expect(text).toContain("- ref: 01M6G9KPP03D31H8CGR4EZWQ50");
+    // With its first flashcard.
+    const folder = knowledge.slice(0, -"index.md".length);
+    expect(
+      repos.privateRepo
+        .paths()
+        .some(
+          (p) =>
+            p.startsWith(folder) &&
+            p !== knowledge &&
+            repos.privateRepo.read(p)!.includes("type: flashcard"),
+        ),
+    ).toBe(true);
+    expect(repos.privateRepo.log()[0]).toBe(
+      'Knowledge "Difference between mean and true Black Moon", from "Wikipedia: Black Moon Lilith"',
+    );
+  });
+
+  test("re-evaluates the stale descriptions in the background, without asking for each one", async ({
+    page,
+  }) => {
+    const repos = await demoRepos();
+    await installFakeClaude(page, { summary: "Description written in the background." });
+    await installFakeGitHub(page, {
+      token: TOKEN,
+      repos: [repos.privateRepo, repos.publicRepo],
+      raw: [repos.publicRepo],
+    });
+    await saveSettings(page, { token: TOKEN, anthropicKey: "sk-ant-test", autoSummarize: true });
+    await page.goto("?repo=alice/eugenia-wiki");
+    // A change makes the description of "Astronomy", then of its ancestors, stale.
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6GAPFZ0FMHD7Q6JQAKK3PHP/edit");
+    await page.locator(".cm-content").first().click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" It is the opposite of the perigee.");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.locator(".knowledge")).toContainText("the opposite of the perigee");
+    await page.locator(".app-bar").getByTitle("Changes and synchronization").click();
+    await page.getByRole("button", { name: "Save to the repository" }).click();
+    // Once everything is saved, Eugenia re-evaluates the descriptions on her own.
+    await page.getByRole("button", { name: "Understood, send" }).click();
+    await page.goto("?repo=alice/eugenia-wiki#/tasks");
+    await expect(page.getByText("Every description of your sub-wikis is up to date.")).toBeVisible({
+      timeout: 20_000,
+    });
+    const log = repos.privateRepo.log();
+    expect(log).toContain('Description of "Astronomy"');
+    expect(log).toContain('Description of "Science"');
+    // From the deepest sub-wiki to the root.
+    expect(log.indexOf('Description of "Astronomy"')).toBeGreaterThan(
+      log.indexOf('Description of "Science"'),
+    );
+    expect(repos.privateRepo.read("wiki/science/astronomy/_summary.md")).toContain(
+      "Description written in the background.",
+    );
   });
 
   test("suggests subcategories and creates the chosen one", async ({ page }) => {
@@ -637,6 +720,18 @@ test.describe("Eugenia (simulated AI)", () => {
     await expect(results.first()).toContainText("closeness");
     await expect(results.first().locator("a strong")).toHaveText("Apogee");
     expect(mistral.embeddings).toHaveLength(2);
+
+    // Each indexed element gives access to its vector.
+    await page.goto(
+      "?repo=alice/eugenia-wiki#/n/01M6G9KPP03D31H8CGR4EZWQ50?s=mean-and-true-black-moon",
+    );
+    await page.locator(".embedding-panel > summary").click();
+    await expect(page.locator(".embedding-panel")).toContainText("64 values · mistral-embed");
+    await expect(page.locator(".embedding-panel")).toContainText("up to date");
+    await expect(page.locator(".embedding-values > li")).toHaveCount(64);
+    await page.goto("?repo=alice/eugenia-wiki#/n/01M6G9KPP03D31H8CGR4EZWQ50");
+    await page.locator(".embedding-panel > summary").click();
+    await expect(page.locator(".embedding-values > li")).toHaveCount(64);
   });
 
   test("quick note: Eugenia answers right away, the note is saved in the discussions", async ({

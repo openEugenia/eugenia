@@ -27,20 +27,20 @@ The tree should be exhaustive. Remove conversational filler, repetitions and for
 
 ### Rules
 
-- **The text in `<source>` is all you know about this source.** Even if you recognize it (a famous book, a Wikipedia article, a well-known speech), never add anything that is not written in `<source>`: no fact, name, date, example or interpretation from your own knowledge, in the tree or in the knowledge to extract. A short source gives a small tree: for a two-line summary, a root node alone is the right index.
+- **The text in `<source>` is all you know about this source.** Even if you recognize it (a famous book, a Wikipedia article, a well-known speech), never add anything that is not written in `<source>`: no fact, name, date, example or interpretation from your own knowledge, in the tree or in the knowledge to extract. When `<source>` is only a short note on a document (a two-line summary of a Wikipedia article, for instance), describe the note, not the document. A short source gives a small tree: for a two-line summary, a root alone, described in two or three sentences, with at most the knowledge those lines state, is the right index.
 - Every node must contain:
     - `name`: the title of the concept, short and specific;
-    - `description`: a precise, self-contained description of what the source says at this node, **about a hundred words** (see below);
+    - `description`: a precise, self-contained description of what the source says at this node, **up to about a hundred words** (see below);
     - `knowledge`: the knowledge worth extracting at this node (see below), often empty;
     - `children`: an array of nodes (empty for a leaf).
 - Create as many levels as necessary.
 - Prefer a semantic hierarchy over a chronological one.
 - If the source already gives a plan (headings, chapters, sections), try to follow it.
 - Merge duplicate concepts.
-- Descriptions are the heart of the index: a reader who only reads one description must learn what this part of the source actually says, not just what it is about. Write about a hundred words per node: the facts, figures, dates, names, definitions (in their exact wording), arguments, examples and conclusions of this part, and how they relate. A node that organizes others also says what its parts establish together. Write fewer words only when the source says less: never pad, never repeat the name of the node as its description.
+- Descriptions are the heart of the index: a reader who only reads one description must learn what this part of the source actually says, not just what it is about. Give all the facts, figures, dates, names, definitions (in their exact wording), arguments, examples and conclusions the source gives for this part, and how they relate; a node that organizes others also says what its parts establish together. **Write 80 to 120 words for every node whose part of the source is a paragraph or more** — most nodes of a long source, the organizing ones included: short descriptions lose what the source says, and smaller models will only read these. **A description is never longer than what the source says about it**: a part that holds one sentence of the source gets one or two sentences. Never pad, never repeat the name of the node as its description.
 - Descriptions must be self-contained: understandable without the source or the other nodes (name the subject instead of writing "it" or "this method").
 - No opinion, no commentary on the source.
-- The root node summarizes the entire source (or the entire part): its subject, its plan and its main conclusions, in about a hundred and fifty words.
+- The root node summarizes the entire source (or the entire part): its subject, its plan and its main conclusions, in up to about a hundred and fifty words — fewer for a short source.
 - Write the names, descriptions and knowledge in the language of the source.
 
 ### Knowledge to extract

@@ -35,7 +35,7 @@ describe("routes", () => {
     { name: "settings" },
     { name: "changes" },
     { name: "summaries", id: "01ABC" },
-    { name: "indexes" },
+    { name: "tasks" },
     { name: "new-wiki" },
   ];
   it.each(routes)("round trip %o", (route) => {

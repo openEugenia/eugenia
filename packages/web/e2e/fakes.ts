@@ -470,6 +470,7 @@ export async function installFakeMistral(
       const body = JSON.parse(request.postData() ?? "{}") as {
         model: string;
         reasoning_effort?: string;
+        stream?: boolean;
         messages: { role: string; content: string }[];
       };
       const user = body.messages.at(-1)?.content ?? "";
@@ -480,26 +481,45 @@ export async function installFakeMistral(
         title,
       });
       if (options.chatDelayMs) await new Promise((r) => setTimeout(r, options.chatDelayMs));
+      // A tree drawn from the text of the source (the app keeps only what the source says).
+      const sourceBody =
+        /<source>\n[^\n]*\n(?:[A-Z][a-z]+: [^\n]*\n)*\n([\s\S]*?)\n<\/source>/.exec(user)?.[1];
+      const sentence = (sourceBody ?? title)
+        .replace(/\s+/g, " ")
+        .split(/(?<=\.)\s/)[0]!
+        .trim();
       const tree = {
         name: title,
-        description: `Summary of "${title}".`,
+        description: sentence,
         knowledge: [],
         children: [
           {
             name: "Main idea",
-            description: `The main idea of "${title}".`,
+            description: sentence,
             knowledge: [
               {
                 title: `Main idea of ${title}`,
-                statement: `**${title}** sets out a main idea.`,
-                question: `What does ${title} set out?`,
-                answer: "A main idea",
+                statement: `**${title}**: ${sentence}`,
+                question: `What does ${title} say?`,
+                answer: sentence,
               },
             ],
             children: [],
           },
         ],
       };
+      // Long answers are streamed (server-sent events).
+      if (body.stream) {
+        const chunk = {
+          choices: [{ delta: { content: JSON.stringify(tree) }, finish_reason: "stop" }],
+        };
+        return route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: cors,
+          body: `data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`,
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: "application/json",

@@ -12,7 +12,10 @@ import {
   assembleTree,
   createProvider,
   discussionRequest,
+  categoryOptions,
   gatherKnowledge,
+  groundedness,
+  groundedTree,
   indexExtractionPlan,
   indexSource,
   KnowledgeNodeSchema,
@@ -56,7 +59,7 @@ describe("indexing a source", () => {
     const progress: IndexProgress[] = [];
     const result = await indexSource(
       { provider, variables: { wiki_title: "My wiki" } },
-      { title: "Photosynthesis", text: "# Photosynthesis\n\nText." },
+      { title: "Photosynthesis", text: "# Photosynthesis\n\nLight into sugar: the Calvin cycle." },
       { onProgress: (p) => progress.push(p) },
     );
     expect(result).toEqual(tree);
@@ -70,7 +73,10 @@ describe("indexing a source", () => {
   });
 
   it("reads a long source in parts, then gathers their topics", async () => {
-    const paragraph = (n: number): string => `Paragraph ${n}. ${"word ".repeat(30)}`;
+    // The words of the tree are in the source: nothing is left out as unfounded.
+    const paragraph = (n: number): string =>
+      `Paragraph ${n}: first, second, origins, more, myths, astrology, whole. ${"word ".repeat(30)}`;
+    // The words of the tree are in the source: nothing is left out as unfounded.
     const text = Array.from({ length: 6 }, (_, i) => paragraph(i)).join("\n\n");
     const provider = new FakeProvider({
       json: [
@@ -121,9 +127,10 @@ describe("indexing a source", () => {
   });
 
   it("splits a part whose tree is cut off", async () => {
-    const text = Array.from({ length: 8 }, (_, i) => `Paragraph ${i}. ${"word ".repeat(40)}`).join(
-      "\n\n",
-    );
+    const text = Array.from(
+      { length: 8 },
+      (_, i) => `Paragraph ${i}, topic ${i}. ${"word ".repeat(40)}`,
+    ).join("\n\n");
     let calls = 0;
     const provider = new FakeProvider({});
     provider.json = async <T>(request: JsonRequest<T>): Promise<T> => {
@@ -143,6 +150,44 @@ describe("indexing a source", () => {
     expect(result.name).toBe("Whole");
     expect(result.children.map((c) => c.name)).toEqual(["Topic 2", "Topic 3"]);
     expect(provider.calls[1]!.messages[0]!.content).toContain("<part>1 of 2</part>");
+  });
+
+  it("keeps only what the source says", () => {
+    // A two-line note on a Wikipedia article, completed by a small model with what it knows.
+    const source =
+      "# Wikipedia: Lilith\n\nArticle of the collaborative encyclopedia on the figure of Lilith, from Mesopotamian mythology to medieval Jewish traditions.";
+    const tree = groundedTree(
+      {
+        name: "Lilith",
+        description:
+          "Lilith is a figure originating from Mesopotamian mythology and later integrated into medieval Jewish traditions. Her identity spans roles as a child-killing demon, Adam's first wife, and a symbol of female empowerment.",
+        knowledge: [
+          {
+            title: "Lilith in Kabbalah",
+            statement:
+              "**In Kabbalah, Lilith represents the feminine principle of the left side**.",
+            question: "How is Lilith depicted in Kabbalah?",
+            answer: "As the feminine principle of the left side",
+          },
+          {
+            title: "Origins of Lilith",
+            statement: "**Lilith** goes from Mesopotamian mythology to medieval Jewish traditions.",
+            question: "Where does the figure of Lilith come from?",
+            answer: "Mesopotamian mythology",
+          },
+        ],
+        children: [leaf("Kabbalah and Jewish mysticism", "She is linked to the sitra achra.")],
+      },
+      source,
+    );
+    expect(tree.description).toBe(
+      "Lilith is a figure originating from Mesopotamian mythology and later integrated into medieval Jewish traditions.",
+    );
+    expect(tree.knowledge!.map((k) => k.title)).toEqual(["Origins of Lilith"]);
+    expect(tree.children).toEqual([]);
+    expect(groundedness("**Lilith** comes from Mesopotamian mythology.", source)).toBeGreaterThan(
+      0.6,
+    );
   });
 
   it("keeps the topics in order without a plan", () => {
@@ -363,7 +408,8 @@ describe("search in the common hierarchy", async () => {
           new_categories: [{ key: "n1", title: "Demons", parent: "REL", reason: "Groups demons." }],
           assignments: [
             { item: 1, category: "n1" },
-            { item: 2, category: "REL" },
+            // Outside the branch of the source ("Religion"): back to its category.
+            { item: 2, category: "R" },
           ],
         },
       ],
@@ -374,6 +420,9 @@ describe("search in the common hierarchy", async () => {
     expect(plan.categories).toEqual([{ key: "new:1", title: "Demons", parent: "REL" }]);
     expect(plan.knowledge.map((k) => k.category)).toEqual(["new:1", "REL"]);
     expect(provider.calls[0]!.messages[0]!.content).toContain("Excerpt:\nSummary.");
+    // Only the branch of the source is offered.
+    expect(provider.calls[0]!.messages[0]!.content).not.toContain("- R |");
+    expect(categoryOptions(view, 400, "REL").map((c) => c.path)).toEqual(["Root > Religion"]);
 
     // Without an answer of Eugenia: the category of the source.
     const failing = new FakeProvider({ json: [{ nothing: true }] });
@@ -436,5 +485,48 @@ describe("reasoning of the model", () => {
     );
     await ministral.complete({ system: "S", messages: [] });
     expect(bodies.map((b) => b.reasoning_effort)).toEqual(["none", undefined, undefined]);
+  });
+});
+
+describe("long answers, streamed", () => {
+  it("reads a JSON answer streamed in chunks, and reports one cut off", async () => {
+    const { z } = await import("zod");
+    const events = (chunks: unknown[], finish: string): string =>
+      [
+        ...chunks.map((content, i) =>
+          JSON.stringify({
+            choices: [
+              { delta: { content }, finish_reason: i === chunks.length - 1 ? finish : null },
+            ],
+          }),
+        ),
+        "[DONE]",
+      ]
+        .map((d) => `data: ${d}\n\n`)
+        .join("");
+    const bodies: Record<string, unknown>[] = [];
+    const queue = [
+      events([[{ type: "thinking", thinking: [] }], '{"name":', '"Paris"}'], "stop"),
+      events(['{"name":'], "length"),
+    ];
+    const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(queue.shift()!, { headers: { "content-type": "text/event-stream" } });
+    }) as typeof fetch;
+    const provider = createProvider(
+      {
+        kind: "openai",
+        baseUrl: "https://api.mistral.ai/v1",
+        model: "mistral-large-latest",
+        apiKey: "k",
+      },
+      { fetch: fetchImpl },
+    );
+    const schema = z.object({ name: z.string() });
+    const request = { system: "S", messages: [], schema, name: "city", stream: true };
+    expect(await provider.json(request)).toEqual({ name: "Paris" });
+    expect(bodies[0]!.stream).toBe(true);
+    await expect(provider.json(request)).rejects.toMatchObject({ kind: "invalid_output" });
+    expect(bodies).toHaveLength(2);
   });
 });

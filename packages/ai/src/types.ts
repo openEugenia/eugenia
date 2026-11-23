@@ -25,6 +25,11 @@ export interface JsonRequest<T> extends GenerateRequest {
   schema: z.ZodType<T>;
   /** Short name of the format (used by OpenAI-compatible APIs). */
   name: string;
+  /**
+   * Receives the answer as a stream: for long answers (indexing a source), the connection stays
+   * active while the model thinks and writes, instead of waiting minutes for a response.
+   */
+  stream?: boolean;
 }
 
 export type ProviderKind = "anthropic" | "openai" | "ollama";

@@ -153,19 +153,29 @@ export function involvesPrivate(nodes: Iterable<WikiNode>): boolean {
 }
 
 /** Categories offered during extraction: all the categories of the wiki, with their path. */
-export function categoryOptions(view: Pick<WikiView, "tree">, limit = 400): CategoryOption[] {
+export function categoryOptions(
+  view: Pick<WikiView, "tree">,
+  limit = 400,
+  /** Only this category and the categories below it (the paths stay complete). */
+  within?: string,
+): CategoryOption[] {
   const out: CategoryOption[] = [];
-  const visit = (node: WikiNode, path: string[]): void => {
+  const visit = (node: WikiNode, path: string[], inside: boolean): void => {
     if (out.length >= limit) return;
     if (isCategory(node)) {
-      const option: CategoryOption = { id: node.id, path: [...path, node.title].join(" > ") };
-      if (node.description) option.description = node.description;
-      out.push(option);
-      for (const id of node.childIds) visit(view.tree.nodes.get(id)!, [...path, node.title]);
+      const here = inside || !within || node.id === within;
+      if (here) {
+        const option: CategoryOption = { id: node.id, path: [...path, node.title].join(" > ") };
+        if (node.description) option.description = node.description;
+        out.push(option);
+      }
+      for (const id of node.childIds) {
+        visit(view.tree.nodes.get(id)!, [...path, node.title], here && Boolean(within));
+      }
     }
   };
   const root = view.tree.nodes.get(view.tree.rootId);
-  if (root) visit(root, []);
+  if (root) visit(root, [], false);
   return out;
 }
 
@@ -376,8 +386,9 @@ export function treeNavigator(
 
 /**
  * Plan to add the knowledge proposed by the index of a source to the wiki, without review:
- * Eugenia files it in the categories of the wiki, as for an extraction (§8.1), creating the
- * categories that group it best. If she cannot, everything goes to the category of the source.
+ * Eugenia files it as for an extraction (§8.1), but **in the category of the source or below
+ * it** — the knowledge of a book stays in its branch, in existing subcategories or in new ones
+ * she creates there. If she cannot, everything goes to the category of the source.
  */
 export async function indexExtractionPlan(
   context: TaskContext,
@@ -397,7 +408,8 @@ export async function indexExtractionPlan(
     const plan = await categorizeKnowledge(context, {
       document: source.title,
       ...(summary ? { excerpt: summary } : {}),
-      categories: categoryOptions(view),
+      // Only the branch of the source: an assignment elsewhere falls back on its category.
+      categories: categoryOptions(view, 400, fallback),
       knowledge: candidates.map((c) => ({ title: c.title, knowledge: c.statement })),
       fallbackId: fallback,
     });

@@ -42,8 +42,8 @@ export type Route =
   | { name: "settings" }
   | { name: "changes" }
   | { name: "summaries"; id?: string }
-  /** Indexes of the sources: state, indexing in the background. */
-  | { name: "indexes" }
+  /** Eugenia's tasks in the background: indexes of the sources, descriptions to re-evaluate. */
+  | { name: "tasks" }
   | { name: "new-wiki" }
   | { name: "not-found" };
 
@@ -128,8 +128,8 @@ export function parseHash(hash: string): Route {
       return { name: "changes" };
     case "summaries":
       return { name: "summaries", ...optional("id", query.get("root")) };
-    case "indexes":
-      return { name: "indexes" };
+    case "tasks":
+      return { name: "tasks" };
     case "ask":
       return { name: "ask" };
     case "new-wiki":
@@ -186,8 +186,8 @@ export function href(route: Route): string {
       return "#/changes";
     case "summaries":
       return route.id ? `#/summaries?root=${enc(route.id)}` : "#/summaries";
-    case "indexes":
-      return "#/indexes";
+    case "tasks":
+      return "#/tasks";
     case "new-wiki":
       return "#/new-wiki";
   }

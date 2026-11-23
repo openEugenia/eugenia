@@ -23,7 +23,11 @@ export const KnowledgeCandidateSchema = z.object({
 
 export const KnowledgeNodeSchema = z.object({
   name: z.string(),
-  description: z.string(),
+  description: z
+    .string()
+    .describe(
+      "What the source says at this node: 80 to 120 words when the source gives a paragraph or more, never more than the source says.",
+    ),
   knowledge: z.array(KnowledgeCandidateSchema),
   get children(): z.ZodArray<typeof KnowledgeNodeSchema> {
     return z.array(KnowledgeNodeSchema);
@@ -62,6 +66,91 @@ export interface IndexSourceOptions {
   /** Parts read at the same time (default: 3). */
   concurrency?: number;
   onProgress?(progress: IndexProgress): void;
+}
+
+/** Short words that carry no content, left out of the grounding check (English, French). */
+const STOP_WORDS = new Set(
+  (
+    "about also although among because been before being between both cannot could does doing " +
+    "during each either even every from have having here into itself many might more most much " +
+    "must never only other over same should since some such than that their them then there " +
+    "these they this those through under until upon very were what when where whether which " +
+    "while whom whose with within without would your " +
+    "alors aussi autre avec avoir avant cela celle celui cette comme dans depuis donc elle elles " +
+    "entre être fait font leur leurs mais même moins nous pour quand quel quelle sans selon " +
+    "sont sous tous tout toute toutes très vers votre"
+  ).split(" "),
+);
+
+/** Content words of a text, reduced to their first five letters (crude stemming). */
+function stems(text: string): string[] {
+  return (
+    text
+      .normalize("NFKD")
+      .replace(/\p{M}+/gu, "")
+      .toLowerCase()
+      .match(/\p{L}+/gu) ?? []
+  )
+    .filter((w) => w.length >= 4 && !STOP_WORDS.has(w))
+    .map((w) => w.slice(0, 5));
+}
+
+/**
+ * Share of the content words of a text found in the source: a statement drawn from the source
+ * reuses its words; one recalled from the model's own knowledge shares few of them.
+ */
+export function groundedness(text: string, source: string): number {
+  const words = stems(text);
+  if (words.length === 0) return 1;
+  const known = new Set(stems(source));
+  return words.filter((w) => known.has(w)).length / words.length;
+}
+
+/** Below this share of words found in the source, a proposed knowledge item is dropped. */
+export const MIN_GROUNDEDNESS = 0.5;
+/** Below this share, a sentence of a description is dropped (descriptions rephrase more). */
+export const MIN_SENTENCE_GROUNDEDNESS = 0.4;
+
+/** Sentences of a text (at `.`, `!` or `?` followed by a space). */
+function sentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?…])\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Leaves out of a generated tree what the source does not back (see `groundedness`): the
+ * proposed knowledge, the sentences of the descriptions, and the sections left with neither a
+ * backed name nor a description. Small models tend to complete a short source with what they
+ * remember of the document it describes: the index must only hold what the source says.
+ */
+export function groundedTree(root: KnowledgeNode, source: string): KnowledgeNode {
+  const visit = (node: KnowledgeNode): KnowledgeNode => ({
+    name: node.name,
+    description: node.description
+      .split(/\n{2,}/)
+      .map((paragraph) =>
+        sentences(paragraph)
+          .filter((t) => groundedness(t, source) >= MIN_SENTENCE_GROUNDEDNESS)
+          .join(" "),
+      )
+      .filter(Boolean)
+      .join("\n\n"),
+    knowledge: (node.knowledge ?? []).filter(
+      (k) => groundedness(`${k.statement} ${k.answer}`, source) >= MIN_GROUNDEDNESS,
+    ),
+    children: node.children
+      .map(visit)
+      .filter(
+        (c) =>
+          c.description !== "" ||
+          c.children.length > 0 ||
+          (c.knowledge ?? []).length > 0 ||
+          groundedness(c.name, source) >= MIN_SENTENCE_GROUNDEDNESS,
+      ),
+  });
+  return visit(root);
 }
 
 const DEFAULT_PART_SIZE = 60_000;
@@ -197,6 +286,8 @@ export async function indexSource(
               `<title>${input.title}</title>`,
               part ? `<part>${part}</part>` : "",
               `<source>\n${text}\n</source>`,
+              // Small models follow the length of the descriptions better when reminded here.
+              "<reminder>Describe each node in 80 to 120 words when the source gives a paragraph or more about it, never more than the source says; only what the source says.</reminder>",
             ]
               .filter(Boolean)
               .join("\n"),
@@ -205,6 +296,8 @@ export async function indexSource(
         schema: KnowledgeNodeSchema,
         name: "knowledge_tree",
         maxTokens,
+        // The model may think for minutes: the answer is streamed.
+        stream: true,
         effort: "high" as const,
       }),
     );
@@ -229,6 +322,7 @@ export async function indexSource(
           schema: AssemblySchema,
           name: "assembly",
           maxTokens,
+          stream: true,
           effort: "medium" as const,
         }),
       );
@@ -264,7 +358,8 @@ export async function indexSource(
   );
   progress.total = parts.length;
   report();
-  if (parts.length === 1) return readPart(parts[0]!);
+  // Whatever the model writes, the index only keeps what the source backs.
+  if (parts.length === 1) return groundedTree(await readPart(parts[0]!), input.text);
   // The parts are independent: several are read at the same time, in their order.
   const trees: KnowledgeNode[] = new Array<KnowledgeNode>(parts.length);
   let next = 0;
@@ -276,5 +371,5 @@ export async function indexSource(
   };
   const workers = Math.max(1, Math.min(options.concurrency ?? 3, parts.length));
   await Promise.all(Array.from({ length: workers }, worker));
-  return assemble(trees);
+  return groundedTree(await assemble(trees), input.text);
 }

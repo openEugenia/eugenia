@@ -4,12 +4,12 @@ title: Mean and true Black Moon
 order: 2
 ---
 
-This section explains the two primary methods astrologers use to calculate the Black Moon Lilith. The mean Black Moon is based on an averaged, idealized orbit of the Moon, while the true Black Moon accounts for the Moon's actual, irregular orbit. This distinction is crucial for astrological interpretations, as the two methods can yield slightly different positions.
+Astrologers compute the Black Moon using two distinct methods. The mean Black Moon is based on an averaged orbit of the Moon, providing a simplified and consistent calculation. In contrast, the true Black Moon follows the Moon's actual, irregular orbit, accounting for its elliptical and perturbed path.
 
 ## Knowledge to extract
 
 ### Difference between mean and true Black Moon
-The **mean Black Moon** follows an averaged orbit of the Moon, whereas the **true Black Moon** follows its actual, irregular orbit.
+The **mean Black Moon** is computed using an averaged orbit, while the **true Black Moon** follows the Moon's actual, irregular orbit.
 
 - Question: What is the difference between the mean and true Black Moon?
-- Answer: The mean Black Moon uses an averaged orbit, while the true Black Moon follows the actual orbit.
+- Answer: The mean Black Moon uses an averaged orbit; the true Black Moon uses the actual orbit.

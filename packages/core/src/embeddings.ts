@@ -511,3 +511,55 @@ export function embeddingChanges(
   }
   return changes;
 }
+
+// ---------------------------------------------------------------------------
+// Vector of one element
+// ---------------------------------------------------------------------------
+
+/** Stored embedding vector of an element, with its state. */
+export interface ElementVector {
+  model: string;
+  generated: string;
+  /** `current`: computed from the current text of the element; `stale` otherwise. */
+  status: "current" | "stale";
+  values: Float32Array;
+}
+
+/** Embedding vector of a page (`_embedding.json`), or `null` if it has none. */
+export async function pageVector(view: WikiView, node: WikiNode): Promise<ElementVector | null> {
+  if (!node.embedding || !view.files.has(node.embedding.path)) return null;
+  const doc = parseEmbedding(await view.readText(node.embedding.path));
+  const textSha = await embeddingTextSha(embeddingText(await view.readText(node.indexPath)));
+  return {
+    model: doc.model,
+    generated: doc.generated,
+    status: doc.textSha === textSha ? "current" : "stale",
+    values: doc.vector,
+  };
+}
+
+/** Embedding vector of a section of the index of a source, or `null` if it has none. */
+export async function sectionVector(
+  view: WikiView,
+  source: WikiNode,
+  key: string,
+): Promise<ElementVector | null> {
+  const file = source.sourceIndex?.embeddings;
+  if (!file || !view.files.has(file.path)) return null;
+  const doc = parseSectionEmbeddings(await view.readText(file.path));
+  const item = doc.items.get(key);
+  if (!item) return null;
+  const index = await readSourceIndex(view, source);
+  const section = index ? sourceSections(source.id, index.root).find((s) => s.key === key) : null;
+  const textSha = section
+    ? await embeddingTextSha(
+        sectionEmbeddingText(source.title, section).slice(0, EMBEDDING_MAX_CHARS),
+      )
+    : "";
+  return {
+    model: doc.model,
+    generated: doc.generated,
+    status: item.textSha === textSha ? "current" : "stale",
+    values: item.vector,
+  };
+}

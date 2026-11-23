@@ -31,10 +31,14 @@ export async function demoRepos(): Promise<{ privateRepo: FakeRepo; publicRepo: 
 
 export async function saveSettings(
   page: Page,
-  options: { token?: string; anthropicKey?: string },
+  options: { token?: string; anthropicKey?: string; autoSummarize?: boolean },
 ): Promise<void> {
   await page.goto("#/settings");
   await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
+  // Descriptions re-evaluated in the background: off unless a test is about them.
+  await page
+    .getByLabel(/Re-evaluate the stale descriptions automatically/)
+    .setChecked(options.autoSummarize === true);
   if (options.token)
     await page.getByLabel("Personal access token (fine-grained)").fill(options.token);
   if (options.anthropicKey) {
