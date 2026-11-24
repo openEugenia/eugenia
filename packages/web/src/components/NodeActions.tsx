@@ -57,10 +57,13 @@ export function DeleteDialog({
   node,
   open,
   onClose,
+  stay = false,
 }: {
   node: WikiNode;
   open: boolean;
   onClose(): void;
+  /** Stay on the current view once the page is deleted (otherwise: go to its parent). */
+  stay?: boolean;
 }) {
   const workspace = useWiki((s) => s.workspace);
   const stage = useWiki((s) => s.stage);
@@ -73,7 +76,7 @@ export function DeleteDialog({
       const changes = await deleteNode(workspace, node.id, { recursive });
       await stage(changes, `Delete "${node.title}"${count ? ` and ${count} page(s)` : ""}`);
       onClose();
-      navigate({ name: "node", id: node.parentId ?? workspace.tree.rootId });
+      if (!stay) navigate({ name: "node", id: node.parentId ?? workspace.tree.rootId });
       toast("Page deleted (waiting to be saved).", "success");
     } catch (error) {
       toast(errorMessage(error), "error");

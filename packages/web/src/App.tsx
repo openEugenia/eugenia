@@ -81,7 +81,8 @@ function WikiRoute({ route }: { route: Route }) {
   const libraryId = useWiki((s) => s.derived?.tree.libraryId);
   switch (route.name) {
     case "root":
-      return rootId ? <NodeView id={rootId} key={rootId} /> : null;
+      // The unified graph is the home of the wiki.
+      return rootId ? <GraphView /> : null;
     case "node":
       // The library root is the list of sources.
       // The library root is the list of sources; a section is a page of the index of a source.

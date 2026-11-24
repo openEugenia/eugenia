@@ -17,6 +17,8 @@ import {
   MessageCircleQuestion,
   MessagesSquare,
   Network,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   RefreshCw,
   Search,
@@ -177,6 +179,8 @@ function IndexTree({
 }
 
 export type Section = "wiki" | "library" | "discussions";
+
+const SIDEBAR_KEY = "eugenia:sidebar";
 
 /** Space matching the open page. */
 function sectionFor(route: Route, derived: Derived, currentId: string | undefined): Section {
@@ -366,6 +370,22 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
   const editable = useWiki((s) => canEdit(s));
   const route = useRoute();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // On a wide screen, the side tree is optional: the graph is enough (remembered).
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === "hidden";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (sidebarHidden) localStorage.setItem(SIDEBAR_KEY, "hidden");
+      else localStorage.removeItem(SIDEBAR_KEY);
+    } catch {
+      // storage unavailable
+    }
+  }, [sidebarHidden]);
   const [query, setQuery] = useState(route.name === "search" ? (route.q ?? "") : "");
   const routeSection = derived ? sectionFor(route, derived, currentId) : "wiki";
   const [section, setSection] = useState<Section>(routeSection);
@@ -385,8 +405,20 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
   };
 
   return (
-    <div className={`shell${sidebarOpen ? " sidebar-open" : ""}`}>
+    <div
+      className={`shell${sidebarOpen ? " sidebar-open" : ""}${sidebarHidden ? " no-sidebar" : ""}`}
+    >
       <header className="app-bar">
+        <button
+          type="button"
+          className="oe-button oe-button--ghost oe-button--sm icon-only sidebar-toggle"
+          aria-label={sidebarHidden ? "Show the side tree" : "Hide the side tree"}
+          title={sidebarHidden ? "Show the side tree" : "Hide the side tree"}
+          aria-pressed={!sidebarHidden}
+          onClick={() => setSidebarHidden((v) => !v)}
+        >
+          {sidebarHidden ? <PanelLeftOpen /> : <PanelLeftClose />}
+        </button>
         <button
           type="button"
           className="oe-button oe-button--ghost oe-button--sm icon-only menu-toggle"
@@ -453,9 +485,9 @@ export function AppShell({ children, currentId }: { children: ReactNode; current
           </a>
           <a
             className="oe-button oe-button--ghost oe-button--sm icon-only"
-            href={href({ name: "graph" })}
+            href={href({ name: "root" })}
             aria-label="Graph"
-            title="Graph"
+            title="Graph of the whole wiki"
           >
             <Network />
           </a>

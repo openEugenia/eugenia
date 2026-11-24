@@ -111,7 +111,7 @@ The functional definitions come from `functional_doc/`. This table states how th
 - Build: **Vite** (+ `vite-plugin-pwa`), **pnpm workspaces** monorepo.
 - Markdown: **unified / remark / rehype** (parsing, frontmatter, rendering, link rewriting).
 - Editor: **CodeMirror 6**.
-- Visualization: collapsible tree + graph view (d3-hierarchy); progress charts.
+- Visualization: collapsible tree + unified graph (**xyflow**, `@xyflow/react`, styled with the tokens of the charter); progress charts.
 - Local storage: **IndexedDB** (Dexie or idb).
 - Document import: **pdf.js** for PDFs (audio and video: later, §14).
 - Tests: **Vitest** (core), **Playwright** (web).
@@ -535,7 +535,8 @@ Each source of the library is transformed into an **index**: a tree of concepts 
 - Without a parameter: home page (presentation of Eugenia, repository input, recently viewed wikis, creation of a new wiki).
 
 ### 9.2 Views
-1. **Side panel** with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, each branch with two discreet counters of its sources and discussions (common hierarchy, §5.10) that open the filtered Library or Discussions, icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title; the open source unfolds its index as a tree), **Discussions** (recent exchanges); both follow the branch filter of the main view.
+0. **Unified graph** (home of a wiki, `#/`; a branch: `#/graph?root=<id>`): the whole common hierarchy (§5.10) as one tree, taking the whole content area — categories, knowledge items and their flashcards, the sources filed in the categories and the parts of their index (§8.6), the discussions placed under their page. Each kind of element has its color and a slightly different card (folder, statement, small card, record, dashed part of an index, rounded discussion); only the parent-child links of the tree are drawn. The layout is computed from left to right, never dragged: each card has a button to fold or unfold its children (the index of a source is read when it is unfolded), and the unfolded branches are remembered. A selected card shows the content of its element (description, statement, question and answer, bibliographic record and state of the index, knowledge proposed by a part of an index with its "add to my wiki" buttons, start of a discussion) and every action on it (open, center the graph on it, edit, add a knowledge item, a subcategory, a source or a flashcard, index, extract, file in a category, quiz, questions, discuss, change the visibility, move, delete), so that the user can work from the graph alone. Zoom buttons, "show everything", "unfold all" / "fold all", and an optional overview (minimap).
+1. **Side panel** (optional on a wide screen: hidden or shown from the top bar, remembered) with three tabs, which follow the open page: **Wiki** (collapsible tree of categories and knowledge, each branch with two discreet counters of its sources and discussions (common hierarchy, §5.10) that open the filtered Library or Discussions, icon per type, public/private badge, mastery gauge, "stale description" and "needs a source" badges, "changed offline" indicator), **Library** (sources by title; the open source unfolds its index as a tree), **Discussions** (recent exchanges); both follow the branch filter of the main view.
 2. **Category**: description at the top, introduction, subcategories and knowledge items with their short descriptions, the sources filed in it, backlinks, related discussions.
 3. **Knowledge item**: statement (target in bold), sources (with location), flashcards and their mastery, origin (source or discussion); **flashcard**: question, expected answer, tested knowledge, mastery curve.
 3a. **Library**: list of sources filterable by category, kind, tag and text, sorting, knowledge that needs a source; **source**: the category it is filed in (changeable), bibliographic record, personal file, content, its index (state, generation in the background, summary, sections as cards, knowledge to extract), knowledge that cites it; **section** of an index: a page of its own, browsed like a category (§8.6); **Eugenia's tasks**: the tasks in progress, the descriptions to re-evaluate, the state of the index of every source and their indexing in the background with a chosen model (§11.4). Every indexed page and section gives access to its embedding vector. In the public part, a private source shows its bibliographic record only, with a "Record only" badge.
@@ -543,7 +544,7 @@ Each source of the library is transformed into an **index**: a tree of concepts 
 4. **Extraction**: source text with highlights, panel of proposed knowledge and of the new categories proposed for the document (§8.1).
 5. **Quiz**: conversation with Eugenia, score and feedback after each answer, session progress.
 6. **Discussion**: chronological messages, Eugenia's answer streamed; quick note; quiz read-only.
-7. **Graph**: visualization of the tree (zoom, focus on a branch).
+7. **Graph**: see view 0, the unified graph.
 8. **Dashboard**: indicators and progress curves.
 9. **Search**: full text (client-side index) with filters by type, tag, visibility and mastery; for the owner, search by meaning across the pages, the discussions and the sections of the source indexes.
 10. **Editor**: Markdown, metadata as a form (the raw frontmatter is never shown).

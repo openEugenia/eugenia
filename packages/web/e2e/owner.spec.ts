@@ -37,8 +37,71 @@ test.describe("owner", () => {
     const repos = await demoRepos();
     await openOwner(page, repos);
     await expect(sidebar(page).getByRole("link", { name: "Philosophy and thought" })).toBeVisible();
-    await expect(page.locator(".description")).toContainText("Descartes' philosophy");
+    await expect(page.locator(".graph-card__description")).toContainText("Descartes' philosophy");
     await expect(page.locator(".app-bar")).not.toContainText("Read-only");
+  });
+
+  test("works from the unified graph alone: unfold, select, act on a card", async ({ page }) => {
+    const repos = await demoRepos();
+    await openOwner(page, repos);
+    const graph = page.locator(".graph-canvas");
+    const card = (title: string | RegExp) =>
+      graph
+        .locator(".react-flow__node")
+        .filter({ has: page.locator(".graph-card__title", { hasText: title }) });
+    // The focus is selected: its content and its actions.
+    await expect(graph.getByRole("group", { name: "Actions on Demo wiki" })).toBeVisible();
+    // Only the links of the tree are drawn.
+    await expect(graph.locator(".react-flow__edge")).toHaveCount(
+      await graph
+        .locator(".react-flow__node")
+        .count()
+        .then((n) => n - 1),
+    );
+    await graph.getByRole("button", { name: /^Unfold Religion and beliefs/ }).click();
+    await card(/^Lilith$/).click();
+    await expect(card(/^Lilith$/).locator(".knowledge")).toContainText(
+      "female demon of Jewish tradition",
+    );
+    await expect(
+      card(/^Lilith$/).getByRole("link", { name: "Open the page", exact: true }),
+    ).toBeVisible();
+    // Unfolded branches are remembered.
+    await page.reload();
+    await expect(graph.getByRole("button", { name: /^Fold Religion and beliefs/ })).toBeVisible();
+
+    // A source unfolds into the parts of its index; a part proposes its knowledge, added in
+    // one click to the category of the source.
+    await page.goto("?repo=alice/eugenia-wiki#/graph?root=01M6BSZRC0GMZD0N3KYADANR5K");
+    await expect(page.getByRole("heading", { name: "Astronomy", level: 1 })).toBeVisible();
+    await graph.getByRole("button", { name: /^Unfold Wikipedia: Black Moon Lilith/ }).click();
+    await card("Mean and true Black Moon").click();
+    await card("Mean and true Black Moon")
+      .getByRole("button", { name: "Add it to my wiki" })
+      .click();
+    await expect(page.getByText("1 knowledge item added to your wiki.")).toBeVisible();
+    expect(repos.privateRepo.log()[0]).toBe(
+      'Knowledge "Difference between mean and true Black Moon", from "Wikipedia: Black Moon Lilith"',
+    );
+    await expect(card("Difference between mean and true Black Moon")).toBeVisible();
+
+    // Dialogs open from the cards; the graph stays.
+    await page.getByRole("button", { name: "Show everything" }).click();
+    await card(/^Black Moon$/).click();
+    await card(/^Black Moon$/)
+      .getByRole("button", { name: "Move" })
+      .click();
+    await expect(page.getByRole("dialog")).toContainText('Move "Black Moon" under');
+    await page.keyboard.press("Escape");
+
+    // The side tree is optional, and stays hidden once hidden.
+    await page.getByRole("button", { name: "Hide the side tree" }).click();
+    await expect(sidebar(page)).toBeHidden();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Astronomy", level: 1 })).toBeVisible();
+    await expect(sidebar(page)).toBeHidden();
+    await page.getByRole("button", { name: "Show the side tree" }).click();
+    await expect(sidebar(page)).toBeVisible();
   });
 
   test("switches from the public repository to the private one", async ({ page }) => {
